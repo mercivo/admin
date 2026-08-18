@@ -1,5 +1,4 @@
 import { BadRequestException, ConflictException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
-import Redis from 'ioredis';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -12,6 +11,7 @@ import { hashPassword, verifyPassword } from './password.util';
 import { TRIAL_PERMISSIONS } from '../system/permission-catalog';
 import { DictType } from '../dict/dict-type.entity';
 import { Plan } from '../system/plan.entity';
+import { CaptchaStore } from './captcha-store';
 
 @Injectable()
 export class AuthService {
@@ -22,7 +22,7 @@ export class AuthService {
     @InjectRepository(Tenant) private readonly tenants: Repository<Tenant>,
     @InjectRepository(Site) private readonly sites: Repository<Site>,
     @InjectRepository(Plan) private readonly plans: Repository<Plan>,
-    @Inject('CAPTCHA_REDIS') private readonly captchaRedis: Redis,
+    @Inject('CAPTCHA_REDIS') private readonly captchaRedis: CaptchaStore,
   ) {}
 
   async captcha() {

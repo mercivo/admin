@@ -11,6 +11,7 @@ import { User } from './user.entity';
 import { Tenant } from '../site/tenant.entity';
 import { Plan } from '../system/plan.entity';
 import Redis from 'ioredis';
+import { MemoryCaptchaStore } from './captcha-store';
 
 @Module({
   imports: [
@@ -29,7 +30,19 @@ import Redis from 'ioredis';
   providers: [
     JwtStrategy,
     AuthService,
-    { provide: 'CAPTCHA_REDIS', inject: [ConfigService], useFactory: (config: ConfigService) => new Redis({ host: config.get<string>('redis.host') || 'localhost', port: config.get<number>('redis.port') || 6379, lazyConnect: false, maxRetriesPerRequest: 2 }) },
+    {
+      provide: 'CAPTCHA_REDIS',
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        if (!process.env.REDIS_HOST?.trim()) return new MemoryCaptchaStore();
+        return new Redis({
+          host: config.get<string>('redis.host') || 'localhost',
+          port: config.get<number>('redis.port') || 6379,
+          lazyConnect: false,
+          maxRetriesPerRequest: 2,
+        });
+      },
+    },
   ],
   exports: [JwtModule],
 })

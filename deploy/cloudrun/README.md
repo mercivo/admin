@@ -8,14 +8,13 @@
 
 - Artifact Registry Docker 仓库：`mercivo`
 - Cloud SQL for MySQL 8：数据库 `seo_platform`，用户 `mercivo`
-- Memorystore for Redis，并记录私网 IP
-- Serverless VPC Access Connector：`mercivo-vpc`
 - Secret Manager：
   - `mercivo-db-password`
   - `mercivo-jwt-secret`
   - `mercivo-system-admin-password`
 - 运行服务账号：`mercivo-runtime@PROJECT_ID.iam.gserviceaccount.com`
-- Cloud Storage 商品图片存储桶，并记录存储桶名和公开访问前缀
+
+首次启动可以暂不创建 Redis 和 Cloud Storage：未配置 `REDIS_HOST` 时验证码保存在 API 实例内存中，流水线会把 API 限制为最多 1 个实例；未配置存储桶时商品图片上传功能会返回“存储未配置”。正式扩容前再创建 Memorystore、VPC Connector 和存储桶。
 
 启用 API：
 
@@ -25,8 +24,7 @@ gcloud services enable \
   cloudbuild.googleapis.com \
   artifactregistry.googleapis.com \
   sqladmin.googleapis.com \
-  secretmanager.googleapis.com \
-  vpcaccess.googleapis.com
+  secretmanager.googleapis.com
 ```
 
 创建镜像仓库和运行账号：
@@ -50,10 +48,6 @@ gcloud projects add-iam-policy-binding PROJECT_ID \
 gcloud projects add-iam-policy-binding PROJECT_ID \
   --member="serviceAccount:mercivo-runtime@PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
-
-gcloud projects add-iam-policy-binding PROJECT_ID \
-  --member="serviceAccount:mercivo-runtime@PROJECT_ID.iam.gserviceaccount.com" \
-  --role="roles/storage.objectAdmin"
 ```
 
 ## 2. Cloud Build 服务账号权限
@@ -104,14 +98,10 @@ gcloud iam service-accounts add-iam-policy-binding \
 | --- | --- |
 | `_REGION` | `asia-east1` |
 | `_CLOUD_SQL_INSTANCE` | `project-id:asia-east1:mercivo-mysql` |
-| `_REDIS_HOST` | Memorystore 私网 IP |
-| `_VPC_CONNECTOR` | `mercivo-vpc` |
 | `_ADMIN_ORIGIN` | `https://admin.mercivo.com` |
 | `_API_PUBLIC_URL` | `https://api.mercivo.com` |
 | `_STOREFRONT_PUBLIC_URL` | `https://sites.mercivo.com` |
 | `_STOREFRONT_CNAME_TARGET` | `sites.mercivo.com` |
-| `_GCS_BUCKET` | 商品图片存储桶名称 |
-| `_GCS_PUBLIC_BASE_URL` | `https://storage.googleapis.com/BUCKET_NAME` |
 
 如果控制台连接仓库时持续出现 `Deadline expired before operation could complete`，可绕过该页面，用 CLI 创建触发器：
 
@@ -123,7 +113,7 @@ gcloud builds triggers create github \
   --repo-name=admin \
   --branch-pattern='^main$' \
   --build-config=cloudbuild.yaml \
-  --substitutions=_REGION=asia-east1,_CLOUD_SQL_INSTANCE=PROJECT_ID:asia-east1:mercivo-mysql,_REDIS_HOST=REDIS_PRIVATE_IP,_VPC_CONNECTOR=mercivo-vpc,_ADMIN_ORIGIN=https://admin.mercivo.com,_API_PUBLIC_URL=https://api.mercivo.com,_STOREFRONT_PUBLIC_URL=https://sites.mercivo.com,_STOREFRONT_CNAME_TARGET=sites.mercivo.com,_GCS_BUCKET=BUCKET_NAME,_GCS_PUBLIC_BASE_URL=https://storage.googleapis.com/BUCKET_NAME
+  --substitutions=_REGION=asia-east1,_CLOUD_SQL_INSTANCE=PROJECT_ID:asia-east1:mercivo-mysql,_ADMIN_ORIGIN=https://admin.mercivo.com,_API_PUBLIC_URL=https://api.mercivo.com,_STOREFRONT_PUBLIC_URL=https://sites.mercivo.com,_STOREFRONT_CNAME_TARGET=sites.mercivo.com
 ```
 
 如果 CLI 报仓库未连接，先重新安装或更新 `mercivo` 组织中的 Cloud Build GitHub App 授权；如果报权限错误，检查操作者是否具备 `roles/cloudbuild.connectionAdmin`、`roles/cloudbuild.builds.editor` 和 Service Usage 权限。若使用 Developer Connect/第二代代码库，请确保 Connection、Repository Link 和 Trigger 位于同一区域；若使用传统 Cloud Build GitHub App，则优先在 `global` 区域创建触发器。
@@ -133,8 +123,9 @@ gcloud builds triggers create github \
 Cloud Run 不能使用 `docker-compose.yml` 中的本地 MySQL、Redis Volume。流水线使用：
 
 - Cloud SQL Unix Socket：`/cloudsql/PROJECT:REGION:INSTANCE`
-- Memorystore Redis 私网 IP
-- VPC Connector 访问 Redis
+- 首次启动使用 API 单实例内存验证码，不依赖 Redis
+
+需要水平扩容 API 时，创建 Memorystore Redis 和 Serverless VPC Access Connector，配置 `REDIS_HOST`/`REDIS_PORT` 并恢复多个 API 实例。商品图片上传需要另行配置 `GCS_BUCKET`、`GCS_PROJECT_ID` 和可选的 `GCS_PUBLIC_BASE_URL`。
 
 每次部署会先运行 `mercivo-migrate` Cloud Run Job，迁移成功后才更新 API，避免多个 API 实例同时执行迁移。
 
@@ -150,7 +141,7 @@ Cloud Run 不能使用 `docker-compose.yml` 中的本地 MySQL、Redis Volume。
 
 ```bash
 gcloud builds submit --config cloudbuild.yaml \
-  --substitutions=_REGION=asia-east1,_CLOUD_SQL_INSTANCE=PROJECT_ID:asia-east1:mercivo-mysql,_REDIS_HOST=REDIS_PRIVATE_IP,_VPC_CONNECTOR=mercivo-vpc,_ADMIN_ORIGIN=https://admin.mercivo.com,_API_PUBLIC_URL=https://api.mercivo.com,_STOREFRONT_PUBLIC_URL=https://sites.mercivo.com,_STOREFRONT_CNAME_TARGET=sites.mercivo.com,_GCS_BUCKET=BUCKET_NAME,_GCS_PUBLIC_BASE_URL=https://storage.googleapis.com/BUCKET_NAME
+  --substitutions=_REGION=asia-east1,_CLOUD_SQL_INSTANCE=PROJECT_ID:asia-east1:mercivo-mysql,_ADMIN_ORIGIN=https://admin.mercivo.com,_API_PUBLIC_URL=https://api.mercivo.com,_STOREFRONT_PUBLIC_URL=https://sites.mercivo.com,_STOREFRONT_CNAME_TARGET=sites.mercivo.com
 
 gcloud run services list --region=asia-east1
 gcloud run jobs executions list --job=mercivo-migrate --region=asia-east1
