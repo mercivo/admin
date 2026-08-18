@@ -1,5 +1,3 @@
----
-
 ```text
 # 请执行 Trae 项目初始化任务：独立站SEO管理平台（NestJS + MySQL + React）
 
