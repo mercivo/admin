@@ -31,6 +31,17 @@
 
 先部署 API 并确认 `/healthz` 返回 200，再把其完整 `https://...run.app` 地址作为另外两个服务的 `API_INTERNAL_URL`。Admin 浏览器继续请求同源 `/api/v1`，由 Admin Nginx 转发到 API，因此不依赖浏览器跨域；Storefront 同样由服务端转发并保留租户原始 Host。
 
+Cloud Run 自动生成的服务 URL 虽然包含一段哈希，但它属于服务而不是 revision，发布新 revision 后不会变化。也可以在域名准备好后统一改成 `API_INTERNAL_URL=https://api.mercivo.com`。三服务调用链如下：
+
+```text
+浏览器 -> mercivo-admin-ui.run.app/api/* -> Admin Nginx -> API_INTERNAL_URL
+浏览器 -> mercivo-storefront.run.app/api/* -> Storefront Node -> API_INTERNAL_URL
+```
+
+Admin 和 Storefront 均不在浏览器中直接暴露 Cloud Run API 地址。两者的 `API_INTERNAL_URL` 必须填写 API 服务详情页显示的完整 HTTPS URL，不能填写 revision 名称、容器名或 `localhost`。当前方案要求 API 服务允许未经身份验证的调用；如果后续关闭公开调用，需要在代理层增加 Google ID Token，不能只切换 Cloud Run 的认证开关。
+
+如果 API revision 报“未监听 `PORT=8080`”，先查看 revision 日志中该提示之前的应用错误。API 本身会读取 Cloud Run 注入的 `PORT`；常见真实原因是 Cloud SQL 未绑定、`DB_SOCKET_PATH` 错误、Secret 未授权或 migration 失败，导致 NestJS 在开始监听前退出。
+
 直接连接代码库模式不会自动执行独立的 migration Job。API 容器启动时会运行 migration，所以在创建表完成前保持 `max instances=1`；正式扩容时建议切换到 `cloudbuild.yaml`，由 `mercivo-migrate` Job 在 API revision 更新前执行迁移。
 
 ## 1. 前置资源

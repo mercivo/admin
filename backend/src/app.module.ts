@@ -40,18 +40,15 @@ import { OutreachModule } from './modules/outreach/outreach.module';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'mysql',
-        host: configService.get<string>('database.host'),
-        port: configService.get<number>('database.port'),
-        username: configService.get<string>('database.username'),
-        password: configService.get<string>('database.password'),
-        database: configService.get<string>('database.database'),
-        autoLoadEntities: true,
-        synchronize: process.env.DB_SYNCHRONIZE === 'true' || process.env.NODE_ENV !== 'production',
-        charset: 'utf8mb4',
-        timezone: '+00:00',
-      }),
+      useFactory: (configService: ConfigService) => {
+        const database = configService.get<Record<string, unknown>>('database') || {};
+        return {
+          type: 'mysql' as const,
+          ...database,
+          autoLoadEntities: true,
+          synchronize: process.env.DB_SYNCHRONIZE === 'true' || process.env.NODE_ENV !== 'production',
+        };
+      },
     }),
     CacheModule.register({ isGlobal: true, ttl: 300000, max: 10000 }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
