@@ -48,20 +48,20 @@ API_INTERNAL_URL=https://mercivo-api-753805870951.asia-east1.run.app
 
 不要附加尾部 `/`、`/api/v1`、逗号或中文标点。该地址是 Cloud Run 服务级 URL，不是 revision URL；更新镜像和切换 revision 不会改变它。只有删除 `mercivo-api` 服务后重新创建不同服务，或迁移项目/区域时才需要更新。生产自定义域名就绪后可统一换成 `https://api.mercivo.com`。
 
-生产环境中的 Admin 和 Storefront 都强制要求该变量：缺失时容器会直接拒绝启动并在日志中指出 `API_INTERNAL_URL`，避免服务表面部署成功、所有接口随后静默返回 502。
+Admin 和 Storefront 镜像内置上述当前项目的服务 URL，未显式设置变量也可以启动；`API_INTERNAL_URL` 仍可在 Cloud Run 中覆盖，便于后续切换到 `https://api.mercivo.com`。
 
 如果 API revision 报“未监听 `PORT=8080`”，先查看 revision 日志中该提示之前的应用错误。API 本身会读取 Cloud Run 注入的 `PORT`；常见真实原因是 Cloud SQL 未绑定、`DB_SOCKET_PATH` 错误、Secret 未授权或 migration 失败，导致 NestJS 在开始监听前退出。
 
-直接连接代码库使用的 `/Dockerfile.api` 内置启动网关：容器会立即监听 Cloud Run 注入的 `PORT=8080`，数据库初始化期间返回带 `Retry-After` 的 503 JSON；migration 和种子补全完成后启动内部 NestJS 并自动转发流量。日志中依次出现以下内容代表启动成功：
+直接连接代码库使用的 `/Dockerfile.api` 内置启动网关：容器会立即监听 Cloud Run 注入的 `PORT=8080`，随后启动内部 NestJS 并自动转发流量。在线服务默认设置 `DB_PREPARE_ON_START=false`，不会在每次 revision 启动时执行 migration，避免数据库准备阻塞 Cloud Run 启动。日志中依次出现以下内容代表启动成功：
 
 ```text
 Startup gateway listening on 0.0.0.0:8080
-Database preparation completed
+Starting NestJS on internal port 3000
 Server running on http://localhost:3000
 API ready; gateway forwarding 8080 -> 3000
 ```
 
-这项网关只解决“数据库准备完成前没有端口监听”的启动探针问题，不会吞掉数据库错误。Cloud SQL、Secret 或 migration 失败时，容器会明确输出 `API startup failed` 后退出，应继续按其前一条错误修复配置。
+数据库 migration 应使用 `cloudbuild.yaml` 中的 `mercivo-migrate` Cloud Run Job 单独执行。只有需要临时兼容首次直接部署时，才把 API revision 的 `DB_PREPARE_ON_START` 设为 `true`；初始化成功后立即恢复为 `false`。Cloud SQL 或 NestJS 启动失败时，容器会明确输出 `API startup failed` 后退出。
 
 直接连接代码库模式不会自动执行独立的 migration Job。API 容器启动时会运行 migration，所以在创建表完成前保持 `max instances=1`；正式扩容时建议切换到 `cloudbuild.yaml`，由 `mercivo-migrate` Job 在 API revision 更新前执行迁移。
 

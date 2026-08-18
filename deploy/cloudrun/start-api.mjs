@@ -37,7 +37,8 @@ const gateway = http.createServer((request, response) => {
 
 gateway.listen(publicPort, '0.0.0.0', () => {
   console.log(`Startup gateway listening on 0.0.0.0:${publicPort}`);
-  prepareDatabase();
+  if (process.env.DB_PREPARE_ON_START === 'true') prepareDatabase();
+  else startApplication();
 });
 
 let child;
@@ -69,6 +70,15 @@ async function prepareDatabase() {
     console.log('Preparing database before starting NestJS');
     await run('/app/start-api.sh', []);
     console.log('Database preparation completed');
+    await startApplication();
+  } catch (error) {
+    fatal(error);
+  }
+}
+
+async function startApplication() {
+  try {
+    console.log(`Starting NestJS on internal port ${applicationPort}`);
     child = spawn('node', ['dist/main.js'], {
       stdio: 'inherit',
       env: { ...process.env, PORT: String(applicationPort), DB_SCHEMA_BOOTSTRAP: 'false' },

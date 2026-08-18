@@ -5,11 +5,10 @@ import { createReadStream } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 
 const root = new URL('./dist/', import.meta.url).pathname;
-const configuredApiOrigin = process.env.API_INTERNAL_URL?.trim().replace(/\/$/, '');
-if (process.env.NODE_ENV === 'production' && !configuredApiOrigin) {
-  throw new Error('API_INTERNAL_URL is required in production (example: https://mercivo-api-xxx.run.app)');
-}
-const apiOrigin = configuredApiOrigin || 'http://api:3000';
+const defaultApiOrigin = process.env.NODE_ENV === 'production'
+  ? 'https://mercivo-api-753805870951.asia-east1.run.app'
+  : 'http://api:3000';
+const apiOrigin = (process.env.API_INTERNAL_URL || defaultApiOrigin).trim().replace(/\/$/, '');
 try {
   const parsedApiOrigin = new URL(apiOrigin);
   if (!['http:', 'https:'].includes(parsedApiOrigin.protocol) || parsedApiOrigin.pathname !== '/') throw new Error();
