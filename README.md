@@ -1,4 +1,3 @@
-```text
 # 请执行 Trae 项目初始化任务：独立站SEO管理平台（NestJS + MySQL + React）
 
 ## 项目背景
@@ -513,4 +512,3 @@ export class SeoGlobal {
 - 结构化数据预览页为代码高亮展示（可参考react-syntax-highlighter）
 
 现在请开始执行初始化。
-```
