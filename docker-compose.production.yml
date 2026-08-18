@@ -1,0 +1,53 @@
+services:
+  mercivo-mysql:
+    ports: !reset []
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?请设置生产数据库密码}
+  mercivo-redis:
+    ports: !reset []
+  api:
+    ports: !reset []
+    environment:
+      NODE_ENV: production
+      DB_PASSWORD: ${DB_PASSWORD:?请设置生产数据库密码}
+      JWT_SECRET: ${JWT_SECRET:?请设置至少64位JWT密钥}
+      SYSTEM_ADMIN_PASSWORD: ${SYSTEM_ADMIN_PASSWORD:?请设置系统管理员强密码}
+      CORS_ORIGINS: https://${ADMIN_DOMAIN:?请设置后台域名}
+      STOREFRONT_CNAME_TARGET: ${STOREFRONT_CNAME_TARGET:?请设置独立站CNAME目标}
+  admin:
+    ports: !reset []
+  storefront:
+    ports: !reset []
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://localhost/healthz']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+  gateway:
+    image: caddy:2-alpine
+    container_name: mercivo-gateway
+    restart: unless-stopped
+    environment:
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:?请设置后台域名}
+      TLS_EMAIL: ${TLS_EMAIL:?请设置证书通知邮箱}
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - mercivo_caddy_data:/data
+      - mercivo_caddy_config:/config
+    depends_on:
+      storefront:
+        condition: service_healthy
+      admin:
+        condition: service_started
+      api:
+        condition: service_started
+    networks:
+      - mercivo-network
+
+volumes:
+  mercivo_caddy_data:
+  mercivo_caddy_config:

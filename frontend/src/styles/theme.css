@@ -1,0 +1,281 @@
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 14px;
+  --background: #F5F3FF;
+  --foreground: #1E1B35;
+  --card: #ffffff;
+  --card-foreground: #1E1B35;
+  --popover: #ffffff;
+  --popover-foreground: #1E1B35;
+  --primary: #7C6EF5;
+  --primary-foreground: #ffffff;
+  --secondary: #EDE9FE;
+  --secondary-foreground: #6550DC;
+  --muted: #E9E6FA;
+  --muted-foreground: #7A74A0;
+  --accent: #EDE9FE;
+  --accent-foreground: #6550DC;
+  --destructive: #EF4444;
+  --destructive-foreground: #ffffff;
+  --border: rgba(108, 80, 220, 0.1);
+  --input: transparent;
+  --input-background: #EDE9FE;
+  --switch-background: #C4BEFF;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: #7C6EF5;
+  --chart-1: #7C6EF5;
+  --chart-2: #10B981;
+  --chart-3: #8B5CF6;
+  --chart-4: #F59E0B;
+  --chart-5: #EF4444;
+  --radius: 0.5rem;
+  --sidebar: #FAFAFF;
+  --sidebar-foreground: #1E1B35;
+  --sidebar-primary: #7C6EF5;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #EDE9FE;
+  --sidebar-accent-foreground: #6550DC;
+  --sidebar-border: rgba(108, 80, 220, 0.08);
+  --sidebar-ring: #7C6EF5;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  html {
+    font-size: var(--font-size);
+  }
+
+  h1 {
+    font-size: var(--text-2xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h2 {
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h3 {
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  h4 {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  label {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  button {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  button:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  summary,
+  [role='button']:not([aria-disabled='true']),
+  input[type='button']:not(:disabled),
+  input[type='submit']:not(:disabled),
+  input[type='reset']:not(:disabled),
+  input[type='checkbox']:not(:disabled),
+  input[type='radio']:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  select:disabled,
+  [role='button'][aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+
+  input {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(108, 80, 220, 0.15);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(108, 80, 220, 0.25);
+}
+
+/* Ant Design overrides */
+.ant-card {
+  border-radius: 16px !important;
+  border: 1px solid rgba(108, 80, 220, 0.08) !important;
+  box-shadow: 0 1px 3px rgba(91, 68, 232, 0.04) !important;
+}
+
+.ant-table {
+  font-size: 13px;
+}
+
+.ant-table-thead > tr > th {
+  background: rgba(237, 233, 254, 0.3) !important;
+  color: var(--muted-foreground) !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  border-bottom: 1px solid rgba(108, 80, 220, 0.08) !important;
+}
+
+.ant-table-tbody > tr > td {
+  border-bottom: 1px solid rgba(108, 80, 220, 0.05) !important;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background: rgba(237, 233, 254, 0.2) !important;
+}
+
+.ant-btn {
+  border-radius: 10px !important;
+  font-weight: 500 !important;
+}
+
+.ant-btn-primary {
+  box-shadow: 0 2px 8px rgba(124, 110, 245, 0.25) !important;
+}
+
+.ant-input,
+.ant-select-selector {
+  border-radius: 10px !important;
+}
+
+/* Keep prefixed/search inputs optically identical to regular inputs.
+   An explicit inner line box also gives the text caret its normal full height. */
+.ant-input-affix-wrapper {
+  align-items: center !important;
+  min-height: 36px !important;
+  padding-block: 4px !important;
+  padding-inline: 12px !important;
+  border-radius: 10px !important;
+}
+
+.ant-input-affix-wrapper > input.ant-input {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding-block: 0 !important;
+  line-height: 28px !important;
+}
+
+.ant-input-affix-wrapper-sm {
+  min-height: 28px !important;
+  padding-block: 3px !important;
+}
+
+.ant-input-affix-wrapper-sm > input.ant-input {
+  height: 22px !important;
+  min-height: 22px !important;
+  line-height: 22px !important;
+}
+
+.ant-input-affix-wrapper-lg {
+  min-height: 42px !important;
+  padding-block: 5px !important;
+}
+
+.ant-input-affix-wrapper-lg > input.ant-input {
+  height: 32px !important;
+  min-height: 32px !important;
+  line-height: 32px !important;
+}
+
+.ant-input-prefix,
+.ant-input-suffix {
+  display: inline-flex !important;
+  align-items: center !important;
+  color: var(--muted-foreground);
+}
+
+.ant-input-prefix {
+  margin-inline-end: 8px !important;
+}
+
+.ant-input-affix-wrapper-focused,
+.ant-input-affix-wrapper:focus-within {
+  box-shadow: 0 0 0 3px rgba(124, 110, 245, 0.12) !important;
+}
+
+.ant-tag {
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+}
+
+.ant-progress-text {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}

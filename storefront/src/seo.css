@@ -1,0 +1,16 @@
+.product {
+  position: relative;
+}
+
+.product-detail-link {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+.product button,
+.product a:not(.product-detail-link) {
+  position: relative;
+  z-index: 2;
+}

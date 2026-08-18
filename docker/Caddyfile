@@ -1,0 +1,23 @@
+{
+	email {$TLS_EMAIL}
+	on_demand_tls {
+		ask http://api:3000/api/v1/public/domains/authorize
+	}
+}
+
+{$ADMIN_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy admin:80
+}
+
+https:// {
+	tls {
+		on_demand
+	}
+	encode zstd gzip
+	reverse_proxy storefront:80
+}
+
+http:// {
+	redir https://{host}{uri} permanent
+}

@@ -1,0 +1,146 @@
+services:
+  # ============================================================
+  # MySQL 8.0
+  # ============================================================
+  mercivo-mysql:
+    image: mysql:8.0
+    container_name: mercivo-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-seo_platform_2024}
+      MYSQL_DATABASE: ${DB_DATABASE:-seo_platform}
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    ports:
+      - '3307:3306'
+    volumes:
+      - mercivo_mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+00:00
+      - --default-authentication-plugin=caching_sha2_password
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'root', '-p${DB_PASSWORD:-seo_platform_2024}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - mercivo-network
+
+  # ============================================================
+  # Redis 7
+  # ============================================================
+  mercivo-redis:
+    image: redis:7-alpine
+    container_name: mercivo-redis
+    restart: unless-stopped
+    ports:
+      - '${REDIS_HOST_PORT:-6380}:6379'
+    volumes:
+      - mercivo_redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - mercivo-network
+
+  # ============================================================
+  # NestJS API 与发布服务
+  # ============================================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: mercivo-api:latest
+    container_name: mercivo-api
+    restart: unless-stopped
+    ports:
+      - '${API_PORT:-3000}:3000'
+    environment:
+      NODE_ENV: production
+      APP_PORT: 3000
+      DB_HOST: mercivo-mysql
+      DB_PORT: 3306
+      DB_USERNAME: root
+      DB_PASSWORD: ${DB_PASSWORD:-seo_platform_2024}
+      DB_DATABASE: ${DB_DATABASE:-seo_platform}
+      DB_SYNCHRONIZE: 'false'
+      DB_SCHEMA_BOOTSTRAP: ${DB_SCHEMA_BOOTSTRAP:-false}
+      SEED_DATA_ENABLED: ${SEED_DATA_ENABLED:-false}
+      SYSTEM_ADMIN_BOOTSTRAP_ENABLED: ${SYSTEM_ADMIN_BOOTSTRAP_ENABLED:-true}
+      REDIS_HOST: mercivo-redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-seo-jwt-secret-change-in-production}
+      JWT_EXPIRES_IN: 7d
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@mercivo.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Mercivo@2026}
+      SYSTEM_ADMIN_USERNAME: ${SYSTEM_ADMIN_USERNAME:-admin}
+      SYSTEM_ADMIN_PASSWORD: ${SYSTEM_ADMIN_PASSWORD:-aihubflux@2026}
+      DEMO_TENANT_PHONE: ${DEMO_TENANT_PHONE:-13800000000}
+      DEMO_TENANT_PASSWORD: ${DEMO_TENANT_PASSWORD:-TenantAdmin@2026}
+      STOREFRONT_PREVIEW_HOSTS: ${STOREFRONT_PREVIEW_HOSTS:-localhost,127.0.0.1}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8088}
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+      GCS_PROJECT_ID: ${GCS_PROJECT_ID:-}
+      GCS_BUCKET: ${GCS_BUCKET:-}
+      GCS_PUBLIC_BASE_URL: ${GCS_PUBLIC_BASE_URL:-}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/gcs-key.json
+    volumes:
+      - ./secrets:/run/secrets:ro
+    depends_on:
+      mercivo-mysql:
+        condition: service_healthy
+      mercivo-redis:
+        condition: service_healthy
+    networks:
+      - mercivo-network
+
+  # 商家后台，仅供内部员工使用
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.admin
+      args:
+        VITE_STOREFRONT_PREVIEW_URL: ${STOREFRONT_PREVIEW_URL:-http://localhost}
+    image: mercivo-admin:latest
+    container_name: mercivo-admin
+    restart: unless-stopped
+    ports:
+      - '${ADMIN_PORT:-8088}:80'
+    depends_on:
+      - api
+    networks:
+      - mercivo-network
+
+  # 客户公开独立站，通过 Host 头解析站点
+  storefront:
+    build:
+      context: .
+      dockerfile: Dockerfile.storefront
+    image: mercivo-storefront:latest
+    container_name: mercivo-storefront
+    restart: unless-stopped
+    environment:
+      API_INTERNAL_URL: http://api:3000
+    ports:
+      - '80:80'
+    depends_on:
+      - api
+    networks:
+      - mercivo-network
+
+volumes:
+  mercivo_mysql_data:
+    driver: local
+  mercivo_redis_data:
+    driver: local
+
+networks:
+  mercivo-network:
+    driver: bridge

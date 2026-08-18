@@ -1,0 +1,23 @@
+# 编译输出
+dist/
+node_modules/
+
+# 环境变量
+.env
+
+# 日志
+*.log
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 测试
+coverage/
