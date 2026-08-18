@@ -14,6 +14,7 @@ export default new DataSource({
   entities: [join(__dirname, '..', '**', '*.entity.{ts,js}')],
   migrations: [join(__dirname, '..', 'migrations', '*.{ts,js}')],
   synchronize: false,
+  extra: process.env.DB_SOCKET_PATH ? { socketPath: process.env.DB_SOCKET_PATH } : undefined,
   charset: 'utf8mb4',
   timezone: '+00:00',
 });

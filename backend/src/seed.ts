@@ -28,6 +28,7 @@ async function seed() {
     username: process.env.DB_USERNAME || 'root',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_DATABASE || 'seo_platform',
+    extra: process.env.DB_SOCKET_PATH ? { socketPath: process.env.DB_SOCKET_PATH } : undefined,
     entities: [Product, Lead, DictType, DictEntry, Agent, Testimonial, AppConfig, TeamMember, KnowledgeFile, ChatSession, ChatMessage, Tenant, Site, SiteDomain, SiteVersion, User],
     synchronize: process.env.DB_SCHEMA_BOOTSTRAP === 'true',
     charset: 'utf8mb4',

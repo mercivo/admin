@@ -1,0 +1,136 @@
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+
+substitutions:
+  _REGION: asia-east1
+  _AR_REPOSITORY: mercivo
+  _API_SERVICE: mercivo-api
+  _ADMIN_SERVICE: mercivo-admin
+  _STOREFRONT_SERVICE: mercivo-storefront
+  _MIGRATION_JOB: mercivo-migrate
+  _CLOUD_SQL_INSTANCE: change-me:asia-east1:mercivo-mysql
+  _DB_USER: mercivo
+  _DB_NAME: seo_platform
+  _REDIS_HOST: 10.0.0.3
+  _REDIS_PORT: '6379'
+  _VPC_CONNECTOR: mercivo-vpc
+  _ADMIN_ORIGIN: https://admin.example.com
+  _API_PUBLIC_URL: https://api.example.com
+  _STOREFRONT_PUBLIC_URL: https://sites.example.com
+  _STOREFRONT_CNAME_TARGET: sites.example.com
+  _GCS_BUCKET: mercivo-assets
+  _GCS_PUBLIC_BASE_URL: https://storage.googleapis.com/mercivo-assets
+
+steps:
+  - id: test-api
+    name: node:20-alpine
+    dir: backend
+    entrypoint: sh
+    args: ['-c', 'npm ci --legacy-peer-deps && npm test -- --runInBand && npm run build']
+
+  - id: build-api
+    name: gcr.io/cloud-builders/docker
+    args: ['build', '-f', 'deploy/cloudrun/Dockerfile.api', '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/api:${BUILD_ID}', '.']
+    waitFor: ['test-api']
+
+  - id: build-storefront
+    name: gcr.io/cloud-builders/docker
+    args: ['build', '-f', 'deploy/cloudrun/Dockerfile.storefront', '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/storefront:${BUILD_ID}', '.']
+    waitFor: ['-']
+
+  - id: build-admin
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - deploy/cloudrun/Dockerfile.admin
+      - --build-arg
+      - VITE_API_BASE_URL=${_API_PUBLIC_URL}/api/v1
+      - --build-arg
+      - VITE_STOREFRONT_PREVIEW_URL=${_STOREFRONT_PUBLIC_URL}
+      - -t
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/admin:${BUILD_ID}
+      - .
+    waitFor: ['-']
+
+  - id: push-api
+    name: gcr.io/cloud-builders/docker
+    args: ['push', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/api:${BUILD_ID}']
+    waitFor: ['build-api']
+
+  - id: push-storefront
+    name: gcr.io/cloud-builders/docker
+    args: ['push', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/storefront:${BUILD_ID}']
+    waitFor: ['build-storefront']
+
+  - id: push-admin
+    name: gcr.io/cloud-builders/docker
+    args: ['push', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/admin:${BUILD_ID}']
+    waitFor: ['build-admin']
+
+  - id: deploy-migration-job
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - deploy
+      - ${_MIGRATION_JOB}
+      - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/api:${BUILD_ID}
+      - --region=${_REGION}
+      - --service-account=mercivo-runtime@${PROJECT_ID}.iam.gserviceaccount.com
+      - --command=/app/run-migrations.sh
+      - --set-cloudsql-instances=${_CLOUD_SQL_INSTANCE}
+      - --vpc-connector=${_VPC_CONNECTOR}
+      - --set-env-vars=NODE_ENV=production,DB_HOST=localhost,DB_PORT=3306,DB_USERNAME=${_DB_USER},DB_DATABASE=${_DB_NAME},DB_SOCKET_PATH=/cloudsql/${_CLOUD_SQL_INSTANCE},DB_SYNCHRONIZE=false,DB_SCHEMA_BOOTSTRAP=false,SEED_DATA_ENABLED=false,SYSTEM_ADMIN_BOOTSTRAP_ENABLED=true
+      - --set-secrets=DB_PASSWORD=mercivo-db-password:latest,SYSTEM_ADMIN_PASSWORD=mercivo-system-admin-password:latest
+      - --quiet
+    waitFor: ['push-api']
+
+  - id: run-migrations
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args: ['run', 'jobs', 'execute', '${_MIGRATION_JOB}', '--region=${_REGION}', '--wait', '--quiet']
+    waitFor: ['deploy-migration-job']
+
+  - id: deploy-api
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_API_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/api:${BUILD_ID}
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --service-account=mercivo-runtime@${PROJECT_ID}.iam.gserviceaccount.com
+      - --add-cloudsql-instances=${_CLOUD_SQL_INSTANCE}
+      - --vpc-connector=${_VPC_CONNECTOR}
+      - --port=8080
+      - --min=0
+      - --max=5
+      - --set-env-vars=NODE_ENV=production,DB_HOST=localhost,DB_PORT=3306,DB_USERNAME=${_DB_USER},DB_DATABASE=${_DB_NAME},DB_SOCKET_PATH=/cloudsql/${_CLOUD_SQL_INSTANCE},DB_SYNCHRONIZE=false,REDIS_HOST=${_REDIS_HOST},REDIS_PORT=${_REDIS_PORT},CORS_ORIGINS=${_ADMIN_ORIGIN},STOREFRONT_PREVIEW_HOSTS=${_STOREFRONT_CNAME_TARGET},STOREFRONT_CNAME_TARGET=${_STOREFRONT_CNAME_TARGET},TRUST_PROXY_HOPS=1,SYSTEM_ADMIN_BOOTSTRAP_ENABLED=false,SEED_DATA_ENABLED=false,GCS_PROJECT_ID=${PROJECT_ID},GCS_BUCKET=${_GCS_BUCKET},GCS_PUBLIC_BASE_URL=${_GCS_PUBLIC_BASE_URL}
+      - --set-secrets=DB_PASSWORD=mercivo-db-password:latest,JWT_SECRET=mercivo-jwt-secret:latest
+      - --quiet
+    waitFor: ['run-migrations']
+
+  - id: deploy-admin
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args: ['run', 'deploy', '${_ADMIN_SERVICE}', '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/admin:${BUILD_ID}', '--region=${_REGION}', '--platform=managed', '--allow-unauthenticated', '--port=8080', '--min=0', '--max=3', '--quiet']
+    waitFor: ['push-admin', 'deploy-api']
+
+  - id: deploy-storefront
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args: ['run', 'deploy', '${_STOREFRONT_SERVICE}', '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/storefront:${BUILD_ID}', '--region=${_REGION}', '--platform=managed', '--allow-unauthenticated', '--port=8080', '--min=0', '--max=10', '--set-env-vars=API_INTERNAL_URL=${_API_PUBLIC_URL}', '--quiet']
+    waitFor: ['push-storefront', 'deploy-api']
+
+images:
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/api:${BUILD_ID}
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/admin:${BUILD_ID}
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/storefront:${BUILD_ID}
+
+timeout: 1800s
