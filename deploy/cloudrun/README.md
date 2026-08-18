@@ -42,6 +42,17 @@ Admin 和 Storefront 均不在浏览器中直接暴露 Cloud Run API 地址。�
 
 如果 API revision 报“未监听 `PORT=8080`”，先查看 revision 日志中该提示之前的应用错误。API 本身会读取 Cloud Run 注入的 `PORT`；常见真实原因是 Cloud SQL 未绑定、`DB_SOCKET_PATH` 错误、Secret 未授权或 migration 失败，导致 NestJS 在开始监听前退出。
 
+直接连接代码库使用的 `/Dockerfile.api` 内置启动网关：容器会立即监听 Cloud Run 注入的 `PORT=8080`，数据库初始化期间返回带 `Retry-After` 的 503 JSON；migration 和种子补全完成后启动内部 NestJS 并自动转发流量。日志中依次出现以下内容代表启动成功：
+
+```text
+Startup gateway listening on 0.0.0.0:8080
+Database preparation completed
+Server running on http://localhost:3000
+API ready; gateway forwarding 8080 -> 3000
+```
+
+这项网关只解决“数据库准备完成前没有端口监听”的启动探针问题，不会吞掉数据库错误。Cloud SQL、Secret 或 migration 失败时，容器会明确输出 `API startup failed` 后退出，应继续按其前一条错误修复配置。
+
 直接连接代码库模式不会自动执行独立的 migration Job。API 容器启动时会运行 migration，所以在创建表完成前保持 `max instances=1`；正式扩容时建议切换到 `cloudbuild.yaml`，由 `mercivo-migrate` Job 在 API revision 更新前执行迁移。
 
 ## 1. 前置资源

@@ -8,4 +8,3 @@ fi
 
 npm run migration:run:prod
 DB_SCHEMA_BOOTSTRAP=false node dist/seed.js
-exec node dist/main.js

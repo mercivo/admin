@@ -13,6 +13,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./package.json
 COPY deploy/cloudrun/start-api.sh ./start-api.sh
+COPY deploy/cloudrun/start-api.mjs ./start-api.mjs
 RUN chmod +x ./start-api.sh
 EXPOSE 8080
-CMD ["./start-api.sh"]
+CMD ["node", "./start-api.mjs"]
