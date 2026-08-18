@@ -1,4 +1,5 @@
 import http from 'node:http';
+import https from 'node:https';
 import { readFile, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
@@ -12,7 +13,8 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '
 
 function proxy(request, response, targetPath = request.url) {
   const target = new URL(targetPath, apiOrigin);
-  const upstream = http.request(target, { method: request.method, headers: { ...request.headers, host: target.host, 'x-forwarded-host': request.headers.host || '' } }, result => {
+  const requestUpstream = target.protocol === 'https:' ? https.request : http.request;
+  const upstream = requestUpstream(target, { method: request.method, headers: { ...request.headers, host: target.host, 'x-forwarded-host': request.headers.host || '' } }, result => {
     response.writeHead(result.statusCode || 502, result.headers);
     result.pipe(response);
   });

@@ -8,8 +8,11 @@ RUN npm run build && npm prune --omit=dev
 
 FROM node:20-alpine
 WORKDIR /app
+ENV NODE_ENV=production
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./package.json
-EXPOSE 3000
-CMD ["sh", "-c", "if [ \"$DB_SCHEMA_BOOTSTRAP\" = \"true\" ]; then SYSTEM_ADMIN_BOOTSTRAP_ENABLED=false SEED_DATA_ENABLED=false node dist/seed.js; fi && npm run migration:run:prod && node dist/seed.js && exec node dist/main.js"]
+COPY deploy/cloudrun/start-api.sh ./start-api.sh
+RUN chmod +x ./start-api.sh
+EXPOSE 8080
+CMD ["./start-api.sh"]

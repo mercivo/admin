@@ -1,9 +1,9 @@
 # Google Cloud Run 部署指南
 
-本项目支持两种 Google Cloud 自动连接代码库部署方式：
+本项目使用三个独立 Cloud Run 服务，不再提供根目录统一 `Dockerfile`：
 
-1. **最低成本单服务（首次上线推荐）**：Cloud Run → 连接代码库 → Dockerfile，选择仓库根目录 `/Dockerfile`。它会把 API、管理后台和 storefront 放进同一个 Cloud Run 容器，适合当前只有一个域名、Redis 和存储桶尚未创建的阶段。
-2. **三服务流水线（后续扩容）**：创建使用仓库根目录 `/cloudbuild.yaml` 的 Cloud Build 触发器，由流水线分别部署 API、管理后台和 storefront。
+1. **Cloud Run 控制台分别连接代码库**：创建三个服务，分别选择 `/Dockerfile.api`、`/Dockerfile.storefront` 和 `/Dockerfile.admin`。
+2. **统一 Cloud Build 流水线**：创建使用仓库根目录 `/cloudbuild.yaml` 的触发器，由一次构建分别部署 API、管理后台和 storefront。
 
 当前 Google Cloud 参数为：项目 `mercivo-admin`，区域 `asia-east1`，Cloud SQL 连接名默认 `mercivo-admin:asia-east1:mercivo-mysql`。这些值属于当前项目，没有沿用参考项目 `celuxent` 的配置。
 
@@ -11,23 +11,17 @@
 
 三个 Cloud Run 服务均为 `min=0`、`max=1`、`1 CPU / 512 MiB`，空闲时可以缩容到零。流水线先部署 API，再自动读取其 Cloud Run URL 并注入 storefront；随后读取 storefront URL 构建管理后台，首次部署不需要预先准备 `api/admin/sites` 三个域名。
 
-## 0. 最低成本：Cloud Run 直接连接代码库
+## 0. Cloud Run 控制台分别连接代码库
 
-在 Cloud Run 创建服务时选择：
+需要创建三次服务，三项都选择：持续部署 → 从代码库、分支 `^main$`、构建类型 Dockerfile、区域 `asia-east1`、允许未经身份验证的调用、容器端口 `8080`。
 
-- 持续部署：从代码库
-- 分支：`^main$`
-- 构建类型：Dockerfile
-- Dockerfile：`/Dockerfile`
-- 区域：`asia-east1`
-- CPU：1
-- 内存：512 MiB
-- 最小实例：0
-- 最大实例：1
-- 容器端口：8080
-- 允许未经身份验证的调用
+| 创建顺序 | Cloud Run 服务 | 来源位置 | 运行时配置 |
+| --- | --- | --- | --- |
+| 1 | `mercivo-api` | `/Dockerfile.api` | Cloud SQL、数据库/JWT Secret 及 API 环境变量 |
+| 2 | `mercivo-storefront` | `/Dockerfile.storefront` | `API_INTERNAL_URL=https://mercivo-api-xxx.run.app` |
+| 3 | `mercivo-admin-ui` | `/Dockerfile.admin` | `API_INTERNAL_URL=https://mercivo-api-xxx.run.app` |
 
-为服务关联 Cloud SQL 实例 `mercivo-admin:asia-east1:mercivo-mysql`，并使用 `mercivo-runtime@mercivo-admin.iam.gserviceaccount.com` 运行。普通环境变量参考 `deploy/cloudrun/direct.env.example`；以下敏感变量从 Secret Manager 注入：
+只有 API 服务需要关联 Cloud SQL 实例 `mercivo-admin:asia-east1:mercivo-mysql`，并使用 `mercivo-runtime@mercivo-admin.iam.gserviceaccount.com` 运行。普通环境变量参考 `deploy/cloudrun/direct.env.example`；以下敏感变量从 Secret Manager 注入：
 
 - `DB_PASSWORD` → `mercivo-db-password:latest`
 - `JWT_SECRET` → `mercivo-jwt-secret:latest`
@@ -35,13 +29,9 @@
 
 全新空数据库第一次部署时，把 `DB_SCHEMA_BOOTSTRAP` 临时设置为 `true`。首次部署成功后立即改回 `false`，后续版本只运行 TypeORM migration，不再执行 schema synchronize。
 
-单服务镜像的访问规则：
+先部署 API 并确认 `/healthz` 返回 200，再把其完整 `https://...run.app` 地址作为另外两个服务的 `API_INTERNAL_URL`。Admin 浏览器继续请求同源 `/api/v1`，由 Admin Nginx 转发到 API，因此不依赖浏览器跨域；Storefront 同样由服务端转发并保留租户原始 Host。
 
-- Cloud Run 自动生成的 `*.run.app` 地址：管理后台
-- `/api/*`：NestJS API
-- 映射到该服务的租户自定义域名：storefront
-
-因此 `www.celuxent.vip` 映射到这个 Cloud Run 服务后会进入 storefront，而管理人员使用默认 `run.app` 地址登录。这个模式只运行一个 Cloud Run 实例，成本最低；后续需要独立扩缩容时再切换到 `cloudbuild.yaml` 三服务方案。
+直接连接代码库模式不会自动执行独立的 migration Job。API 容器启动时会运行 migration，所以在创建表完成前保持 `max instances=1`；正式扩容时建议切换到 `cloudbuild.yaml`，由 `mercivo-migrate` Job 在 API revision 更新前执行迁移。
 
 ## 1. 前置资源
 
@@ -178,6 +168,16 @@ Cloud Run 不能使用 `docker-compose.yml` 中的本地 MySQL、Redis Volume。
 - `sites.mercivo.com` → `mercivo-storefront`
 
 租户自定义域名按请求 `Host` 查询 `site_domains.hostname`，因此所有租户可以进入同一个 storefront 服务。需要注意，Cloud Run 原生域名映射不适合动态增加大量租户域名；生产环境应在 storefront 前使用 Google Cloud External HTTPS Load Balancer + Serverless NEG + Certificate Manager，或 Cloudflare for SaaS，并确保把租户原始域名传入 `Host` 或 `X-Forwarded-Host`。
+
+推荐的生产流量边界：
+
+- `admin.mercivo.com` 只进入 admin 服务；admin 构建时使用 `https://api.mercivo.com/api/v1`。
+- `api.mercivo.com` 只进入 API 服务；CORS 仅允许 `https://admin.mercivo.com`。
+- `sites.mercivo.com` 和所有已验证租户域名只进入 storefront 服务。
+- 租户在后台先添加域名并配置 TXT 完成所有权验证，再配置 CNAME 到 `sites.mercivo.com`；根域名使用 DNS 服务商的 ALIAS/ANAME 或由接入层提供的 A/AAAA。
+- 域名验证成功只代表应用允许解析该 Host，不等于 HTTPS 证书已经签发。证书必须由 External HTTPS Load Balancer + Certificate Manager 自动化，或由 Cloudflare for SaaS 托管。
+
+如果租户数量会持续增长，优先选择 Cloudflare for SaaS：它原生覆盖自定义 hostname 的验证、证书签发和续期。若必须纯 Google Cloud，则需要额外实现一个域名控制面，在 TXT 验证成功后调用 Certificate Manager 创建/绑定证书，并在删除域名时清理证书；仅设置 CNAME 并不能让 Cloud Run 自动接受任意租户域名。
 
 ## 6. 首次验证
 
