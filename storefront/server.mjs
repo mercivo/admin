@@ -5,7 +5,17 @@ import { createReadStream } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 
 const root = new URL('./dist/', import.meta.url).pathname;
-const apiOrigin = process.env.API_INTERNAL_URL || 'http://api:3000';
+const configuredApiOrigin = process.env.API_INTERNAL_URL?.trim().replace(/\/$/, '');
+if (process.env.NODE_ENV === 'production' && !configuredApiOrigin) {
+  throw new Error('API_INTERNAL_URL is required in production (example: https://mercivo-api-xxx.run.app)');
+}
+const apiOrigin = configuredApiOrigin || 'http://api:3000';
+try {
+  const parsedApiOrigin = new URL(apiOrigin);
+  if (!['http:', 'https:'].includes(parsedApiOrigin.protocol) || parsedApiOrigin.pathname !== '/') throw new Error();
+} catch {
+  throw new Error('API_INTERNAL_URL must be an HTTP(S) origin without a path or trailing punctuation');
+}
 const port = Number(process.env.PORT || 80);
 const indexTemplate = await readFile(join(root, 'index.html'), 'utf8');
 const mime = { '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2' };

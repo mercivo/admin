@@ -40,6 +40,16 @@ Cloud Run 自动生成的服务 URL 虽然包含一段哈希，但它属于服�
 
 Admin 和 Storefront 均不在浏览器中直接暴露 Cloud Run API 地址。两者的 `API_INTERNAL_URL` 必须填写 API 服务详情页显示的完整 HTTPS URL，不能填写 revision 名称、容器名或 `localhost`。当前方案要求 API 服务允许未经身份验证的调用；如果后续关闭公开调用，需要在代理层增加 Google ID Token，不能只切换 Cloud Run 的认证开关。
 
+当前项目的直接部署值应为：
+
+```text
+API_INTERNAL_URL=https://mercivo-api-753805870951.asia-east1.run.app
+```
+
+不要附加尾部 `/`、`/api/v1`、逗号或中文标点。该地址是 Cloud Run 服务级 URL，不是 revision URL；更新镜像和切换 revision 不会改变它。只有删除 `mercivo-api` 服务后重新创建不同服务，或迁移项目/区域时才需要更新。生产自定义域名就绪后可统一换成 `https://api.mercivo.com`。
+
+生产环境中的 Admin 和 Storefront 都强制要求该变量：缺失时容器会直接拒绝启动并在日志中指出 `API_INTERNAL_URL`，避免服务表面部署成功、所有接口随后静默返回 502。
+
 如果 API revision 报“未监听 `PORT=8080`”，先查看 revision 日志中该提示之前的应用错误。API 本身会读取 Cloud Run 注入的 `PORT`；常见真实原因是 Cloud SQL 未绑定、`DB_SOCKET_PATH` 错误、Secret 未授权或 migration 失败，导致 NestJS 在开始监听前退出。
 
 直接连接代码库使用的 `/Dockerfile.api` 内置启动网关：容器会立即监听 Cloud Run 注入的 `PORT=8080`，数据库初始化期间返回带 `Retry-After` 的 503 JSON；migration 和种子补全完成后启动内部 NestJS 并自动转发流量。日志中依次出现以下内容代表启动成功：
