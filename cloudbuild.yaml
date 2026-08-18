@@ -1,21 +1,17 @@
 options:
   logging: CLOUD_LOGGING_ONLY
-  machineType: E2_HIGHCPU_8
 
 substitutions:
   _REGION: asia-east1
   _AR_REPOSITORY: mercivo
   _API_SERVICE: mercivo-api
-  _ADMIN_SERVICE: mercivo-admin
+  _ADMIN_SERVICE: mercivo-admin-ui
   _STOREFRONT_SERVICE: mercivo-storefront
   _MIGRATION_JOB: mercivo-migrate
   _CLOUD_SQL_INSTANCE: change-me:asia-east1:mercivo-mysql
   _DB_USER: mercivo
   _DB_NAME: seo_platform
-  _ADMIN_ORIGIN: https://admin.example.com
-  _API_PUBLIC_URL: https://api.example.com
-  _STOREFRONT_PUBLIC_URL: https://sites.example.com
-  _STOREFRONT_CNAME_TARGET: sites.example.com
+  _STOREFRONT_CNAME_TARGET: sites.mercivo.com
 
 steps:
   - id: test-api
@@ -27,42 +23,10 @@ steps:
   - id: build-api
     name: gcr.io/cloud-builders/docker
     args: ['build', '-f', 'deploy/cloudrun/Dockerfile.api', '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/api:${BUILD_ID}', '.']
-    waitFor: ['test-api']
-
-  - id: build-storefront
-    name: gcr.io/cloud-builders/docker
-    args: ['build', '-f', 'deploy/cloudrun/Dockerfile.storefront', '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/storefront:${BUILD_ID}', '.']
-    waitFor: ['-']
-
-  - id: build-admin
-    name: gcr.io/cloud-builders/docker
-    args:
-      - build
-      - -f
-      - deploy/cloudrun/Dockerfile.admin
-      - --build-arg
-      - VITE_API_BASE_URL=${_API_PUBLIC_URL}/api/v1
-      - --build-arg
-      - VITE_STOREFRONT_PREVIEW_URL=${_STOREFRONT_PUBLIC_URL}
-      - -t
-      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/admin:${BUILD_ID}
-      - .
-    waitFor: ['-']
 
   - id: push-api
     name: gcr.io/cloud-builders/docker
     args: ['push', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/api:${BUILD_ID}']
-    waitFor: ['build-api']
-
-  - id: push-storefront
-    name: gcr.io/cloud-builders/docker
-    args: ['push', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/storefront:${BUILD_ID}']
-    waitFor: ['build-storefront']
-
-  - id: push-admin
-    name: gcr.io/cloud-builders/docker
-    args: ['push', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/admin:${BUILD_ID}']
-    waitFor: ['build-admin']
 
   - id: deploy-migration-job
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
@@ -77,16 +41,19 @@ steps:
       - --service-account=mercivo-runtime@${PROJECT_ID}.iam.gserviceaccount.com
       - --command=/app/run-migrations.sh
       - --set-cloudsql-instances=${_CLOUD_SQL_INSTANCE}
-      - --set-env-vars=NODE_ENV=production,DB_HOST=localhost,DB_PORT=3306,DB_USERNAME=${_DB_USER},DB_DATABASE=${_DB_NAME},DB_SOCKET_PATH=/cloudsql/${_CLOUD_SQL_INSTANCE},DB_SYNCHRONIZE=false,DB_SCHEMA_BOOTSTRAP=false,SEED_DATA_ENABLED=false,SYSTEM_ADMIN_BOOTSTRAP_ENABLED=true
+      - --set-env-vars=NODE_ENV=production,DB_HOST=localhost,DB_PORT=3306,DB_USERNAME=${_DB_USER},DB_DATABASE=${_DB_NAME},DB_SOCKET_PATH=/cloudsql/${_CLOUD_SQL_INSTANCE},DB_SYNCHRONIZE=false,DB_SCHEMA_BOOTSTRAP=false,SEED_DATA_ENABLED=false,SYSTEM_ADMIN_BOOTSTRAP_ENABLED=true,DB_POOL_MAX=3
       - --set-secrets=DB_PASSWORD=mercivo-db-password:latest,SYSTEM_ADMIN_PASSWORD=mercivo-system-admin-password:latest
+      - --cpu=1
+      - --memory=512Mi
+      - --tasks=1
+      - --max-retries=1
+      - --task-timeout=10m
       - --quiet
-    waitFor: ['push-api']
 
   - id: run-migrations
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: gcloud
     args: ['run', 'jobs', 'execute', '${_MIGRATION_JOB}', '--region=${_REGION}', '--wait', '--quiet']
-    waitFor: ['deploy-migration-job']
 
   - id: deploy-api
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
@@ -102,28 +69,87 @@ steps:
       - --service-account=mercivo-runtime@${PROJECT_ID}.iam.gserviceaccount.com
       - --add-cloudsql-instances=${_CLOUD_SQL_INSTANCE}
       - --port=8080
+      - --cpu=1
+      - --memory=512Mi
+      - --concurrency=40
       - --min=0
       - --max=1
-      - --set-env-vars=NODE_ENV=production,DB_HOST=localhost,DB_PORT=3306,DB_USERNAME=${_DB_USER},DB_DATABASE=${_DB_NAME},DB_SOCKET_PATH=/cloudsql/${_CLOUD_SQL_INSTANCE},DB_SYNCHRONIZE=false,CORS_ORIGINS=${_ADMIN_ORIGIN},STOREFRONT_PREVIEW_HOSTS=${_STOREFRONT_CNAME_TARGET},STOREFRONT_CNAME_TARGET=${_STOREFRONT_CNAME_TARGET},TRUST_PROXY_HOPS=1,SYSTEM_ADMIN_BOOTSTRAP_ENABLED=false,SEED_DATA_ENABLED=false
+      - --set-env-vars=NODE_ENV=production,DB_HOST=localhost,DB_PORT=3306,DB_USERNAME=${_DB_USER},DB_DATABASE=${_DB_NAME},DB_SOCKET_PATH=/cloudsql/${_CLOUD_SQL_INSTANCE},DB_SYNCHRONIZE=false,CORS_ORIGINS=https://placeholder.invalid,STOREFRONT_PREVIEW_HOSTS=localhost,STOREFRONT_CNAME_TARGET=${_STOREFRONT_CNAME_TARGET},TRUST_PROXY_HOPS=1,SYSTEM_ADMIN_BOOTSTRAP_ENABLED=false,SEED_DATA_ENABLED=false,DB_POOL_MAX=5
       - --set-secrets=DB_PASSWORD=mercivo-db-password:latest,JWT_SECRET=mercivo-jwt-secret:latest
       - --quiet
-    waitFor: ['run-migrations']
 
-  - id: deploy-admin
+  - id: discover-api-url
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
-    entrypoint: gcloud
-    args: ['run', 'deploy', '${_ADMIN_SERVICE}', '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/admin:${BUILD_ID}', '--region=${_REGION}', '--platform=managed', '--allow-unauthenticated', '--port=8080', '--min=0', '--max=3', '--quiet']
-    waitFor: ['push-admin', 'deploy-api']
+    entrypoint: sh
+    args:
+      - -c
+      - gcloud run services describe '${_API_SERVICE}' --region '${_REGION}' --format='value(status.url)' > /workspace/api-url
+
+  - id: build-storefront
+    name: gcr.io/cloud-builders/docker
+    args: ['build', '-f', 'deploy/cloudrun/Dockerfile.storefront', '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/storefront:${BUILD_ID}', '.']
+
+  - id: push-storefront
+    name: gcr.io/cloud-builders/docker
+    args: ['push', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/storefront:${BUILD_ID}']
 
   - id: deploy-storefront
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
-    entrypoint: gcloud
-    args: ['run', 'deploy', '${_STOREFRONT_SERVICE}', '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/storefront:${BUILD_ID}', '--region=${_REGION}', '--platform=managed', '--allow-unauthenticated', '--port=8080', '--min=0', '--max=10', '--set-env-vars=API_INTERNAL_URL=${_API_PUBLIC_URL}', '--quiet']
-    waitFor: ['push-storefront', 'deploy-api']
+    entrypoint: sh
+    args:
+      - -ceu
+      - |
+        API_URL="$$(cat /workspace/api-url)"
+        gcloud run deploy '${_STOREFRONT_SERVICE}' \
+          --image='${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/storefront:${BUILD_ID}' \
+          --region='${_REGION}' --platform=managed --allow-unauthenticated \
+          --port=8080 --cpu=1 --memory=512Mi --concurrency=80 --min=0 --max=1 \
+          --set-env-vars="API_INTERNAL_URL=$${API_URL}" --quiet
+        gcloud run services describe '${_STOREFRONT_SERVICE}' --region '${_REGION}' \
+          --format='value(status.url)' > /workspace/storefront-url
 
-images:
-  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/api:${BUILD_ID}
-  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/admin:${BUILD_ID}
-  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/storefront:${BUILD_ID}
+  - id: build-admin
+    name: gcr.io/cloud-builders/docker
+    entrypoint: sh
+    args:
+      - -ceu
+      - |
+        API_URL="$$(cat /workspace/api-url)"
+        STOREFRONT_URL="$$(cat /workspace/storefront-url)"
+        docker build -f deploy/cloudrun/Dockerfile.admin \
+          --build-arg "VITE_API_BASE_URL=$${API_URL}/api/v1" \
+          --build-arg "VITE_STOREFRONT_PREVIEW_URL=$${STOREFRONT_URL}" \
+          -t '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/admin:${BUILD_ID}' .
 
-timeout: 1800s
+  - id: push-admin
+    name: gcr.io/cloud-builders/docker
+    args: ['push', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/admin:${BUILD_ID}']
+
+  - id: deploy-admin
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: sh
+    args:
+      - -ceu
+      - |
+        gcloud run deploy '${_ADMIN_SERVICE}' \
+          --image='${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/admin:${BUILD_ID}' \
+          --region='${_REGION}' --platform=managed --allow-unauthenticated \
+          --port=8080 --cpu=1 --memory=512Mi --concurrency=80 --min=0 --max=1 --quiet
+        gcloud run services describe '${_ADMIN_SERVICE}' --region '${_REGION}' \
+          --format='value(status.url)' > /workspace/admin-url
+
+  - id: configure-api-origins
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: sh
+    args:
+      - -ceu
+      - |
+        ADMIN_URL="$$(cat /workspace/admin-url)"
+        STOREFRONT_URL="$$(cat /workspace/storefront-url)"
+        STOREFRONT_HOST="$$(printf '%s' "$${STOREFRONT_URL}" | sed 's#^https://##; s#/.*##')"
+        gcloud run services update '${_API_SERVICE}' --region='${_REGION}' \
+          --update-env-vars="CORS_ORIGINS=$${ADMIN_URL},STOREFRONT_PREVIEW_HOSTS=$${STOREFRONT_HOST}" --quiet
+        printf 'API: %s\nAdmin: %s\nStorefront: %s\n' \
+          "$$(cat /workspace/api-url)" "$${ADMIN_URL}" "$${STOREFRONT_URL}"
+
+timeout: 2400s

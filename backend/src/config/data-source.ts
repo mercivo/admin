@@ -14,7 +14,10 @@ export default new DataSource({
   entities: [join(__dirname, '..', '**', '*.entity.{ts,js}')],
   migrations: [join(__dirname, '..', 'migrations', '*.{ts,js}')],
   synchronize: false,
-  extra: process.env.DB_SOCKET_PATH ? { socketPath: process.env.DB_SOCKET_PATH } : undefined,
+  extra: {
+    connectionLimit: parseInt(process.env.DB_POOL_MAX || '5', 10),
+    ...(process.env.DB_SOCKET_PATH ? { socketPath: process.env.DB_SOCKET_PATH } : {}),
+  },
   charset: 'utf8mb4',
   timezone: '+00:00',
 });

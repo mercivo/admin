@@ -2,6 +2,10 @@
 
 本项目包含 `api`、`admin`、`storefront` 三个独立服务。Cloud Run 控制台中的“从代码库持续部署 → Dockerfile”一次只能创建一个服务，不能用根目录 `/Dockerfile` 完整部署本项目。生产环境请创建一个以仓库根目录 `cloudbuild.yaml` 为配置文件的 Cloud Build 触发器，由它统一测试、构建、迁移并部署三个 Cloud Run 服务。
 
+流水线使用 Cloud Build 默认构建机型，不强制指定 `E2_HIGHCPU_8`。所有镜像串行构建，避免默认小机型并行构建时内存不足。如果项目或区域没有高 CPU 构建配额，强制设置该机型会在构建开始前报 `failed precondition: due to quota restrictions`。
+
+三个 Cloud Run 服务均为 `min=0`、`max=1`、`1 CPU / 512 MiB`，空闲时可以缩容到零。流水线先部署 API，再自动读取其 Cloud Run URL 并注入 storefront；随后读取 storefront URL 构建管理后台，首次部署不需要预先准备 `api/admin/sites` 三个域名。
+
 ## 1. 前置资源
 
 所有资源建议使用同一区域，默认示例为 `asia-east1`。
@@ -97,11 +101,12 @@ gcloud iam service-accounts add-iam-policy-binding \
 | 变量 | 示例 |
 | --- | --- |
 | `_REGION` | `asia-east1` |
-| `_CLOUD_SQL_INSTANCE` | `project-id:asia-east1:mercivo-mysql` |
-| `_ADMIN_ORIGIN` | `https://admin.mercivo.com` |
-| `_API_PUBLIC_URL` | `https://api.mercivo.com` |
-| `_STOREFRONT_PUBLIC_URL` | `https://sites.mercivo.com` |
+| `_CLOUD_SQL_INSTANCE` | `mercivo-admin:asia-east1:mercivo-mysql` |
+| `_DB_USER` | `mercivo` |
+| `_DB_NAME` | `seo_platform` |
 | `_STOREFRONT_CNAME_TARGET` | `sites.mercivo.com` |
+
+API、管理后台和 storefront 的默认 `run.app` 地址由流水线自动发现，不再需要 `_ADMIN_ORIGIN`、`_API_PUBLIC_URL` 或 `_STOREFRONT_PUBLIC_URL`。
 
 如果控制台连接仓库时持续出现 `Deadline expired before operation could complete`，可绕过该页面，用 CLI 创建触发器：
 
@@ -113,7 +118,7 @@ gcloud builds triggers create github \
   --repo-name=admin \
   --branch-pattern='^main$' \
   --build-config=cloudbuild.yaml \
-  --substitutions=_REGION=asia-east1,_CLOUD_SQL_INSTANCE=PROJECT_ID:asia-east1:mercivo-mysql,_ADMIN_ORIGIN=https://admin.mercivo.com,_API_PUBLIC_URL=https://api.mercivo.com,_STOREFRONT_PUBLIC_URL=https://sites.mercivo.com,_STOREFRONT_CNAME_TARGET=sites.mercivo.com
+  --substitutions=_REGION=asia-east1,_CLOUD_SQL_INSTANCE=mercivo-admin:asia-east1:mercivo-mysql,_STOREFRONT_CNAME_TARGET=sites.mercivo.com
 ```
 
 如果 CLI 报仓库未连接，先重新安装或更新 `mercivo` 组织中的 Cloud Build GitHub App 授权；如果报权限错误，检查操作者是否具备 `roles/cloudbuild.connectionAdmin`、`roles/cloudbuild.builds.editor` 和 Service Usage 权限。若使用 Developer Connect/第二代代码库，请确保 Connection、Repository Link 和 Trigger 位于同一区域；若使用传统 Cloud Build GitHub App，则优先在 `global` 区域创建触发器。
@@ -131,7 +136,7 @@ Cloud Run 不能使用 `docker-compose.yml` 中的本地 MySQL、Redis Volume。
 
 ## 5. 域名
 
-- `admin.mercivo.com` → `mercivo-admin`
+- `admin.mercivo.com` → `mercivo-admin-ui`
 - `api.mercivo.com` → `mercivo-api`
 - `sites.mercivo.com` → `mercivo-storefront`
 
@@ -141,7 +146,7 @@ Cloud Run 不能使用 `docker-compose.yml` 中的本地 MySQL、Redis Volume。
 
 ```bash
 gcloud builds submit --config cloudbuild.yaml \
-  --substitutions=_REGION=asia-east1,_CLOUD_SQL_INSTANCE=PROJECT_ID:asia-east1:mercivo-mysql,_ADMIN_ORIGIN=https://admin.mercivo.com,_API_PUBLIC_URL=https://api.mercivo.com,_STOREFRONT_PUBLIC_URL=https://sites.mercivo.com,_STOREFRONT_CNAME_TARGET=sites.mercivo.com
+  --substitutions=_REGION=asia-east1,_CLOUD_SQL_INSTANCE=mercivo-admin:asia-east1:mercivo-mysql,_STOREFRONT_CNAME_TARGET=sites.mercivo.com
 
 gcloud run services list --region=asia-east1
 gcloud run jobs executions list --job=mercivo-migrate --region=asia-east1
