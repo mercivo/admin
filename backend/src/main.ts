@@ -4,10 +4,12 @@ import { AppModule } from './app.module';
 import helmet from 'helmet';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import type { Request, Response } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.getHttpAdapter().getInstance().set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
+  app.getHttpAdapter().getInstance().get('/healthz', (_request: Request, response: Response) => response.status(200).send('ok'));
 
   app.setGlobalPrefix('api/v1');
 

@@ -1,10 +1,47 @@
 # Google Cloud Run 部署指南
 
-本项目包含 `api`、`admin`、`storefront` 三个独立服务。Cloud Run 控制台中的“从代码库持续部署 → Dockerfile”一次只能创建一个服务，不能用根目录 `/Dockerfile` 完整部署本项目。生产环境请创建一个以仓库根目录 `cloudbuild.yaml` 为配置文件的 Cloud Build 触发器，由它统一测试、构建、迁移并部署三个 Cloud Run 服务。
+本项目支持两种 Google Cloud 自动连接代码库部署方式：
+
+1. **最低成本单服务（首次上线推荐）**：Cloud Run → 连接代码库 → Dockerfile，选择仓库根目录 `/Dockerfile`。它会把 API、管理后台和 storefront 放进同一个 Cloud Run 容器，适合当前只有一个域名、Redis 和存储桶尚未创建的阶段。
+2. **三服务流水线（后续扩容）**：创建使用仓库根目录 `/cloudbuild.yaml` 的 Cloud Build 触发器，由流水线分别部署 API、管理后台和 storefront。
+
+当前 Google Cloud 参数为：项目 `mercivo-admin`，区域 `asia-east1`，Cloud SQL 连接名默认 `mercivo-admin:asia-east1:mercivo-mysql`。这些值属于当前项目，没有沿用参考项目 `celuxent` 的配置。
 
 流水线使用 Cloud Build 默认构建机型，不强制指定 `E2_HIGHCPU_8`。所有镜像串行构建，避免默认小机型并行构建时内存不足。如果项目或区域没有高 CPU 构建配额，强制设置该机型会在构建开始前报 `failed precondition: due to quota restrictions`。
 
 三个 Cloud Run 服务均为 `min=0`、`max=1`、`1 CPU / 512 MiB`，空闲时可以缩容到零。流水线先部署 API，再自动读取其 Cloud Run URL 并注入 storefront；随后读取 storefront URL 构建管理后台，首次部署不需要预先准备 `api/admin/sites` 三个域名。
+
+## 0. 最低成本：Cloud Run 直接连接代码库
+
+在 Cloud Run 创建服务时选择：
+
+- 持续部署：从代码库
+- 分支：`^main$`
+- 构建类型：Dockerfile
+- Dockerfile：`/Dockerfile`
+- 区域：`asia-east1`
+- CPU：1
+- 内存：512 MiB
+- 最小实例：0
+- 最大实例：1
+- 容器端口：8080
+- 允许未经身份验证的调用
+
+为服务关联 Cloud SQL 实例 `mercivo-admin:asia-east1:mercivo-mysql`，并使用 `mercivo-runtime@mercivo-admin.iam.gserviceaccount.com` 运行。普通环境变量参考 `deploy/cloudrun/direct.env.example`；以下敏感变量从 Secret Manager 注入：
+
+- `DB_PASSWORD` → `mercivo-db-password:latest`
+- `JWT_SECRET` → `mercivo-jwt-secret:latest`
+- `SYSTEM_ADMIN_PASSWORD` → `mercivo-system-admin-password:latest`
+
+全新空数据库第一次部署时，把 `DB_SCHEMA_BOOTSTRAP` 临时设置为 `true`。首次部署成功后立即改回 `false`，后续版本只运行 TypeORM migration，不再执行 schema synchronize。
+
+单服务镜像的访问规则：
+
+- Cloud Run 自动生成的 `*.run.app` 地址：管理后台
+- `/api/*`：NestJS API
+- 映射到该服务的租户自定义域名：storefront
+
+因此 `www.celuxent.vip` 映射到这个 Cloud Run 服务后会进入 storefront，而管理人员使用默认 `run.app` 地址登录。这个模式只运行一个 Cloud Run 实例，成本最低；后续需要独立扩缩容时再切换到 `cloudbuild.yaml` 三服务方案。
 
 ## 1. 前置资源
 

@@ -8,9 +8,10 @@ substitutions:
   _ADMIN_SERVICE: mercivo-admin-ui
   _STOREFRONT_SERVICE: mercivo-storefront
   _MIGRATION_JOB: mercivo-migrate
-  _CLOUD_SQL_INSTANCE: change-me:asia-east1:mercivo-mysql
+  _CLOUD_SQL_INSTANCE: mercivo-admin:asia-east1:mercivo-mysql
   _DB_USER: mercivo
   _DB_NAME: seo_platform
+  _DB_SCHEMA_BOOTSTRAP: 'false'
   _STOREFRONT_CNAME_TARGET: sites.mercivo.com
 
 steps:
@@ -41,7 +42,7 @@ steps:
       - --service-account=mercivo-runtime@${PROJECT_ID}.iam.gserviceaccount.com
       - --command=/app/run-migrations.sh
       - --set-cloudsql-instances=${_CLOUD_SQL_INSTANCE}
-      - --set-env-vars=NODE_ENV=production,DB_HOST=localhost,DB_PORT=3306,DB_USERNAME=${_DB_USER},DB_DATABASE=${_DB_NAME},DB_SOCKET_PATH=/cloudsql/${_CLOUD_SQL_INSTANCE},DB_SYNCHRONIZE=false,DB_SCHEMA_BOOTSTRAP=false,SEED_DATA_ENABLED=false,SYSTEM_ADMIN_BOOTSTRAP_ENABLED=true,DB_POOL_MAX=3
+      - --set-env-vars=NODE_ENV=production,DB_HOST=localhost,DB_PORT=3306,DB_USERNAME=${_DB_USER},DB_DATABASE=${_DB_NAME},DB_SOCKET_PATH=/cloudsql/${_CLOUD_SQL_INSTANCE},DB_SYNCHRONIZE=false,DB_SCHEMA_BOOTSTRAP=${_DB_SCHEMA_BOOTSTRAP},SEED_DATA_ENABLED=false,SYSTEM_ADMIN_BOOTSTRAP_ENABLED=true,DB_POOL_MAX=3
       - --set-secrets=DB_PASSWORD=mercivo-db-password:latest,SYSTEM_ADMIN_PASSWORD=mercivo-system-admin-password:latest
       - --cpu=1
       - --memory=512Mi
