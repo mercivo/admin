@@ -10,7 +10,7 @@ RUN npm run build
 FROM nginx:1.27-alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY deploy/cloudrun/admin.runtime.nginx.conf.template /etc/nginx/templates/default.conf.template
-ENV API_INTERNAL_URL=https://mercivo-api-tm62botbga-de.a.run.app
-ENV API_INTERNAL_HOST=mercivo-api-tm62botbga-de.a.run.app
+ENV API_INTERNAL_URL=https://api.aihubflux.com
+ENV API_INTERNAL_HOST=api.aihubflux.com
 EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]
