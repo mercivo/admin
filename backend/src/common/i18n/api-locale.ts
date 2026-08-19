@@ -8,10 +8,18 @@ export function resolveApiLocale(request: Request): ApiLocale {
 }
 
 const messages: Array<[RegExp, string, string]> = [
-  [/^Internal server error$/i, '服务器内部错误', 'Internal server error'],
+  [/^Internal server error$/i, '服务暂时开小差，请稍后重试', 'The service is temporarily unavailable. Please try again later'],
+  [/^Bad Request$/i, '提交信息有误，请检查后重试', 'The submitted information is invalid. Please check and try again'],
   [/^Unauthorized$/i, '未登录或登录已过期', 'Authentication required or session expired'],
   [/^Forbidden resource$/i, '无权执行此操作', 'You do not have permission to perform this action'],
   [/^Not Found$/i, '请求的资源不存在', 'The requested resource was not found'],
+  [/^Cannot (GET|POST|PUT|PATCH|DELETE) .+$/i, '请求的接口不存在或已调整', 'The requested endpoint does not exist or has changed'],
+  [/^Conflict$/i, '数据已存在或状态冲突，请刷新后重试', 'The data already exists or has changed. Refresh and try again'],
+  [/^Payload Too Large$/i, '上传内容过大，请减小文件后重试', 'The upload is too large. Reduce the file size and try again'],
+  [/^Too Many Requests$/i, '操作过于频繁，请稍后再试', 'Too many requests. Please try again later'],
+  [/^Bad Gateway$/i, '服务连接异常，请稍后重试', 'The service connection failed. Please try again later'],
+  [/^Service Unavailable$/i, '服务暂时不可用，请稍后重试', 'The service is temporarily unavailable. Please try again later'],
+  [/^Gateway Timeout$/i, '服务响应超时，请稍后重试', 'The service timed out. Please try again later'],
   [/^验证码错误或已过期$/, '验证码错误或已过期', 'The captcha is incorrect or has expired'],
   [/^请输入有效手机号$/, '请输入有效手机号', 'Please enter a valid phone number'],
   [/^密码必须包含大小写字母、数字和特殊字符$/, '密码必须包含大小写字母、数字和特殊字符', 'Password must include uppercase and lowercase letters, a number, and a special character'],
@@ -71,6 +79,26 @@ export function localizeApiMessage(message: string, locale: ApiLocale): string {
     if (pattern.test(message)) return message.replace(pattern, locale === 'en-US' ? en : zh);
   }
   return message;
+}
+
+const statusMessages: Record<number, [string, string]> = {
+  400: ['提交信息有误，请检查后重试', 'The submitted information is invalid. Please check and try again'],
+  401: ['账号或密码错误，或登录已过期', 'Incorrect account or password, or your session has expired'],
+  403: ['当前账号无权执行此操作', 'Your account does not have permission to perform this action'],
+  404: ['请求的内容不存在或已被移除', 'The requested content does not exist or has been removed'],
+  409: ['数据已存在或状态冲突，请刷新后重试', 'The data already exists or has changed. Refresh and try again'],
+  413: ['上传内容过大，请减小文件后重试', 'The upload is too large. Reduce the file size and try again'],
+  429: ['操作过于频繁，请稍后再试', 'Too many requests. Please try again later'],
+  502: ['服务连接异常，请稍后重试', 'The service connection failed. Please try again later'],
+  503: ['服务暂时不可用，请稍后重试', 'The service is temporarily unavailable. Please try again later'],
+  504: ['服务响应超时，请稍后重试', 'The service timed out. Please try again later'],
+};
+
+export function friendlyStatusMessage(status: number, locale: ApiLocale): string {
+  const message = statusMessages[status] || (status >= 500
+    ? ['服务暂时开小差，请稍后重试', 'The service is temporarily unavailable. Please try again later']
+    : ['请求未能完成，请稍后重试', 'The request could not be completed. Please try again']);
+  return message[locale === 'en-US' ? 1 : 0];
 }
 
 const technicalValidationPatterns = [
