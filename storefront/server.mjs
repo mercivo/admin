@@ -24,11 +24,15 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '
 function proxy(request, response, targetPath = request.url) {
   const target = new URL(targetPath, apiOrigin);
   const requestUpstream = target.protocol === 'https:' ? https.request : http.request;
-  const upstream = requestUpstream(target, { method: request.method, headers: { ...request.headers, host: target.host, 'x-forwarded-host': request.headers.host || '' } }, result => {
+  const upstream = requestUpstream(target, { method: request.method, family: 4, servername: target.hostname, headers: { ...request.headers, host: target.host, 'x-forwarded-host': request.headers.host || '' } }, result => {
     response.writeHead(result.statusCode || 502, result.headers);
     result.pipe(response);
   });
-  upstream.on('error', () => { response.writeHead(502); response.end('Upstream unavailable'); });
+  upstream.on('error', error => {
+    console.error(`Storefront proxy failed: ${error.code || 'UNKNOWN'} ${error.message}`);
+    response.writeHead(502, { 'content-type': 'application/json; charset=utf-8' });
+    response.end(JSON.stringify({ statusCode: 502, message: '服务暂时不可用，请稍后重试。' }));
+  });
   request.pipe(upstream);
 }
 
@@ -90,7 +94,8 @@ const server = http.createServer(async (request, response) => {
     const data = await siteData(request.headers.host || 'localhost', route.site);
     response.writeHead(data ? 200 : 404, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=60, stale-while-revalidate=300', 'x-content-type-options': 'nosniff' });
     response.end(renderHtml(data, url, request.headers.host || 'localhost', route));
-  } catch {
+  } catch (error) {
+    console.error(`Storefront rendering failed: ${error?.code || 'UNKNOWN'} ${error?.message || error}`);
     response.writeHead(503, { 'content-type': 'text/html; charset=utf-8' });
     response.end(indexTemplate);
   }
