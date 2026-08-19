@@ -12,6 +12,5 @@ ENV NODE_ENV=production
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./package.json
-COPY deploy/cloudrun/start-api.mjs ./start-api.mjs
 EXPOSE 8080
-CMD ["node", "./start-api.mjs"]
+CMD ["node", "dist/main.js"]
