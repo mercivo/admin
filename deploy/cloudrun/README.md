@@ -1,6 +1,6 @@
 # Google Cloud Run 部署指南
 
-本项目使用三个独立 Cloud Run 服务，不再提供根目录统一 `Dockerfile`：
+本项目使用三个独立 Cloud Run 服务，并与本地 Compose 共用根目录的三个 Dockerfile：
 
 1. **Cloud Run 控制台分别连接代码库**：创建三个服务，分别选择 `/Dockerfile.api`、`/Dockerfile.storefront` 和 `/Dockerfile.admin`。
 2. **统一 Cloud Build 流水线**：创建使用仓库根目录 `/cloudbuild.yaml` 的触发器，由一次构建分别部署 API、管理后台和 storefront。
@@ -19,7 +19,7 @@
 | --- | --- | --- | --- |
 | 1 | `mercivo-api` | `/Dockerfile.api` | Cloud SQL、数据库/JWT Secret 及 API 环境变量 |
 | 2 | `mercivo-storefront` | `/Dockerfile.storefront` | `API_INTERNAL_URL=https://mercivo-api-xxx.run.app` |
-| 3 | `mercivo-admin-ui` | `/Dockerfile.admin` | `API_INTERNAL_URL=https://mercivo-api-xxx.run.app` |
+| 3 | `mercivo-admin` | `/Dockerfile.admin` | `API_INTERNAL_URL=https://mercivo-api-xxx.run.app` |
 
 只有 API 服务需要关联 Cloud SQL 实例 `mercivo-admin:asia-east1:mercivo-mysql`，并使用 `mercivo-runtime@mercivo-admin.iam.gserviceaccount.com` 运行。普通环境变量参考 `deploy/cloudrun/direct.env.example`；以下敏感变量从 Secret Manager 注入：
 
@@ -31,10 +31,10 @@
 
 先部署 API 并确认 `/healthz` 返回 200，再把其完整 `https://...run.app` 地址作为另外两个服务的 `API_INTERNAL_URL`。Admin 浏览器继续请求同源 `/api/v1`，由 Admin Nginx 转发到 API，因此不依赖浏览器跨域；Storefront 同样由服务端转发并保留租户原始 Host。
 
-Cloud Run 自动生成的服务 URL 虽然包含一段哈希，但它属于服务而不是 revision，发布新 revision 后不会变化。也可以在域名准备好后统一改成 `API_INTERNAL_URL=https://api.mercivo.com`。三服务调用链如下：
+Cloud Run 自动生成的服务 URL 虽然包含一段哈希，但它属于服务而不是 revision，发布新 revision 后不会变化。正式环境统一使用 `API_INTERNAL_URL=https://api.aihubflux.com`。三服务调用链如下：
 
 ```text
-浏览器 -> mercivo-admin-ui.run.app/api/* -> Admin Nginx -> API_INTERNAL_URL
+浏览器 -> mercivo-admin.run.app/api/* -> Admin Nginx -> API_INTERNAL_URL
 浏览器 -> mercivo-storefront.run.app/api/* -> Storefront Node -> API_INTERNAL_URL
 ```
 
@@ -46,9 +46,9 @@ Admin 和 Storefront 均不在浏览器中直接暴露 Cloud Run API 地址。�
 API_INTERNAL_URL=https://mercivo-api-753805870951.asia-east1.run.app
 ```
 
-不要附加尾部 `/`、`/api/v1`、逗号或中文标点。该地址是 Cloud Run 服务级 URL，不是 revision URL；更新镜像和切换 revision 不会改变它。只有删除 `mercivo-api` 服务后重新创建不同服务，或迁移项目/区域时才需要更新。生产自定义域名就绪后可统一换成 `https://api.mercivo.com`。
+不要附加尾部 `/`、`/api/v1`、逗号或中文标点。正式环境域名映射完成后使用 `https://api.aihubflux.com`。
 
-Admin 和 Storefront 镜像内置上述当前项目的服务 URL，未显式设置变量也可以启动；`API_INTERNAL_URL` 仍可在 Cloud Run 中覆盖，便于后续切换到 `https://api.mercivo.com`。
+Admin 和 Storefront 的 Cloud Run 服务应显式设置 `API_INTERNAL_URL=https://api.aihubflux.com`。
 
 如果 API revision 报“未监听 `PORT=8080`”，先查看 revision 日志中该提示之前的应用错误。API 本身会读取 Cloud Run 注入的 `PORT`；常见真实原因是 Cloud SQL 未绑定、`DB_SOCKET_PATH` 错误、Secret 未授权或 migration 失败，导致 NestJS 在开始监听前退出。
 
@@ -63,7 +63,7 @@ Server running on http://localhost:8080
 
 同一 Git push 只能保留一种部署触发策略：要么保留三个 Cloud Run 源码部署触发器（分别指向 `/Dockerfile.api`、`/Dockerfile.admin`、`/Dockerfile.storefront`），要么只保留 `/cloudbuild.yaml` 触发器。旧的根 `/Dockerfile` 触发器必须在 Cloud Build → 触发器中停用或删除，否则每次提交都会先产生一次 `lstat /workspace/Dockerfile: no such file or directory` 的预期失败。
 
-直接连接代码库模式不会自动执行独立的 migration Job。API 容器启动时会运行 migration，所以在创建表完成前保持 `max instances=1`；正式扩容时建议切换到 `cloudbuild.yaml`，由 `mercivo-migrate` Job 在 API revision 更新前执行迁移。
+直接连接代码库模式不会自动执行独立的 migration Job，也不会在 API 容器启动时运行 migration。数据库变更应先执行 `mercivo-migrate` Job；需要全自动迁移时使用 `cloudbuild.yaml`，它会在 API revision 更新前运行 Job。
 
 ## 1. 前置资源
 
@@ -163,7 +163,7 @@ gcloud iam service-accounts add-iam-policy-binding \
 | `_CLOUD_SQL_INSTANCE` | `mercivo-admin:asia-east1:mercivo-mysql` |
 | `_DB_USER` | `root` |
 | `_DB_NAME` | `seo_platform` |
-| `_STOREFRONT_CNAME_TARGET` | `sites.mercivo.com` |
+| `_STOREFRONT_CNAME_TARGET` | `site.aihubflux.com` |
 
 API、管理后台和 storefront 的默认 `run.app` 地址由流水线自动发现，不再需要 `_ADMIN_ORIGIN`、`_API_PUBLIC_URL` 或 `_STOREFRONT_PUBLIC_URL`。
 
@@ -177,7 +177,7 @@ gcloud builds triggers create github \
   --repo-name=admin \
   --branch-pattern='^main$' \
   --build-config=cloudbuild.yaml \
-  --substitutions=_REGION=asia-east1,_CLOUD_SQL_INSTANCE=mercivo-admin:asia-east1:mercivo-mysql,_STOREFRONT_CNAME_TARGET=sites.mercivo.com
+  --substitutions=_REGION=asia-east1,_CLOUD_SQL_INSTANCE=mercivo-admin:asia-east1:mercivo-mysql,_STOREFRONT_CNAME_TARGET=site.aihubflux.com
 ```
 
 如果 CLI 报仓库未连接，先重新安装或更新 `mercivo` 组织中的 Cloud Build GitHub App 授权；如果报权限错误，检查操作者是否具备 `roles/cloudbuild.connectionAdmin`、`roles/cloudbuild.builds.editor` 和 Service Usage 权限。若使用 Developer Connect/第二代代码库，请确保 Connection、Repository Link 和 Trigger 位于同一区域；若使用传统 Cloud Build GitHub App，则优先在 `global` 区域创建触发器。
@@ -195,18 +195,18 @@ Cloud Run 不能使用 `docker-compose.yml` 中的本地 MySQL、Redis Volume。
 
 ## 5. 域名
 
-- `admin.mercivo.com` → `mercivo-admin-ui`
-- `api.mercivo.com` → `mercivo-api`
-- `sites.mercivo.com` → `mercivo-storefront`
+- `erp.aihubflux.com` → `mercivo-admin`
+- `api.aihubflux.com` → `mercivo-api`
+- `site.aihubflux.com` → `mercivo-storefront`
 
 租户自定义域名按请求 `Host` 查询 `site_domains.hostname`，因此所有租户可以进入同一个 storefront 服务。需要注意，Cloud Run 原生域名映射不适合动态增加大量租户域名；生产环境应在 storefront 前使用 Google Cloud External HTTPS Load Balancer + Serverless NEG + Certificate Manager，或 Cloudflare for SaaS，并确保把租户原始域名传入 `Host` 或 `X-Forwarded-Host`。
 
 推荐的生产流量边界：
 
-- `admin.mercivo.com` 只进入 admin 服务；admin 构建时使用 `https://api.mercivo.com/api/v1`。
-- `api.mercivo.com` 只进入 API 服务；CORS 仅允许 `https://admin.mercivo.com`。
-- `sites.mercivo.com` 和所有已验证租户域名只进入 storefront 服务。
-- 租户在后台先添加域名并配置 TXT 完成所有权验证，再配置 CNAME 到 `sites.mercivo.com`；根域名使用 DNS 服务商的 ALIAS/ANAME 或由接入层提供的 A/AAAA。
+- `erp.aihubflux.com` 只进入 admin 服务；admin 通过同源 `/api/v1` 代理到 `https://api.aihubflux.com`。
+- `api.aihubflux.com` 只进入 API 服务；CORS 仅允许 `https://erp.aihubflux.com`。
+- `site.aihubflux.com` 和所有已验证租户域名只进入 storefront 服务。
+- 租户在后台先添加域名并配置 TXT 完成所有权验证，再配置 CNAME 到 `site.aihubflux.com`；根域名使用 DNS 服务商的 ALIAS/ANAME 或由接入层提供的 A/AAAA。
 - 域名验证成功只代表应用允许解析该 Host，不等于 HTTPS 证书已经签发。证书必须由 External HTTPS Load Balancer + Certificate Manager 自动化，或由 Cloudflare for SaaS 托管。
 
 如果租户数量会持续增长，优先选择 Cloudflare for SaaS：它原生覆盖自定义 hostname 的验证、证书签发和续期。若必须纯 Google Cloud，则需要额外实现一个域名控制面，在 TXT 验证成功后调用 Certificate Manager 创建/绑定证书，并在删除域名时清理证书；仅设置 CNAME 并不能让 Cloud Run 自动接受任意租户域名。
@@ -215,7 +215,7 @@ Cloud Run 不能使用 `docker-compose.yml` 中的本地 MySQL、Redis Volume。
 
 ```bash
 gcloud builds submit --config cloudbuild.yaml \
-  --substitutions=_REGION=asia-east1,_CLOUD_SQL_INSTANCE=mercivo-admin:asia-east1:mercivo-mysql,_STOREFRONT_CNAME_TARGET=sites.mercivo.com
+  --substitutions=_REGION=asia-east1,_CLOUD_SQL_INSTANCE=mercivo-admin:asia-east1:mercivo-mysql,_STOREFRONT_CNAME_TARGET=site.aihubflux.com
 
 gcloud run services list --region=asia-east1
 gcloud run jobs executions list --job=mercivo-migrate --region=asia-east1

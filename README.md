@@ -1,5 +1,25 @@
 # 请执行 Trae 项目初始化任务：独立站SEO管理平台（NestJS + MySQL + React）
 
+## 本地运行
+
+本地和 Cloud Run 使用同一组服务镜像：`Dockerfile.api`、`Dockerfile.admin`、`Dockerfile.storefront`。容器内统一监听 `8080`，服务间通过 Compose DNS 和同源代理访问，结构与线上三服务一致。
+
+```bash
+make local-init       # 首次生成被 git 忽略的 .env.local
+make local-up         # 构建并启动 MySQL、Redis 和三个应用服务
+make local-ps
+```
+
+本地配置只修改根目录 `.env.local`，字段模板见 `.env.local.example`。常用地址：
+
+- Admin：http://localhost:8088
+- Storefront：http://localhost:8080
+- API：http://localhost:3000
+
+Admin 与 Storefront 浏览器请求同源 `/api/*`，各自容器再代理至 `api:8080`，不要在前端写入 API 容器地址。停止环境使用 `make local-down`；清空本地数据库和 Redis 数据须显式运行 `make local-reset`。
+
+线上部署说明见 [`deploy/cloudrun/README.md`](deploy/cloudrun/README.md)。
+
 ## 项目背景
 您需要构建一个外贸ERP+独立站一体化平台的SEO管理子系统。商家可在后台可视化配置站点全局SEO、页面TDK、多语言hreflang、结构化数据、站点地图等，前台自动生成搜索引擎友好的HTML。本任务将生成前后端完整代码，后端提供API，前端实现设计稿中的所有界面。
 

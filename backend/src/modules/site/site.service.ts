@@ -205,21 +205,23 @@ export class SiteService {
       return false;
     }
   }
-  async sitemap(hostname: string) {
-    const { site, version } = await this.resolveSiteVersion(hostname);
+  async sitemap(hostname: string, siteKey?: string) {
+    const { site, version } = await this.resolveSiteVersion(hostname, siteKey);
     const snapshot = version.snapshot as Record<string, any>;
     const origin = `https://${this.normalizeHost(hostname)}`;
+    const basePath = siteKey ? `/${encodeURIComponent(siteKey)}` : '';
     const languages = site.supportedLanguages || [site.defaultLanguage];
-    const alternate = languages.map(language => `<xhtml:link rel="alternate" hreflang="${this.xml(language)}" href="${origin}/?lang=${this.xml(language)}"/>`).join('');
-    const products = (snapshot.products || []).map((product: Product) => `<url><loc>${origin}/products/${encodeURIComponent(product.id)}</loc><lastmod>${new Date(version.publishedAt).toISOString()}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>`).join('');
-    return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml"><url><loc>${origin}/</loc><lastmod>${new Date(version.publishedAt).toISOString()}</lastmod><changefreq>weekly</changefreq><priority>1.0</priority>${alternate}</url>${products}</urlset>`;
+    const alternate = languages.map(language => `<xhtml:link rel="alternate" hreflang="${this.xml(language)}" href="${origin}${basePath}/?lang=${this.xml(language)}"/>`).join('');
+    const products = (snapshot.products || []).map((product: Product) => `<url><loc>${origin}${basePath}/products/${encodeURIComponent(product.id)}</loc><lastmod>${new Date(version.publishedAt).toISOString()}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>`).join('');
+    return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml"><url><loc>${origin}${basePath}/</loc><lastmod>${new Date(version.publishedAt).toISOString()}</lastmod><changefreq>weekly</changefreq><priority>1.0</priority>${alternate}</url>${products}</urlset>`;
   }
-  async robots(hostname: string) {
-    const { version } = await this.resolveSiteVersion(hostname);
+  async robots(hostname: string, siteKey?: string) {
+    const { version } = await this.resolveSiteVersion(hostname, siteKey);
     const snapshot = version.snapshot as Record<string, any>;
     const noindex = String(snapshot.seo?.robots || 'index,follow').includes('noindex');
     const origin = `https://${this.normalizeHost(hostname)}`;
-    return `User-agent: *\n${noindex ? 'Disallow: /' : 'Disallow: /api/'}\n${noindex ? '' : 'Allow: /\n'}\nSitemap: ${origin}/sitemap.xml\n`;
+    const basePath = siteKey ? `/${encodeURIComponent(siteKey)}` : '';
+    return `User-agent: *\n${noindex ? 'Disallow: /' : 'Disallow: /api/'}\n${noindex ? '' : 'Allow: /\n'}\nSitemap: ${origin}${basePath}/sitemap.xml\n`;
   }
   private async resolveSiteVersion(hostname: string, siteSlug?: string) {
     let site: Site | null = null;
@@ -227,7 +229,7 @@ export class SiteService {
     if (siteSlug) {
       const previewHosts = (this.config.get<string>('STOREFRONT_PREVIEW_HOSTS') || 'localhost,127.0.0.1').split(',').map(value => this.normalizeHost(value));
       if (!previewHosts.includes(normalizedHost)) throw new BadRequestException('Site preview parameter is not allowed on this host');
-      site = await this.siteRepo.findOne({ where: { slug: siteSlug } });
+      site = await this.siteRepo.findOne({ where: [{ slug: siteSlug }, { tenantId: siteSlug }] });
     }
     if (!site) {
       const domain = await this.domainRepo.findOne({ where: { hostname: normalizedHost, status: 'active' } });
@@ -261,7 +263,7 @@ export class SiteService {
     return {
       ...domain,
       verificationRecord: domain.verificationToken ? { type: 'TXT', name: `_mercivo-verification.${domain.hostname}`, value: `mercivo-site-verification=${domain.verificationToken}` } : null,
-      routingRecord: { type: 'CNAME', name: domain.hostname, value: this.config.get<string>('STOREFRONT_CNAME_TARGET') || 'sites.mercivo.com' },
+      routingRecord: { type: 'CNAME', name: domain.hostname, value: this.config.get<string>('STOREFRONT_CNAME_TARGET') || 'site.aihubflux.com' },
     };
   }
   private xml(value: string) { return value.replace(/[<>&'"]/g, char => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[char] || char)); }

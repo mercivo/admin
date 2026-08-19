@@ -17,6 +17,9 @@ describe('SiteService single site model', () => {
     save: jest.fn(async (value) => ({ id: 'version-1', version: 1, ...value })),
     create: jest.fn((value) => value),
   };
+  const config = {
+    get: jest.fn((key: string) => key === 'STOREFRONT_PREVIEW_HOSTS' ? 'site.aihubflux.com' : undefined),
+  };
   const service = new SiteService(
     tenantRepo as any,
     siteRepo as any,
@@ -30,11 +33,21 @@ describe('SiteService single site model', () => {
     emptyRepo as any,
     emptyRepo as any,
     {} as any,
-    {} as any,
+    config as any,
     {} as any,
   );
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('resolves the shared storefront path by tenant id or site slug', async () => {
+    const publishedSite = { id: 'site-1', tenantId: 'tenant-1', slug: 'shop-one', status: 'published', publishedVersionId: 'version-1' };
+    siteRepo.findOne.mockResolvedValue(publishedSite);
+    tenantRepo.findOne.mockResolvedValue({ id: 'tenant-1', status: 'active', expiresAt: null });
+    emptyRepo.findOne.mockResolvedValue({ id: 'version-1', siteId: 'site-1' });
+
+    await expect(service.resolvePublicSite('site.aihubflux.com', 'tenant-1')).resolves.toBe(publishedSite);
+    expect(siteRepo.findOne).toHaveBeenCalledWith({ where: [{ slug: 'tenant-1' }, { tenantId: 'tenant-1' }] });
+  });
 
   it('allows creating the merchant single draft site', async () => {
     tenantRepo.findOne.mockResolvedValue({ id: 'tenant-1' });

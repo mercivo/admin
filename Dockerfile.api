@@ -12,5 +12,7 @@ ENV NODE_ENV=production
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./package.json
+COPY deploy/cloudrun/run-migrations.sh ./run-migrations.sh
+RUN chmod +x ./run-migrations.sh
 EXPOSE 8080
 CMD ["node", "dist/main.js"]

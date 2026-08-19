@@ -1,5 +1,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
+ARG VITE_STOREFRONT_PATH_HOSTS=site.aihubflux.com
+ENV VITE_STOREFRONT_PATH_HOSTS=$VITE_STOREFRONT_PATH_HOSTS
 COPY storefront/package*.json ./
 RUN npm ci
 COPY storefront/ ./

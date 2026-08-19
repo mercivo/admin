@@ -1,6 +1,6 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
-ARG VITE_STOREFRONT_PREVIEW_URL=http://localhost
+ARG VITE_STOREFRONT_PREVIEW_URL=https://site.aihubflux.com
 ENV VITE_STOREFRONT_PREVIEW_URL=$VITE_STOREFRONT_PREVIEW_URL
 COPY frontend/package*.json ./
 RUN npm ci --legacy-peer-deps

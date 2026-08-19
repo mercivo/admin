@@ -19,13 +19,12 @@ services:
   storefront:
     ports: !reset []
     healthcheck:
-      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://localhost/healthz']
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://localhost:8080/healthz']
       interval: 15s
       timeout: 5s
       retries: 5
   gateway:
     image: caddy:2-alpine
-    container_name: mercivo-gateway
     restart: unless-stopped
     environment:
       ADMIN_DOMAIN: ${ADMIN_DOMAIN:?请设置后台域名}

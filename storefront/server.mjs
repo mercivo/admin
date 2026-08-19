@@ -7,15 +7,16 @@ import { extname, join, normalize } from 'node:path';
 const root = new URL('./dist/', import.meta.url).pathname;
 const defaultApiOrigin = process.env.NODE_ENV === 'production'
   ? 'https://mercivo-api-753805870951.asia-east1.run.app'
-  : 'http://api:3000';
+  : 'http://api:8080';
 const apiOrigin = (process.env.API_INTERNAL_URL || defaultApiOrigin).trim().replace(/\/$/, '');
+const pathHosts = new Set((process.env.STOREFRONT_PATH_HOSTS || 'site.aihubflux.com').split(',').map(value => value.trim().toLowerCase()).filter(Boolean));
 try {
   const parsedApiOrigin = new URL(apiOrigin);
   if (!['http:', 'https:'].includes(parsedApiOrigin.protocol) || parsedApiOrigin.pathname !== '/') throw new Error();
 } catch {
   throw new Error('API_INTERNAL_URL must be an HTTP(S) origin without a path or trailing punctuation');
 }
-const port = Number(process.env.PORT || 80);
+const port = Number(process.env.PORT || 8080);
 const indexTemplate = await readFile(join(root, 'index.html'), 'utf8');
 const mime = { '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2' };
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
@@ -31,23 +32,30 @@ function proxy(request, response, targetPath = request.url) {
   request.pipe(upstream);
 }
 
-async function siteData(host, query) {
-  const preview = query.get('site');
+function requestRoute(host, requestUrl) {
+  const normalizedHost = String(host || '').toLowerCase().split(':')[0];
+  const segments = requestUrl.pathname.split('/').filter(Boolean);
+  const pathSite = pathHosts.has(normalizedHost) && segments[0] && !['api', 'assets', 'products', 'healthz', 'robots.txt', 'sitemap.xml'].includes(segments[0]) ? segments[0] : '';
+  const pathname = pathSite ? `/${segments.slice(1).join('/')}` : requestUrl.pathname;
+  return { site: requestUrl.searchParams.get('site') || pathSite, basePath: pathSite ? `/${encodeURIComponent(pathSite)}` : '', pathname: pathname || '/' };
+}
+
+async function siteData(host, site) {
   const url = new URL('/api/v1/public/site', apiOrigin);
-  if (preview) url.searchParams.set('site', preview);
+  if (site) url.searchParams.set('site', site);
   const result = await fetch(url, { headers: { host: new URL(apiOrigin).host, 'x-forwarded-host': host } });
   if (!result.ok) return null;
   const payload = await result.json();
   return payload.data || payload;
 }
 
-function renderHtml(data, requestUrl, host) {
+function renderHtml(data, requestUrl, host, route) {
   if (!data) return indexTemplate;
-  const pathProductId = requestUrl.pathname.match(/^\/products\/([^/]+)$/)?.[1];
+  const pathProductId = route.pathname.match(/^\/products\/([^/]+)$/)?.[1];
   const product = pathProductId ? data.products?.find(item => item.id === pathProductId) : null;
   const seo = data.seo || {};
   const origin = `https://${host.split(':')[0]}`;
-  const canonical = product ? `${origin}/products/${encodeURIComponent(product.id)}` : (seo.canonicalUrl || `${origin}/`);
+  const canonical = product ? `${origin}${route.basePath}/products/${encodeURIComponent(product.id)}` : (seo.canonicalUrl || `${origin}${route.basePath}/`);
   const title = product ? (product.seoTitle || `${product.nameEn || product.nameZh}｜${data.site.name}`) : (seo.title || `${data.site.name}｜官方网站`);
   const description = product ? (product.seoDescription || product.description || '') : (seo.description || `浏览${data.site.name}的产品与服务。`);
   const image = product?.seoImage || product?.img || seo.shareImage || data.products?.[0]?.img || '';
@@ -57,17 +65,18 @@ function renderHtml(data, requestUrl, host) {
     ? { '@context': 'https://schema.org', '@type': 'Product', name: product.nameEn || product.nameZh, description, image: image ? [image] : undefined, sku: product.sku, brand: { '@type': 'Brand', name: data.site.name }, offers: product.priceVisible ? { '@type': 'Offer', priceCurrency: data.site.defaultCurrency, price: String(product.price).split('–')[0], availability: 'https://schema.org/InStock', url: canonical } : undefined }
     : { '@context': 'https://schema.org', '@type': 'Organization', name: data.site.name, url: canonical, description, logo: image || undefined };
   const head = `<title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="${escapeHtml(seo.robots || 'index,follow,max-image-preview:large')}"><link rel="canonical" href="${escapeHtml(canonical)}">${alternates}<meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(canonical)}"><meta property="og:type" content="${product ? 'product' : 'website'}">${image ? `<meta property="og:image" content="${escapeHtml(image)}">` : ''}<script type="application/ld+json">${JSON.stringify(schema).replace(/</g, '\\u003c')}</script>`;
-  const products = (product ? [product] : data.products || []).slice(0, 24).map(item => `<article><h2>${escapeHtml(item.nameEn || item.nameZh)}</h2><p>${escapeHtml(item.description || '')}</p><a href="/products/${encodeURIComponent(item.id)}">查看产品</a></article>`).join('');
+  const products = (product ? [product] : data.products || []).slice(0, 24).map(item => `<article><h2>${escapeHtml(item.nameEn || item.nameZh)}</h2><p>${escapeHtml(item.description || '')}</p><a href="${route.basePath}/products/${encodeURIComponent(item.id)}">查看产品</a></article>`).join('');
   const body = `<main data-server-seo><h1>${escapeHtml(product ? (product.nameEn || product.nameZh) : data.site.name)}</h1><p>${escapeHtml(description)}</p>${products}</main>`;
   return indexTemplate.replace('</head>', `${head}</head>`).replace('<div id="root"></div>', `<div id="root">${body}</div>`);
 }
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url || '/', 'http://local');
+  const route = requestRoute(request.headers.host, url);
   if (url.pathname === '/healthz') { response.writeHead(200, { 'content-type': 'text/plain' }); return response.end('ok'); }
   if (url.pathname.startsWith('/api/')) return proxy(request, response);
-  if (url.pathname === '/sitemap.xml') return proxy(request, response, '/api/v1/public/sitemap.xml');
-  if (url.pathname === '/robots.txt') return proxy(request, response, '/api/v1/public/robots.txt');
+  if (route.pathname === '/sitemap.xml') return proxy(request, response, `/api/v1/public/sitemap.xml${route.site ? `?site=${encodeURIComponent(route.site)}` : ''}`);
+  if (route.pathname === '/robots.txt') return proxy(request, response, `/api/v1/public/robots.txt${route.site ? `?site=${encodeURIComponent(route.site)}` : ''}`);
   const filePath = normalize(join(root, url.pathname));
   if (filePath.startsWith(root) && url.pathname !== '/') {
     try {
@@ -78,9 +87,9 @@ const server = http.createServer(async (request, response) => {
     } catch {}
   }
   try {
-    const data = await siteData(request.headers.host || 'localhost', url.searchParams);
+    const data = await siteData(request.headers.host || 'localhost', route.site);
     response.writeHead(data ? 200 : 404, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=60, stale-while-revalidate=300', 'x-content-type-options': 'nosniff' });
-    response.end(renderHtml(data, url, request.headers.host || 'localhost'));
+    response.end(renderHtml(data, url, request.headers.host || 'localhost', route));
   } catch {
     response.writeHead(503, { 'content-type': 'text/html; charset=utf-8' });
     response.end(indexTemplate);

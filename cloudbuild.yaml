@@ -5,14 +5,14 @@ substitutions:
   _REGION: asia-east1
   _AR_REPOSITORY: mercivo
   _API_SERVICE: mercivo-api
-  _ADMIN_SERVICE: mercivo-admin-ui
+  _ADMIN_SERVICE: mercivo-admin
   _STOREFRONT_SERVICE: mercivo-storefront
   _MIGRATION_JOB: mercivo-migrate
   _CLOUD_SQL_INSTANCE: mercivo-admin:asia-east1:mercivo-mysql
   _DB_USER: root
   _DB_NAME: seo_platform
   _DB_SCHEMA_BOOTSTRAP: 'false'
-  _STOREFRONT_CNAME_TARGET: sites.mercivo.com
+  _STOREFRONT_CNAME_TARGET: site.aihubflux.com
 
 steps:
   - id: test-api
@@ -23,7 +23,7 @@ steps:
 
   - id: build-api
     name: gcr.io/cloud-builders/docker
-    args: ['build', '-f', 'deploy/cloudrun/Dockerfile.api', '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/api:${BUILD_ID}', '.']
+    args: ['build', '-f', 'Dockerfile.api', '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/api:${BUILD_ID}', '.']
 
   - id: push-api
     name: gcr.io/cloud-builders/docker
@@ -88,7 +88,7 @@ steps:
 
   - id: build-storefront
     name: gcr.io/cloud-builders/docker
-    args: ['build', '-f', 'deploy/cloudrun/Dockerfile.storefront', '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/storefront:${BUILD_ID}', '.']
+    args: ['build', '-f', 'Dockerfile.storefront', '-t', '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/storefront:${BUILD_ID}', '.']
 
   - id: push-storefront
     name: gcr.io/cloud-builders/docker
@@ -100,12 +100,11 @@ steps:
     args:
       - -ceu
       - |
-        API_URL="$$(cat /workspace/api-url)"
         gcloud run deploy '${_STOREFRONT_SERVICE}' \
           --image='${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/storefront:${BUILD_ID}' \
           --region='${_REGION}' --platform=managed --allow-unauthenticated \
           --port=8080 --cpu=1 --memory=512Mi --concurrency=80 --min=0 --max=1 \
-          --set-env-vars="API_INTERNAL_URL=$${API_URL}" --quiet
+          --set-env-vars="API_INTERNAL_URL=https://api.aihubflux.com,STOREFRONT_PATH_HOSTS=site.aihubflux.com" --quiet
         gcloud run services describe '${_STOREFRONT_SERVICE}' --region '${_REGION}' \
           --format='value(status.url)' > /workspace/storefront-url
 
@@ -115,11 +114,8 @@ steps:
     args:
       - -ceu
       - |
-        API_URL="$$(cat /workspace/api-url)"
-        STOREFRONT_URL="$$(cat /workspace/storefront-url)"
-        docker build -f deploy/cloudrun/Dockerfile.admin \
-          --build-arg "VITE_API_BASE_URL=$${API_URL}/api/v1" \
-          --build-arg "VITE_STOREFRONT_PREVIEW_URL=$${STOREFRONT_URL}" \
+        docker build -f Dockerfile.admin \
+          --build-arg "VITE_STOREFRONT_PREVIEW_URL=https://site.aihubflux.com" \
           -t '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/admin:${BUILD_ID}' .
 
   - id: push-admin
@@ -135,7 +131,8 @@ steps:
         gcloud run deploy '${_ADMIN_SERVICE}' \
           --image='${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/admin:${BUILD_ID}' \
           --region='${_REGION}' --platform=managed --allow-unauthenticated \
-          --port=8080 --cpu=1 --memory=512Mi --concurrency=80 --min=0 --max=1 --quiet
+          --port=8080 --cpu=1 --memory=512Mi --concurrency=80 --min=0 --max=1 \
+          --set-env-vars="API_INTERNAL_URL=https://api.aihubflux.com" --quiet
         gcloud run services describe '${_ADMIN_SERVICE}' --region '${_REGION}' \
           --format='value(status.url)' > /workspace/admin-url
 
@@ -147,9 +144,8 @@ steps:
       - |
         ADMIN_URL="$$(cat /workspace/admin-url)"
         STOREFRONT_URL="$$(cat /workspace/storefront-url)"
-        STOREFRONT_HOST="$$(printf '%s' "$${STOREFRONT_URL}" | sed 's#^https://##; s#/.*##')"
         gcloud run services update '${_API_SERVICE}' --region='${_REGION}' \
-          --update-env-vars="CORS_ORIGINS=$${ADMIN_URL},STOREFRONT_PREVIEW_HOSTS=$${STOREFRONT_HOST}" --quiet
+          --update-env-vars="CORS_ORIGINS=https://erp.aihubflux.com,STOREFRONT_PREVIEW_HOSTS=site.aihubflux.com,STOREFRONT_CNAME_TARGET=site.aihubflux.com" --quiet
         printf 'API: %s\nAdmin: %s\nStorefront: %s\n' \
           "$$(cat /workspace/api-url)" "$${ADMIN_URL}" "$${STOREFRONT_URL}"
 

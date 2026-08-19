@@ -31,8 +31,8 @@ export class SitePublicController {
   constructor(private readonly service: SiteService) {}
   @Get('site') getSite(@Headers('x-forwarded-host') forwardedHost: string, @Headers('host') host: string, @Headers('authorization') authorization: string, @Query('site') site?: string) { return this.service.resolvePublished(forwardedHost || host || 'localhost', site, authorization); }
   @Get('domains/authorize') async authorizeDomain(@Query('domain') domain: string, @Res() response: Response) { response.status(await this.service.authorizeDomain(domain || '') ? 200 : 404).send(); }
-  @Get('sitemap.xml') async sitemap(@Headers('x-forwarded-host') forwardedHost: string, @Headers('host') host: string, @Res() response: Response) { response.type('application/xml').send(await this.service.sitemap(forwardedHost || host || 'localhost')); }
-  @Get('robots.txt') async robots(@Headers('x-forwarded-host') forwardedHost: string, @Headers('host') host: string, @Res() response: Response) { response.type('text/plain').send(await this.service.robots(forwardedHost || host || 'localhost')); }
+  @Get('sitemap.xml') async sitemap(@Headers('x-forwarded-host') forwardedHost: string, @Headers('host') host: string, @Query('site') site: string | undefined, @Res() response: Response) { response.type('application/xml').send(await this.service.sitemap(forwardedHost || host || 'localhost', site)); }
+  @Get('robots.txt') async robots(@Headers('x-forwarded-host') forwardedHost: string, @Headers('host') host: string, @Query('site') site: string | undefined, @Res() response: Response) { response.type('text/plain').send(await this.service.robots(forwardedHost || host || 'localhost', site)); }
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('customer/login') customerLogin(@Headers('x-forwarded-host') forwardedHost: string, @Headers('host') host: string, @Query('site') site: string | undefined, @Body() dto: PublicCustomerLoginDto) { return this.service.loginPublicCustomer(forwardedHost || host || 'localhost', site, dto.phone); }
   @Throttle({ default: { limit: 10, ttl: 60000 } })

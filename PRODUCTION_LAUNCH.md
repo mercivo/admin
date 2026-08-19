@@ -1,11 +1,15 @@
-# Mercivo 生产上线清单
+# Mercivo 自托管上线清单（非 Cloud Run）
+
+Cloud Run 是当前正式线上方案，见 `deploy/cloudrun/README.md`。本文件仅用于需要在单台服务器上通过 Compose + Caddy 自托管的场景。
 
 ## 必需环境变量
 
-复制 `.env.docker` 为服务器上的 `.env`，至少设置：
+复制 `.env.local.example` 为服务器上的 `.env.production`，设置 `ENV_FILE=.env.production`，并至少覆盖：
 
 ```env
+ENV_FILE=.env.production
 DB_PASSWORD=使用密码管理器生成的强密码
+DB_SCHEMA_BOOTSTRAP=false
 JWT_SECRET=至少64位随机字符串
 ADMIN_DOMAIN=admin.example.com
 TLS_EMAIL=ops@example.com
@@ -25,7 +29,7 @@ SYSTEM_ADMIN_PASSWORD=使用密码管理器生成的强密码
 ## 启动
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --build
+docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.production.yml up -d --build
 ```
 
 Caddy 只会为数据库中已验证且启用的域名按需签发证书，可避免开放式证书签发风险。
