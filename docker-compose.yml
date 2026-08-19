@@ -111,8 +111,10 @@ services:
     image: mercivo-admin:latest
     container_name: mercivo-admin
     restart: unless-stopped
+    environment:
+      API_INTERNAL_URL: http://api:3000
     ports:
-      - '${ADMIN_PORT:-8088}:80'
+      - '${ADMIN_PORT:-8088}:8080'
     depends_on:
       - api
     networks:
