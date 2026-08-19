@@ -241,8 +241,7 @@ const AICenterPage: React.FC = () => {
     if (file.size > 500_000) return setToast({ message: '知识文档不能超过 500 KB', type: 'error' });
     if (!/\.(txt|md|csv|json)$/i.test(file.name)) return setToast({ message: '当前支持 TXT、Markdown、CSV 和 JSON 文本文档', type: 'error' });
     try {
-      const content = await file.text();
-      const created = await workspaceApi.createKnowledge({ name: file.name, type: file.name.split('.').pop()?.toUpperCase() || 'TXT', size: `${Math.max(1, Math.ceil(file.size / 1024))} KB`, content });
+      const created = await workspaceApi.createKnowledge(file);
       setKnowledgeFiles(current => [created, ...current]);
       setToast({ message: `“${file.name}”已加入知识库`, type: 'success' });
     } catch { setToast({ message: '知识文档上传失败', type: 'error' }); }

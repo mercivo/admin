@@ -9,7 +9,7 @@
 
 流水线使用 Cloud Build 默认构建机型，不强制指定 `E2_HIGHCPU_8`。所有镜像串行构建，避免默认小机型并行构建时内存不足。如果项目或区域没有高 CPU 构建配额，强制设置该机型会在构建开始前报 `failed precondition: due to quota restrictions`。
 
-三个 Cloud Run 服务均为 `min=0`、`max=1`、`1 CPU / 512 MiB`，空闲时可以缩容到零。流水线先部署 API，再自动读取其 Cloud Run URL 并注入 storefront；随后读取 storefront URL 构建管理后台，首次部署不需要预先准备 `api/admin/sites` 三个域名。
+三个 Cloud Run 服务均为 `min=0`、`max=1`、`1 CPU`，空闲时可以缩容到零。API 使用 `512 MiB / concurrency=40`，Admin 和 Storefront 使用 `256 MiB / concurrency=80`，适合前期不超过 5 个租户且依赖单实例内存验证码的低成本阶段。
 
 ## 0. Cloud Run 控制台分别连接代码库
 
@@ -77,7 +77,18 @@ Server running on http://localhost:8080
   - `mercivo-system-admin-password`
 - 运行服务账号：`mercivo-runtime@PROJECT_ID.iam.gserviceaccount.com`
 
-首次启动可以暂不创建 Redis 和 Cloud Storage：未配置 `REDIS_HOST` 时验证码保存在 API 实例内存中，流水线会把 API 限制为最多 1 个实例；未配置存储桶时商品图片上传功能会返回“存储未配置”。正式扩容前再创建 Memorystore、VPC Connector 和存储桶。
+未配置 `REDIS_HOST` 时验证码保存在 API 实例内存中，因此 API 必须限制为最多 1 个实例。上传统一使用 Cloud Storage：公开图片桶 `mercivo-images-753805870951`，私有知识文件桶 `mercivo-private-753805870951`，均位于 `asia-east1`、Standard、关闭软删除；API 运行账号仅授予两个桶的 Object Admin。公开图片桶允许匿名读取，私有桶不允许公开访问。
+
+API 环境变量：
+
+```text
+GCS_PROJECT_ID=mercivo-admin
+GCS_BUCKET=mercivo-images-753805870951
+GCS_PRIVATE_BUCKET=mercivo-private-753805870951
+GCS_PUBLIC_BASE_URL=https://image.aihubflux.com
+```
+
+`image.aihubflux.com` 由 Cloudflare Worker `mercivo-image-cdn` 代理公开图片桶并缓存一年，避免 Google External HTTPS Load Balancer 的固定费用。知识文件永远不经过该域名。
 
 启用 API：
 

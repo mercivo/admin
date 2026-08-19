@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { AppConfig } from './app-config.entity';
 import { TeamMember } from './team-member.entity';
 import { KnowledgeFile } from './knowledge-file.entity';
-import { CreateKnowledgeFileDto, CreateTeamMemberDto, UpdateTeamMemberDto } from './workspace.dto';
+import { CreateTeamMemberDto, UpdateTeamMemberDto } from './workspace.dto';
 import { UpdateAccountSettingsDto, UpdateSiteSettingsDto } from './workspace.dto';
 import { User } from '../auth/user.entity';
 import { Tenant } from '../site/tenant.entity';
@@ -13,6 +13,7 @@ import { SiteDomain } from '../site/site-domain.entity';
 import { hashPassword } from '../auth/password.util';
 import { AuthUser } from '../../common/types/auth-user';
 import { PERMISSION_CATALOG } from '../system/permission-catalog';
+import { CloudStorageService } from '../../common/storage/cloud-storage.service';
 
 @Injectable()
 export class WorkspaceService {
@@ -24,6 +25,7 @@ export class WorkspaceService {
     @InjectRepository(Tenant) private readonly tenantRepo: Repository<Tenant>,
     @InjectRepository(Site) private readonly siteRepo: Repository<Site>,
     @InjectRepository(SiteDomain) private readonly domainRepo: Repository<SiteDomain>,
+    private readonly storage: CloudStorageService,
   ) {}
 
   private async optionalConfig<T extends Record<string, unknown>>(key: string, siteId: string, fallback: T): Promise<T> {
@@ -166,10 +168,28 @@ export class WorkspaceService {
     return [...new Set(requested)];
   }
   listKnowledge(siteId: string) { return this.knowledgeRepo.find({ where: { siteId }, order: { createdAt: 'DESC' } }); }
-  createKnowledge(dto: CreateKnowledgeFileDto, tenantId: string, siteId: string) {
-    const content = dto.content.trim();
+  async createKnowledge(file: Express.Multer.File, tenantId: string, siteId: string) {
+    if (!/\.(txt|md|csv|json)$/i.test(file.originalname)) throw new BadRequestException('当前支持 TXT、Markdown、CSV 和 JSON 文本文档');
+    const content = file.buffer.toString('utf8').trim();
     if (!content) throw new BadRequestException('知识文档内容不能为空');
-    return this.knowledgeRepo.save(this.knowledgeRepo.create({ ...dto, content, tenantId, siteId, status: 'indexed', chunks: Math.max(1, Math.ceil(content.length / 1200)) }));
+    const stored = await this.storage.upload(file, `tenants/${tenantId}/sites/${siteId}/knowledge`, { public: false });
+    try {
+      return await this.knowledgeRepo.save(this.knowledgeRepo.create({
+        name: file.originalname,
+        type: file.originalname.split('.').pop()?.toUpperCase() || 'TXT',
+        size: `${Math.max(1, Math.ceil(file.size / 1024))} KB`,
+        content: '', objectName: stored.objectName, tenantId, siteId,
+        status: 'indexed', chunks: Math.max(1, Math.ceil(content.length / 1200)),
+      }));
+    } catch (error) {
+      await this.storage.delete(stored.objectName, { public: false });
+      throw error;
+    }
   }
-  async deleteKnowledge(id: string, siteId: string) { await this.knowledgeRepo.delete({ id, siteId }); }
+  async deleteKnowledge(id: string, siteId: string) {
+    const item = await this.knowledgeRepo.findOne({ where: { id, siteId } });
+    if (!item) return;
+    await this.knowledgeRepo.remove(item);
+    if (item.objectName) await this.storage.delete(item.objectName, { public: false });
+  }
 }

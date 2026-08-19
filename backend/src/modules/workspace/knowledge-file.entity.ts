@@ -9,6 +9,7 @@ export class KnowledgeFile {
   @Column({ length: 30 }) type: string;
   @Column({ length: 30 }) size: string;
   @Column({ type: 'longtext', select: false }) content: string;
+  @Column({ name: 'object_name', length: 1024, nullable: true }) objectName: string | null;
   @Column({ length: 20, default: 'indexed' }) status: 'indexed' | 'processing' | 'failed';
   @Column({ type: 'int', default: 0 }) chunks: number;
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;

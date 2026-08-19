@@ -29,6 +29,7 @@ import { OpportunityModule } from './modules/opportunity/opportunity.module';
 import { PlanPermissionsGuard } from './common/guards/plan-permissions.guard';
 import { Tenant } from './modules/site/tenant.entity';
 import { OutreachModule } from './modules/outreach/outreach.module';
+import { CloudStorageModule } from './common/storage/cloud-storage.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { OutreachModule } from './modules/outreach/outreach.module';
     CustomerModule,
     OpportunityModule,
     OutreachModule,
+    CloudStorageModule,
     TypeOrmModule.forFeature([Tenant]),
   ],
   providers: [

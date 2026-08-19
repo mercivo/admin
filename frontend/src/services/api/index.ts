@@ -143,7 +143,11 @@ export const workspaceApi = {
   updateMember: (id: string, data: { name?: string; role?: string; permissions?: string[] }) => api.put<any, TeamMember>(`/workspace/team/${id}`, data),
   deleteMember: (id: string) => api.delete(`/workspace/team/${id}`),
   listKnowledge: () => api.get<any, KnowledgeFile[]>('/workspace/knowledge'),
-  createKnowledge: (data: { name: string; type: string; size: string; content: string }) => api.post<any, KnowledgeFile>('/workspace/knowledge', data),
+  createKnowledge: (file: File) => {
+    const data = new FormData();
+    data.append('file', file);
+    return api.post<any, KnowledgeFile>('/workspace/knowledge', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
   deleteKnowledge: (id: string) => api.delete(`/workspace/knowledge/${id}`),
   listPlans: () => api.get<any, PlanItem[]>('/workspace/plans'),
   listSubscriptionOrders: () => api.get<any, SubscriptionOrder[]>('/workspace/subscription-orders'),
