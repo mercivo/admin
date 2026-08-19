@@ -156,8 +156,8 @@ const LoginPage: React.FC = () => {
                   <Form.Item name="captchaCode" noStyle rules={[{ required: true, len: 4, message: '请输入 4 位验证码' }]}>
                     <AppInput prefix={<SafetyCertificateOutlined />} maxLength={4} className="flex-1" placeholder="验证码" />
                   </Form.Item>
-                  <button type="button" onClick={loadCaptcha} title="点击刷新验证码" className="h-8 w-[116px] shrink-0 overflow-hidden rounded-lg border border-violet-100 bg-violet-50 transition hover:border-violet-300">
-                    {captcha && <img src={captcha.image} alt="图形验证码" className="h-full w-full" />}
+                  <button type="button" onClick={loadCaptcha} title="点击刷新验证码" className="h-9 w-[116px] shrink-0 overflow-hidden rounded-[10px] border border-violet-100 bg-violet-50 transition hover:border-violet-300">
+                    {captcha && <img src={captcha.image} alt="图形验证码" className="block h-full w-full object-cover" />}
                   </button>
                 </div>
               </AppFormItem>

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { ArrowRight, Bot, Check, CheckCircle, ChevronLeft, ChevronRight, Clock, Copy, ExternalLink, Globe2, LogOut, Mail, MapPin, Menu, MessageCircle, Phone, Send, ShieldCheck, Truck, User, X } from 'lucide-react';
 import './styles.css';
 import './seo.css';
+import './unavailable.css';
 import { AntSelect } from './controls';
 
 type Product = { id: string; nameEn: string; nameZh: string; description?: string; seoTitle?: string; seoDescription?: string; seoImage?: string; sku?: string; price: string; priceVisible?: boolean; priceSource?: string; moq: number; img: string; hot: boolean; badge?: string; likeCount?: number; tags?: string[]; category: string };
@@ -71,6 +72,16 @@ const applySeo = (data: PublishedSite) => {
   if (!schema) { schema = document.createElement('script'); schema.type = 'application/ld+json'; schema.dataset.storefrontSchema = 'true'; document.head.appendChild(schema); }
   schema.textContent = JSON.stringify(product ? { '@context': 'https://schema.org', '@type': 'Product', name: product.nameEn || product.nameZh, description, sku: product.sku, image: image ? [image] : undefined, brand: { '@type': 'Brand', name: data.site.name } } : { '@context': 'https://schema.org', '@type': 'Organization', name: data.site.name, url: canonical, description, ...(image ? { logo: image } : {}) });
 };
+
+const MercivoLogo = () => <div className="unavailable-brand" aria-label="Mercivo">
+  <svg width="48" height="48" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+    <rect width="32" height="32" rx="9" fill="url(#unavailableBrandGradient)" />
+    <defs><linearGradient id="unavailableBrandGradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse"><stop stopColor="#A899FF" /><stop offset="1" stopColor="#7C6EF5" /></linearGradient></defs>
+    <path d="M7 22V10L12.5 17L16 10L19.5 17L25 10V22" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M16 10L19 7L22 9" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+  <span>Mercivo</span>
+</div>;
 
 const ContactInfo = ({ info }: { info: SiteInfo }) => <div className="contact-info-layer">{info.contactDetails.email && <a href={`mailto:${info.contactDetails.email}`}>{info.contactDetails.email}</a>}{info.contactDetails.phone && <a href={`tel:${info.contactDetails.phone}`}>{info.contactDetails.phone}</a>}{info.contactDetails.whatsapp && <a href={`https://wa.me/${info.contactDetails.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">WhatsApp: {info.contactDetails.whatsapp}</a>}{info.contactDetails.address && <span>{info.contactDetails.address}</span>}{info.contactDetails.hours && <span>{info.contactDetails.hours}</span>}<div>{info.socialLinks.filter(item => item.visible && item.url).map(item => <a key={item.id} href={item.url} target="_blank" rel="noreferrer">{item.label}</a>)}</div></div>;
 
@@ -245,7 +256,17 @@ function App() {
       ? <textarea required={field.required} placeholder={placeholder} value={inquiry[field.key]} onChange={event => update(event.target.value)} />
       : <input required={field.required} type={field.key === 'email' ? 'email' : field.key === 'phone' ? 'tel' : 'text'} placeholder={placeholder} value={inquiry[field.key]} onChange={event => update(event.target.value)} />}</label>;
   };
-  if (error) return <main className="state"><h1>站点暂不可用</h1><p>{error}</p></main>;
+  if (error) return <main className="unavailable-page">
+    <section className="unavailable-card" role="alert">
+      <MercivoLogo />
+      <div className="unavailable-icon"><Globe2 /></div>
+      <h1>站点暂时无法访问</h1>
+      <p>当前域名尚未关联到可用站点，或该站点暂未发布。</p>
+      <p className="unavailable-help">如果您是站点管理员，请在后台检查域名绑定、商户权限及发布状态。</p>
+      <button type="button" onClick={() => { setError(''); loadSite().catch(err => setError(err instanceof Error ? err.message : '站点加载失败')); }}><span>重新加载</span><ArrowRight /></button>
+      <small>由 Mercivo 提供技术支持</small>
+    </section>
+  </main>;
   if (!site) return <main className="state"><div className="loader"/><p>正在加载站点…</p></main>;
   return <div style={{ '--theme': themeColor, '--theme-contrast': contrastColor(themeColor) } as React.CSSProperties}>
     {hasSection('header') && <header className="nav"><a className="brand" href="#top">{section('header')?.logoUrl ? <img src={section('header')!.logoUrl} alt={section('header')?.title || site.site.name} /> : <><Globe2/> {section('header')?.title || site.site.name}</>}</a><nav>{section('header')?.navItems?.length ? section('header')!.navItems!.map(item=><a key={item.id} href={`#section-${item.targetId}`}>{item.label}</a>) : (section('header')?.links || ['产品','关于我们','联系我们']).map(link=><a key={link} href={`#${link.toLowerCase()}`}>{link}</a>)}</nav><button className="customer-account" onClick={() => site.customer ? logoutCustomer() : setLoginOpen(true)} title={site.customer ? '清除客户识别' : '识别客户'}>{site.customer ? <><User/><span>{site.customer.name}</span><LogOut className="logout-icon"/></> : <><User/><span>客户识别</span></>}</button><div className={`language-control ${translating ? 'is-translating' : ''}`}><Globe2/><AntSelect className="language-select" label="切换站点语言" disabled={translating} value={language || siteLanguages[0] || 'zh'} onChange={changeLanguage} options={(siteLanguages.length ? siteLanguages : ['zh']).map(code => ({ value: code, label: languageName(code) }))} />{translating && <span className="language-loading" aria-live="polite">翻译中…</span>}</div><button className="icon"><Menu/></button></header>}

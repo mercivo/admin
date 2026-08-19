@@ -70,7 +70,7 @@ Server running on http://localhost:8080
 所有资源建议使用同一区域，默认示例为 `asia-east1`。
 
 - Artifact Registry Docker 仓库：`mercivo`
-- Cloud SQL for MySQL 8：数据库 `seo_platform`，用户 `mercivo`
+- Cloud SQL for MySQL 8：数据库 `seo_platform`，当前使用内置用户 `root`
 - Secret Manager：
   - `mercivo-db-password`
   - `mercivo-jwt-secret`
@@ -161,7 +161,7 @@ gcloud iam service-accounts add-iam-policy-binding \
 | --- | --- |
 | `_REGION` | `asia-east1` |
 | `_CLOUD_SQL_INSTANCE` | `mercivo-admin:asia-east1:mercivo-mysql` |
-| `_DB_USER` | `mercivo` |
+| `_DB_USER` | `root` |
 | `_DB_NAME` | `seo_platform` |
 | `_STOREFRONT_CNAME_TARGET` | `sites.mercivo.com` |
 

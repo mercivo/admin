@@ -1,0 +1,46 @@
+.unavailable-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  background: radial-gradient(circle at 50% 5%, #eeeaff 0, transparent 34%), linear-gradient(145deg, #faf9ff 0%, #f5f7fb 55%, #f9fafb 100%);
+  color: #292524;
+}
+
+.unavailable-card {
+  width: min(520px, 100%);
+  padding: 42px 44px 34px;
+  border: 1px solid #e9e5ff;
+  border-radius: 24px;
+  background: #ffffffeb;
+  text-align: center;
+  box-shadow: 0 28px 80px #5547a817;
+  backdrop-filter: blur(12px);
+}
+
+.unavailable-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  color: #292524;
+  font: 700 21px Manrope, system-ui, sans-serif;
+  letter-spacing: -.03em;
+}
+
+.unavailable-brand svg { filter: drop-shadow(0 8px 14px #7c6ef53b); }
+.unavailable-icon { display: grid; width: 68px; height: 68px; place-items: center; margin: 34px auto 22px; border-radius: 50%; background: #f0edff; color: #7c6ef5; }
+.unavailable-icon svg { width: 29px; height: 29px; }
+.unavailable-card h1 { margin: 0; color: #292524; font-size: 28px; line-height: 1.3; letter-spacing: -.03em; }
+.unavailable-card > p { max-width: 400px; margin: 14px auto 0; color: #6b7280; font-size: 15px; line-height: 1.75; }
+.unavailable-card .unavailable-help { margin-top: 10px; color: #9ca3af; font-size: 12px; }
+.unavailable-card button { min-height: 46px; margin-top: 26px; padding: 0 22px; border: 0; border-radius: 12px; background: #7c6ef5; color: #fff; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; cursor: pointer; box-shadow: 0 10px 24px #7c6ef536; }
+.unavailable-card button:hover { background: #6f60ed; transform: translateY(-1px); }
+.unavailable-card button svg { width: 16px; }
+.unavailable-card small { display: block; margin-top: 24px; color: #b0b4be; font-size: 11px; }
+
+@media (max-width: 620px) {
+  .unavailable-card { padding: 34px 22px 28px; border-radius: 20px; }
+  .unavailable-card h1 { font-size: 24px; }
+  .unavailable-icon { margin-top: 28px; }
+}

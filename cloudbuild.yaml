@@ -9,7 +9,7 @@ substitutions:
   _STOREFRONT_SERVICE: mercivo-storefront
   _MIGRATION_JOB: mercivo-migrate
   _CLOUD_SQL_INSTANCE: mercivo-admin:asia-east1:mercivo-mysql
-  _DB_USER: mercivo
+  _DB_USER: root
   _DB_NAME: seo_platform
   _DB_SCHEMA_BOOTSTRAP: 'false'
   _STOREFRONT_CNAME_TARGET: sites.mercivo.com
