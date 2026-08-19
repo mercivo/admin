@@ -7,6 +7,10 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import type { Request, Response } from 'express';
 
 async function bootstrap() {
+  const databaseTarget = process.env.DB_SOCKET_PATH
+    ? `unix:${process.env.DB_SOCKET_PATH}`
+    : `tcp:${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || '3306'}`;
+  console.log(`API bootstrap: PORT=${process.env.PORT || process.env.APP_PORT || 3000}, database=${process.env.DB_DATABASE || 'seo_platform'}, user=${process.env.DB_USERNAME || 'root'}, target=${databaseTarget}`);
   const app = await NestFactory.create(AppModule);
   app.getHttpAdapter().getInstance().set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
   app.getHttpAdapter().getInstance().get('/healthz', (_request: Request, response: Response) => response.status(200).send('ok'));
@@ -34,4 +38,7 @@ async function bootstrap() {
   console.log(`Server running on http://localhost:${port}`);
 }
 
-bootstrap();
+bootstrap().catch(error => {
+  console.error('NestJS bootstrap failed:', error);
+  process.exit(1);
+});

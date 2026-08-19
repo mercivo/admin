@@ -13,7 +13,7 @@ const gateway = http.createServer((request, response) => {
       'cache-control': 'no-store',
       'retry-after': '5',
     });
-    response.end(JSON.stringify({ statusCode: 503, message: 'API 正在初始化数据库，请稍后重试。' }));
+    response.end(JSON.stringify({ statusCode: 503, message: 'API 正在启动，请稍后重试。', phase: 'starting_application' }));
     return;
   }
 
@@ -37,24 +37,11 @@ const gateway = http.createServer((request, response) => {
 
 gateway.listen(publicPort, '0.0.0.0', () => {
   console.log(`Startup gateway listening on 0.0.0.0:${publicPort}`);
-  if (process.env.DB_PREPARE_ON_START === 'true') prepareDatabase();
-  else startApplication();
+  startApplication();
 });
 
 let child;
-function run(command, args, environment = process.env) {
-  return new Promise((resolve, reject) => {
-    child = spawn(command, args, { stdio: 'inherit', env: environment });
-    child.once('error', reject);
-    child.once('exit', (code, signal) => {
-      child = undefined;
-      if (code === 0) resolve();
-      else reject(new Error(`${command} exited with ${signal || code}`));
-    });
-  });
-}
-
-async function waitForApplication(attempts = 60) {
+async function waitForApplication(attempts = 180) {
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
       const response = await fetch(`http://127.0.0.1:${applicationPort}/healthz`);
@@ -63,17 +50,6 @@ async function waitForApplication(attempts = 60) {
     await new Promise(resolve => setTimeout(resolve, 500));
   }
   throw new Error('NestJS did not become healthy on the internal port');
-}
-
-async function prepareDatabase() {
-  try {
-    console.log('Preparing database before starting NestJS');
-    await run('/app/start-api.sh', []);
-    console.log('Database preparation completed');
-    await startApplication();
-  } catch (error) {
-    fatal(error);
-  }
 }
 
 async function startApplication() {
