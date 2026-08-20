@@ -1,4 +1,4 @@
-import { IsString, IsOptional, MaxLength, IsUrl } from 'class-validator';
+import { IsString, IsOptional, MaxLength } from 'class-validator';
 
 export class UpdateSeoGlobalDto {
   @IsString()

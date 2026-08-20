@@ -86,6 +86,7 @@ GCS_PROJECT_ID=mercivo-admin
 GCS_BUCKET=mercivo-images-753805870951
 GCS_PRIVATE_BUCKET=mercivo-private-753805870951
 GCS_PUBLIC_BASE_URL=https://image.aihubflux.com
+GCS_OBJECT_PREFIX=production
 ```
 
 `image.aihubflux.com` 由 Cloudflare Worker `mercivo-image-cdn` 代理公开图片桶并缓存一年，避免 Google External HTTPS Load Balancer 的固定费用。知识文件永远不经过该域名。

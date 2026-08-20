@@ -102,7 +102,7 @@ services:
       mercivo-redis:
         condition: service_healthy
     healthcheck:
-      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://localhost:8080/healthz']
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/healthz']
       interval: 10s
       timeout: 3s
       retries: 10
@@ -121,6 +121,7 @@ services:
     restart: unless-stopped
     environment:
       API_INTERNAL_URL: http://api:8080
+      API_INTERNAL_HOST: api
     ports:
       - '${ADMIN_PORT}:8080'
     depends_on:
@@ -144,7 +145,7 @@ services:
     ports:
       - '${STOREFRONT_PORT}:8080'
     healthcheck:
-      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://localhost:8080/healthz']
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/healthz']
       interval: 10s
       timeout: 3s
       retries: 5

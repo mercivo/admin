@@ -17,7 +17,8 @@
     "migration:generate": "npm run typeorm -- migration:generate -d src/config/data-source.ts",
     "migration:run": "npm run typeorm -- migration:run -d src/config/data-source.ts",
     "migration:run:prod": "node node_modules/typeorm/cli.js migration:run -d dist/config/data-source.js",
-    "migration:revert": "npm run typeorm -- migration:revert -d src/config/data-source.ts"
+    "migration:revert": "npm run typeorm -- migration:revert -d src/config/data-source.ts",
+    "data:reset": "node dist/reset-data.js"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.21.0",

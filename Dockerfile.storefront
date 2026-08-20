@@ -13,4 +13,5 @@ ENV NODE_ENV=production
 COPY --from=builder /app/dist ./dist
 COPY storefront/server.mjs ./server.mjs
 EXPOSE 8080
+USER node
 CMD ["node", "server.mjs"]

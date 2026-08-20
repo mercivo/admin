@@ -11,10 +11,10 @@ describe('CloudStorageService', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('writes public images beneath a tenant-isolated prefix', async () => {
-    const config = { get: jest.fn((key: string) => ({ GCS_BUCKET: 'mercivo-assets', GCS_PROJECT_ID: 'project', GCS_PUBLIC_BASE_URL: 'https://image.aihubflux.com' } as Record<string, string>)[key]) };
+    const config = { get: jest.fn((key: string) => ({ GCS_BUCKET: 'mercivo-assets', GCS_PROJECT_ID: 'project', GCS_PUBLIC_BASE_URL: 'https://image.aihubflux.com', GCS_OBJECT_PREFIX: 'local' } as Record<string, string>)[key]) };
     const service = new CloudStorageService(config as never);
     const result = await service.upload({ originalname: '产品.webp', mimetype: 'image/webp', buffer: Buffer.from('image') } as Express.Multer.File, 'tenants/t1/sites/s1/images');
-    expect(result.objectName).toMatch(/^tenants\/t1\/sites\/s1\/images\/[a-f0-9-]+\.webp$/);
+    expect(result.objectName).toMatch(/^local\/tenants\/t1\/sites\/s1\/images\/[a-f0-9-]+\.webp$/);
     expect(result.url).toBe(`https://image.aihubflux.com/${result.objectName}`);
     expect(save).toHaveBeenCalledWith(expect.any(Buffer), expect.objectContaining({ contentType: 'image/webp' }));
   });
@@ -30,5 +30,13 @@ describe('CloudStorageService', () => {
   it('returns a friendly error when storage is not configured', async () => {
     const service = new CloudStorageService({ get: jest.fn() } as never);
     await expect(service.upload({} as Express.Multer.File, 'images')).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('never falls back to the public bucket for private objects', async () => {
+    const config = { get: jest.fn((key: string) => ({ GCS_BUCKET: 'mercivo-assets' } as Record<string, string>)[key]) };
+    const service = new CloudStorageService(config as never);
+    await expect(service.upload({ originalname: 'guide.md', mimetype: 'text/markdown', buffer: Buffer.from('text') } as Express.Multer.File, 'knowledge', { public: false }))
+      .rejects.toThrow('私有文件存储服务尚未配置');
+    expect(save).not.toHaveBeenCalled();
   });
 });

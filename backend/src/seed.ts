@@ -63,7 +63,8 @@ async function seed() {
   // has a system account without creating a tenant or sample records.
   if (process.env.SYSTEM_ADMIN_BOOTSTRAP_ENABLED !== 'false') {
     const systemUsername = process.env.SYSTEM_ADMIN_USERNAME || 'admin';
-    const systemPassword = process.env.SYSTEM_ADMIN_PASSWORD || 'aihubflux@2026';
+    const systemPassword = process.env.SYSTEM_ADMIN_PASSWORD;
+    if (!systemPassword || systemPassword.length < 12) throw new Error('SYSTEM_ADMIN_PASSWORD must be configured with at least 12 characters');
     const existingSystemAdmin = await userRepo.findOne({ where: { username: systemUsername } });
     const systemAdminValues = {
       tenantId: null,
@@ -245,11 +246,6 @@ async function seed() {
     const version = await versionRepo.save({ siteId: site.id, version: 1, status: 'published', snapshot, publishedBy: 'seed' });
     site.status = 'published'; site.publishedVersionId = version.id; await siteRepo.save(site);
   }
-  const demoPhone = process.env.DEMO_TENANT_PHONE || '13800000000';
-  if (!(await userRepo.exist({ where: { phone: demoPhone } }))) {
-    await userRepo.save(userRepo.create({ tenantId: site.tenantId, siteId: site.id, phone: demoPhone, username: null, passwordHash: await hashPassword(process.env.DEMO_TENANT_PASSWORD || 'TenantAdmin@2026'), role: 'admin', status: 'active', lastLoginAt: null }));
-  }
-
   await ds.destroy();
   console.log('Seed completed!');
 }

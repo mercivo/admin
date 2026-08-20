@@ -75,7 +75,7 @@ steps:
       - --concurrency=40
       - --min=0
       - --max=1
-      - --set-env-vars=NODE_ENV=production,DB_HOST=localhost,DB_PORT=3306,DB_USERNAME=${_DB_USER},DB_DATABASE=${_DB_NAME},DB_SOCKET_PATH=/cloudsql/${_CLOUD_SQL_INSTANCE},DB_SYNCHRONIZE=false,CORS_ORIGINS=https://placeholder.invalid,STOREFRONT_PREVIEW_HOSTS=localhost,STOREFRONT_CNAME_TARGET=${_STOREFRONT_CNAME_TARGET},TRUST_PROXY_HOPS=1,SYSTEM_ADMIN_BOOTSTRAP_ENABLED=false,SEED_DATA_ENABLED=false,DB_POOL_MAX=5
+      - --set-env-vars=NODE_ENV=production,DB_HOST=localhost,DB_PORT=3306,DB_USERNAME=${_DB_USER},DB_DATABASE=${_DB_NAME},DB_SOCKET_PATH=/cloudsql/${_CLOUD_SQL_INSTANCE},DB_SYNCHRONIZE=false,CORS_ORIGINS=https://placeholder.invalid,STOREFRONT_PREVIEW_HOSTS=localhost,STOREFRONT_CNAME_TARGET=${_STOREFRONT_CNAME_TARGET},TRUST_PROXY_HOPS=1,SYSTEM_ADMIN_BOOTSTRAP_ENABLED=false,SEED_DATA_ENABLED=false,DB_POOL_MAX=5,GCS_PROJECT_ID=${PROJECT_ID},GCS_BUCKET=mercivo-images-753805870951,GCS_PRIVATE_BUCKET=mercivo-private-753805870951,GCS_PUBLIC_BASE_URL=https://image.aihubflux.com,GCS_OBJECT_PREFIX=production
       - --set-secrets=DB_PASSWORD=mercivo-db-password:latest,JWT_SECRET=mercivo-jwt-secret:latest
       - --quiet
 

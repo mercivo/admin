@@ -29,7 +29,7 @@ test('merchant admin must authenticate and can load products', async ({ page }) 
   expect(await accountInput.evaluate(element => getComputedStyle(element).lineHeight)).toBe('28px');
   expect(await accountInput.evaluate(element => getComputedStyle(element).height)).toBe('28px');
   await accountInput.fill('13800000000');
-  await page.getByLabel('密码').fill('TenantAdmin@2026');
+  await page.getByLabel('密码').fill(process.env.E2E_TENANT_PASSWORD || 'TestTenant!Only2026');
   await page.getByRole('button', { name: '安全登录' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole('heading', { name: '工作台' })).toBeVisible();
@@ -75,7 +75,7 @@ test('tenant operations modules load their production APIs', async ({ page }) =>
   page.on('response', response => { if (response.url().includes('/api/v1/') && response.status() >= 400) apiErrors.push(`${response.status()} ${response.url()}`); });
   await page.goto('http://localhost:8088/login');
   await page.getByLabel('手机号 / 系统管理员账号').fill('13800000000');
-  await page.getByLabel('密码').fill('TenantAdmin@2026');
+  await page.getByLabel('密码').fill(process.env.E2E_TENANT_PASSWORD || 'TestTenant!Only2026');
   await page.getByRole('button', { name: '安全登录' }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole('heading', { name: '工作台' })).toBeVisible();
@@ -105,7 +105,7 @@ test('tenant operations modules load their production APIs', async ({ page }) =>
 test('system administrator can view and control all merchants', async ({ page }) => {
   await page.goto('http://localhost:8088/login');
   await page.getByLabel('手机号 / 系统管理员账号').fill('admin');
-  await page.getByLabel('密码').fill('aihubflux@2026');
+  await page.getByLabel('密码').fill(process.env.E2E_SYSTEM_ADMIN_PASSWORD || 'TestAdmin!Only2026');
   await page.getByRole('button', { name: '安全登录' }).click();
   await expect(page).toHaveURL(/\/system\/overview$/);
   await expect(page.getByRole('heading', { name: '全商户运营概览' })).toBeVisible();

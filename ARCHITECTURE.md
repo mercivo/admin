@@ -106,7 +106,7 @@ docker compose up -d --build
 - 平台管理员可查看所有商户的站点、商品、线索、智能体和账号统计，控制商户启停、套餐、商品/智能体/站点配额、AI 和自定义域名权限。
 - 商户停用或账号禁用会在下一次 API 请求时立即使已有 JWT 失效。
 
-开发演示账号：商户管理员 `13800000000 / TenantAdmin@2026`，系统管理员 `admin / aihubflux@2026`。账号由 `SYSTEM_ADMIN_USERNAME` 和 `SYSTEM_ADMIN_PASSWORD` 统一配置，生产环境必须通过密钥管理服务覆盖默认值。
+系统管理员账号由 `SYSTEM_ADMIN_USERNAME` 和 `SYSTEM_ADMIN_PASSWORD` 初始化。仓库不提供或记录任何可用密码；本地使用 `.env.local`，生产环境必须从 Secret Manager 注入。
 
 生产环境固定关闭 `DB_SYNCHRONIZE`，API 容器启动时先执行 TypeORM migrations，再执行幂等种子补全，最后启动 NestJS。既有项目直接启动即可迁移；全新空数据库首次初始化可临时设置 `DB_SCHEMA_BOOTSTRAP=true` 创建基础表，成功后必须恢复为 `false`。
 默认 `SEED_DATA_ENABLED=false`，不自动写入演示租户、商品或其他业务数据；`SYSTEM_ADMIN_BOOTSTRAP_ENABLED=true` 会独立确保配置的系统管理员存在。仅本地演示或自动化基线环境可显式设置 `SEED_DATA_ENABLED=true`。

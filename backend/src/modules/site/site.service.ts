@@ -64,7 +64,7 @@ export class SiteService {
     return domains.map(domain => this.domainDetails(domain));
   }
   async addDomain(siteId: string, dto: CreateDomainDto, tenantId: string) {
-    const site = await this.getSite(siteId, tenantId);
+    await this.getSite(siteId, tenantId);
     const hostname = this.normalizeHost(dto.hostname);
     if (dto.isPrimary) await this.domainRepo.update({ siteId }, { isPrimary: false });
     const isLocal = hostname.endsWith('.localhost') || hostname === 'localhost';

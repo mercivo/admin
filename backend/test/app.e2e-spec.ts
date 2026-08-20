@@ -28,7 +28,7 @@ describe('Mercivo API (e2e)', () => {
     process.env.JWT_SECRET = 'seo-jwt-secret-change-in-production';
     process.env.AUTH_CAPTCHA_DEBUG_ENABLED = 'true';
     process.env.SYSTEM_ADMIN_USERNAME = 'admin';
-    process.env.SYSTEM_ADMIN_PASSWORD = 'aihubflux@2026';
+    process.env.SYSTEM_ADMIN_PASSWORD = 'TestAdmin!Only2026';
     const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = module.createNestApplication();
     app.setGlobalPrefix('api/v1');
@@ -56,7 +56,7 @@ describe('Mercivo API (e2e)', () => {
   });
   it('rejects protected APIs without a token', () => request(app.getHttpServer()).get('/api/v1/product').expect(401));
   it('logs in and returns tenant context', async () => {
-    const response = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ account: '13800000000', password: 'TenantAdmin@2026' }).expect(201);
+    const response = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ account: '13800000000', password: 'TestTenant!Only2026' }).expect(201);
     token = response.body.accessToken || response.body.data?.accessToken;
     expect(token).toBeTruthy();
   });
@@ -147,7 +147,7 @@ describe('Mercivo API (e2e)', () => {
     await ds.getRepository(Tenant).delete({ id: data.user.tenantId });
   });
   it('allows the separate system administrator to inspect all tenants', async () => {
-    const login = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ account: 'admin', password: 'aihubflux@2026' }).expect(201);
+    const login = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ account: 'admin', password: 'TestAdmin!Only2026' }).expect(201);
     systemToken = login.body.accessToken || login.body.data?.accessToken;
     const response = await request(app.getHttpServer()).get('/api/v1/system/overview').set('Authorization', `Bearer ${systemToken}`).expect(200);
     expect((response.body.data || response.body).totalTenants).toBeGreaterThan(0);
