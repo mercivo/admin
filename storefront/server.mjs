@@ -8,7 +8,10 @@ const root = new URL('./dist/', import.meta.url).pathname;
 const defaultApiOrigin = process.env.NODE_ENV === 'production'
   ? 'https://mercivo-api-753805870951.asia-east1.run.app'
   : 'http://api:8080';
-const apiOrigin = (process.env.API_INTERNAL_URL || defaultApiOrigin).trim().replace(/\/$/, '');
+const configuredApiOrigin = (process.env.API_INTERNAL_URL || defaultApiOrigin).trim().replace(/\/$/, '');
+// Cloud Run's service URL is stable across revisions. Use it for service-to-service
+// traffic until the optional api.aihubflux.com Cloud Run domain mapping is healthy.
+const apiOrigin = configuredApiOrigin === 'https://api.aihubflux.com' ? defaultApiOrigin : configuredApiOrigin;
 const pathHosts = new Set((process.env.STOREFRONT_PATH_HOSTS || 'site.aihubflux.com').split(',').map(value => value.trim().toLowerCase()).filter(Boolean));
 try {
   const parsedApiOrigin = new URL(apiOrigin);

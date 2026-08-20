@@ -4,9 +4,9 @@
 
 | 公网域名 | Cloud Run 服务 | 服务内配置 |
 | --- | --- | --- |
-| `erp.aihubflux.com` | `mercivo-admin` | `API_INTERNAL_URL=https://api.aihubflux.com` |
+| `erp.aihubflux.com` | `mercivo-admin` | `API_INTERNAL_URL=https://mercivo-api-753805870951.asia-east1.run.app` |
 | `api.aihubflux.com` | `mercivo-api` | `CORS_ORIGINS=https://erp.aihubflux.com`、`STOREFRONT_PREVIEW_HOSTS=site.aihubflux.com`、`STOREFRONT_CNAME_TARGET=site.aihubflux.com` |
-| `site.aihubflux.com` | `mercivo-storefront` | `API_INTERNAL_URL=https://api.aihubflux.com`、`STOREFRONT_PATH_HOSTS=site.aihubflux.com` |
+| `site.aihubflux.com` | `mercivo-storefront` | `API_INTERNAL_URL=https://mercivo-api-753805870951.asia-east1.run.app`、`STOREFRONT_PATH_HOSTS=site.aihubflux.com` |
 
 Cloudflare 中这三个名称只创建 Cloud Run 映射流程要求的记录，不修改根域名、邮件、图片或账号内其他 Zone 的记录。
 

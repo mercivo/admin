@@ -31,7 +31,7 @@
 
 先部署 API 并确认 `/healthz` 返回 200，再把其完整 `https://...run.app` 地址作为另外两个服务的 `API_INTERNAL_URL`。Admin 浏览器继续请求同源 `/api/v1`，由 Admin Nginx 转发到 API，因此不依赖浏览器跨域；Storefront 同样由服务端转发并保留租户原始 Host。
 
-Cloud Run 自动生成的服务 URL 虽然包含一段哈希，但它属于服务而不是 revision，发布新 revision 后不会变化。正式环境统一使用 `API_INTERNAL_URL=https://api.aihubflux.com`。三服务调用链如下：
+Cloud Run 自动生成的服务 URL 虽然包含一段数字，但它属于服务而不是 revision，发布新 revision 后不会变化。服务间调用使用该稳定 URL，避免自定义域名证书或映射异常影响内部代理。三服务调用链如下：
 
 ```text
 浏览器 -> mercivo-admin.run.app/api/* -> Admin Nginx -> API_INTERNAL_URL
@@ -46,13 +46,13 @@ Admin 和 Storefront 均不在浏览器中直接暴露 Cloud Run API 地址。�
 API_INTERNAL_URL=https://mercivo-api-753805870951.asia-east1.run.app
 ```
 
-不要附加尾部 `/`、`/api/v1`、逗号或中文标点。正式环境域名映射完成后使用 `https://api.aihubflux.com`。
+不要附加尾部 `/`、`/api/v1`、逗号或中文标点。`api.aihubflux.com` 只作为可选公网入口，不作为 Admin/Storefront 的上游依赖。
 
-Admin 和 Storefront 的 Cloud Run 服务应显式设置 `API_INTERNAL_URL=https://api.aihubflux.com`。
+Admin 和 Storefront 的 Cloud Run 服务应显式设置 `API_INTERNAL_URL=https://mercivo-api-753805870951.asia-east1.run.app`。
 
 如果 API revision 报“未监听 `PORT=8080`”，先查看 revision 日志中该提示之前的应用错误。API 本身会读取 Cloud Run 注入的 `PORT`；常见真实原因是 Cloud SQL 未绑定、`DB_SOCKET_PATH` 错误、Secret 未授权或 migration 失败，导致 NestJS 在开始监听前退出。
 
-直接连接代码库使用的 `/Dockerfile.api` 会直接启动 NestJS。在线镜像不会执行 migration，也不读取 `DB_PREPARE_ON_START`，避免 Cloud Run 中残留的环境变量再次阻塞 revision 启动。日志中出现以下内容代表启动成功：
+直接连接代码库使用的 `/Dockerfile.api` 会在 NestJS 初始化数据库连接时自动运行尚未执行的 TypeORM migration，再开始监听端口；已执行的 migration 会自动跳过。日志中出现以下内容代表启动成功：
 
 ```text
 API bootstrap: PORT=8080, database=seo_platform, user=mercivo, target=unix:/cloudsql/mercivo-admin:asia-east1:mercivo-mysql

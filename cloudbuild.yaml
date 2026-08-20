@@ -104,7 +104,7 @@ steps:
           --image='${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/storefront:${BUILD_ID}' \
           --region='${_REGION}' --platform=managed --allow-unauthenticated \
           --port=8080 --cpu=1 --memory=512Mi --concurrency=80 --min=0 --max=1 \
-          --set-env-vars="API_INTERNAL_URL=https://api.aihubflux.com,STOREFRONT_PATH_HOSTS=site.aihubflux.com" --quiet
+          --set-env-vars="API_INTERNAL_URL=https://mercivo-api-753805870951.asia-east1.run.app,STOREFRONT_PATH_HOSTS=site.aihubflux.com" --quiet
         gcloud run services describe '${_STOREFRONT_SERVICE}' --region '${_REGION}' \
           --format='value(status.url)' > /workspace/storefront-url
 
@@ -132,7 +132,7 @@ steps:
           --image='${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/admin:${BUILD_ID}' \
           --region='${_REGION}' --platform=managed --allow-unauthenticated \
           --port=8080 --cpu=1 --memory=512Mi --concurrency=80 --min=0 --max=1 \
-          --set-env-vars="API_INTERNAL_URL=https://api.aihubflux.com,API_INTERNAL_HOST=api.aihubflux.com" --quiet
+          --set-env-vars="API_INTERNAL_URL=https://mercivo-api-753805870951.asia-east1.run.app,API_INTERNAL_HOST=mercivo-api-753805870951.asia-east1.run.app" --quiet
         gcloud run services describe '${_ADMIN_SERVICE}' --region '${_REGION}' \
           --format='value(status.url)' > /workspace/admin-url
 
