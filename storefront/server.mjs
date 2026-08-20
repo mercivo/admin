@@ -23,6 +23,14 @@ const port = Number(process.env.PORT || 8080);
 const indexTemplate = await readFile(join(root, 'index.html'), 'utf8');
 const mime = { '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2' };
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+const securityHeaders = {
+  'strict-transport-security': 'max-age=31536000; includeSubDomains',
+  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
+  'referrer-policy': 'strict-origin-when-cross-origin',
+  'permissions-policy': 'camera=(), microphone=(), geolocation=()',
+};
 
 function proxy(request, response, targetPath = request.url) {
   const target = new URL(targetPath, apiOrigin);
@@ -80,7 +88,7 @@ function renderHtml(data, requestUrl, host, route) {
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url || '/', 'http://local');
   const route = requestRoute(request.headers.host, url);
-  if (url.pathname === '/healthz') { response.writeHead(200, { 'content-type': 'text/plain' }); return response.end('ok'); }
+  if (url.pathname === '/healthz') { response.writeHead(200, { ...securityHeaders, 'content-type': 'text/plain' }); return response.end('ok'); }
   if (url.pathname.startsWith('/api/')) return proxy(request, response);
   if (route.pathname === '/sitemap.xml') return proxy(request, response, `/api/v1/public/sitemap.xml${route.site ? `?site=${encodeURIComponent(route.site)}` : ''}`);
   if (route.pathname === '/robots.txt') return proxy(request, response, `/api/v1/public/robots.txt${route.site ? `?site=${encodeURIComponent(route.site)}` : ''}`);
@@ -88,18 +96,18 @@ const server = http.createServer(async (request, response) => {
   if (filePath.startsWith(root) && url.pathname !== '/') {
     try {
       if ((await stat(filePath)).isFile()) {
-        response.writeHead(200, { 'content-type': mime[extname(filePath)] || 'application/octet-stream', 'cache-control': 'public, max-age=2592000, immutable' });
+        response.writeHead(200, { ...securityHeaders, 'content-type': mime[extname(filePath)] || 'application/octet-stream', 'cache-control': 'public, max-age=2592000, immutable' });
         return createReadStream(filePath).pipe(response);
       }
     } catch {}
   }
   try {
     const data = await siteData(request.headers.host || 'localhost', route.site);
-    response.writeHead(data ? 200 : 404, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=60, stale-while-revalidate=300', 'x-content-type-options': 'nosniff' });
+    response.writeHead(data ? 200 : 404, { ...securityHeaders, 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=60, stale-while-revalidate=300' });
     response.end(renderHtml(data, url, request.headers.host || 'localhost', route));
   } catch (error) {
     console.error(`Storefront rendering failed: ${error?.code || 'UNKNOWN'} ${error?.message || error}`);
-    response.writeHead(503, { 'content-type': 'text/html; charset=utf-8' });
+    response.writeHead(503, { ...securityHeaders, 'content-type': 'text/html; charset=utf-8' });
     response.end(indexTemplate);
   }
 });

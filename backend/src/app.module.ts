@@ -49,8 +49,10 @@ import { join } from 'path';
           ...database,
           autoLoadEntities: true,
           migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
-          migrationsRun: process.env.NODE_ENV === 'production',
-          synchronize: process.env.DB_SYNCHRONIZE === 'true' || process.env.NODE_ENV !== 'production',
+          // Schema changes are owned by the dedicated migration job. Starting an
+          // API revision must never race the job or mutate a database implicitly.
+          migrationsRun: false,
+          synchronize: process.env.DB_SYNCHRONIZE === 'true',
         };
       },
     }),

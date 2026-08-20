@@ -12,12 +12,13 @@ async function bootstrap() {
     : `tcp:${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || '3306'}`;
   console.log(`API bootstrap: PORT=${process.env.PORT || process.env.APP_PORT || 3000}, database=${process.env.DB_DATABASE || 'seo_platform'}, user=${process.env.DB_USERNAME || 'root'}, target=${databaseTarget}`);
   const app = await NestFactory.create(AppModule);
-  app.getHttpAdapter().getInstance().set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
-  app.getHttpAdapter().getInstance().get('/healthz', (_request: Request, response: Response) => response.status(200).send('ok'));
+  const express = app.getHttpAdapter().getInstance();
+  express.disable('x-powered-by');
+  express.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
+  app.use(helmet());
+  express.get('/healthz', (_request: Request, response: Response) => response.status(200).send('ok'));
 
   app.setGlobalPrefix('api/v1');
-
-  app.use(helmet());
 
   const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:8088').split(',').map(value => value.trim()).filter(Boolean);
   app.enableCors({ origin: allowedOrigins, credentials: true });
