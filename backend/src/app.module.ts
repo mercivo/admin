@@ -30,6 +30,7 @@ import { PlanPermissionsGuard } from './common/guards/plan-permissions.guard';
 import { Tenant } from './modules/site/tenant.entity';
 import { OutreachModule } from './modules/outreach/outreach.module';
 import { CloudStorageModule } from './common/storage/cloud-storage.module';
+import { join } from 'path';
 
 @Module({
   imports: [
@@ -47,6 +48,8 @@ import { CloudStorageModule } from './common/storage/cloud-storage.module';
           type: 'mysql' as const,
           ...database,
           autoLoadEntities: true,
+          migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
+          migrationsRun: process.env.NODE_ENV === 'production',
           synchronize: process.env.DB_SYNCHRONIZE === 'true' || process.env.NODE_ENV !== 'production',
         };
       },
