@@ -7,7 +7,7 @@ RUN npm ci --legacy-peer-deps
 COPY frontend/ ./
 RUN npm run build
 
-FROM nginx:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.27-alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY deploy/cloudrun/admin.runtime.nginx.conf.template /etc/nginx/templates/default.conf.template
 ENV API_INTERNAL_URL=https://mercivo-api-753805870951.asia-east1.run.app

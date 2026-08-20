@@ -61,3 +61,9 @@
 3. `plans` 平台套餐配置：至少保留 `trial`，注册租户和权限上限依赖它。
 
 租户、站点、域名、商品、客户、线索、商机、推广、聊天、知识库、站点版本、字典、成员、预制/实例智能体和 Sitemap 状态均不属于空系统的必需数据。
+
+## 安全重置
+
+`npm run data:reset` 要求 `RESET_ENVIRONMENT`、`RESET_DATA_CONFIRM=mercivo-admin:<environment>:DELETE_BUSINESS_DATA` 和完全匹配的 `GCS_OBJECT_PREFIX`。默认的 `RESET_STORAGE_SCOPE=prefix` 只清理 `<GCS_OBJECT_PREFIX>/` 目录。
+
+只有一次性清理历史遗留的无前缀模拟文件时才可设置 `RESET_STORAGE_SCOPE=all`；此时还必须提供 `RESET_STORAGE_CONFIRM=mercivo-admin:<environment>:DELETE_ALL_STORAGE_OBJECTS`。脚本会先验证公开与私有存储桶均可访问，再开始数据库清理。
