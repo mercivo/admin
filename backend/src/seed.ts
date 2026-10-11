@@ -11,6 +11,7 @@ import { SiteDomain } from './modules/site/site-domain.entity';
 import { SiteVersion } from './modules/site/site-version.entity';
 import { User } from './modules/auth/user.entity';
 import { hashPassword } from './modules/auth/password.util';
+import { normalizeBootstrapPassword } from './modules/auth/bootstrap-password';
 
 dotenv.config();
 
@@ -51,7 +52,7 @@ async function seed() {
   // has a system account without creating a tenant or sample records.
   if (process.env.SYSTEM_ADMIN_BOOTSTRAP_ENABLED !== 'false') {
     const systemUsername = process.env.SYSTEM_ADMIN_USERNAME || 'admin';
-    const systemPassword = process.env.SYSTEM_ADMIN_PASSWORD;
+    const systemPassword = normalizeBootstrapPassword(process.env.SYSTEM_ADMIN_PASSWORD);
     if (!systemPassword || systemPassword.length < 12) throw new Error('SYSTEM_ADMIN_PASSWORD must be configured with at least 12 characters');
     const existingSystemAdmin = await userRepo.findOne({ where: { username: systemUsername } });
     const systemAdminValues = {
