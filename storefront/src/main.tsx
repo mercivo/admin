@@ -1,22 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ArrowRight, Bot, Check, CheckCircle, ChevronLeft, ChevronRight, Clock, Copy, ExternalLink, Globe2, LogOut, Mail, MapPin, Menu, MessageCircle, Phone, Send, ShieldCheck, Truck, User, X } from 'lucide-react';
+import { ArrowRight, Check, CheckCircle, ChevronLeft, ChevronRight, Clock, Copy, ExternalLink, Globe2, LogOut, Mail, MapPin, Menu, MessageCircle, Phone, ShieldCheck, Truck, User } from 'lucide-react';
 import './styles.css';
 import './seo.css';
 import './unavailable.css';
 import { AntSelect } from './controls';
+import { StorefrontModal } from './StorefrontModal';
 
 type Product = { id: string; nameEn: string; nameZh: string; description?: string; seoTitle?: string; seoDescription?: string; seoImage?: string; sku?: string; price: string; priceVisible?: boolean; priceSource?: string; moq: number; img: string; hot: boolean; badge?: string; likeCount?: number; tags?: string[]; category: string };
 type ProductCategory = { code: string; label: string; parentCode?: string | null; sort: number };
 type SeoConfig = { title?: string; description?: string; keywords?: string; shareImage?: string; canonicalUrl?: string; robots?: string };
-type PublishedSite = { siteId: string; versionId: string; version: number; site: { name: string; slug: string; defaultLanguage: string; supportedLanguages?: string[]; defaultCurrency: string; guestPriceMode?: 'base' | 'hidden' }; customer?: { id: string; name: string; level: string } | null; config: Record<string, unknown>; seo?: SeoConfig; products: Product[]; categories?: ProductCategory[]; testimonials: Array<{ id: string; name: string; company: string; text: string; rating: number }>; agent?: { name: string } | null };
-type TranslationResponse = { language: string; translations: Record<string, string> };
-type PublicChatResponse = { sessionId: string; message: { text?: string } };
+type PublishedSite = { siteId: string; versionId: string; version: number; site: { name: string; slug: string; defaultLanguage: string; supportedLanguages?: string[]; defaultCurrency: string; guestPriceMode?: 'base' | 'hidden' }; customer?: { id: string; name: string; level: string } | null; config: Record<string, unknown>; seo?: SeoConfig; products: Product[]; categories?: ProductCategory[]; testimonials: Array<{ id: string; name: string; company: string; text: string; rating: number }> };
 type FormFieldKey = 'name' | 'email' | 'company' | 'phone' | 'country' | 'requirements';
 type FormField = { key: FormFieldKey; label: string; enabled: boolean; required: boolean };
 type SiteInfo = { contactDetails: { email: string; phone: string; whatsapp: string; address: string; hours: string }; socialLinks: Array<{ id: string; platform: string; label: string; url: string; visible: boolean }>; contactModalTitle?: string; contactModalSubtitle?: string };
-type EditorSection = { id?: string; type: string; visible?: boolean; title?: string; eyebrow?: string; logoUrl?: string; subtitle?: string; buttonText?: string; secondaryButtonText?: string; buttonAction?: string; secondaryButtonAction?: string; showButton?: boolean; imageUrl?: string; imageUrls?: string[]; backgroundImageUrl?: string; backgroundColor?: string; backgroundOpacity?: number; sectionBackgroundImage?: string; count?: number; columns?: number; showPrice?: boolean; showMoq?: boolean; showEyebrow?: boolean; showSecondaryButton?: boolean; showTrustBar?: boolean; showStats?: boolean; showSocials?: boolean; showContact?: boolean; welcome?: string; position?: 'left' | 'right'; links?: string[]; navItems?: Array<{ id: string; label: string; targetId: string }>; showCategories?: boolean; formFields?: FormField[]; stats?: Array<{ id: string; value: string; label: string }>; promiseTitle?: string; promiseText?: string; socialLinks?: Array<{ id: string; platform: string; label: string; url: string; visible: boolean }>; contactDetails?: { email: string; phone: string; whatsapp: string; address: string; hours: string } };
-type Inquiry = Record<FormFieldKey | 'website', string>;
+type EditorSection = { id?: string; type: string; visible?: boolean; title?: string; eyebrow?: string; logoUrl?: string; subtitle?: string; buttonText?: string; secondaryButtonText?: string; buttonAction?: string; secondaryButtonAction?: string; showButton?: boolean; imageUrl?: string; imageUrls?: string[]; backgroundImageUrl?: string; backgroundColor?: string; backgroundOpacity?: number; sectionBackgroundImage?: string; count?: number; columns?: number; showPrice?: boolean; showMoq?: boolean; showEyebrow?: boolean; showSecondaryButton?: boolean; showTrustBar?: boolean; showStats?: boolean; showSocials?: boolean; showContact?: boolean; links?: string[]; navItems?: Array<{ id: string; label: string; targetId: string }>; showCategories?: boolean; formFields?: FormField[]; stats?: Array<{ id: string; value: string; label: string }>; promiseTitle?: string; promiseText?: string; socialLinks?: Array<{ id: string; platform: string; label: string; url: string; visible: boolean }>; contactDetails?: { email: string; phone: string; whatsapp: string; address: string; hours: string } };
 const defaultFormFields: FormField[] = [{ key: 'email', label: '邮箱', enabled: true, required: true }, { key: 'requirements', label: '采购需求', enabled: true, required: true }];
 const anchorId = (item?: EditorSection, fallback?: string) => item?.id ? `section-${item.id}` : fallback;
 const supportedLanguageCodes = new Set(['zh', 'en', 'bs']);
@@ -29,9 +27,11 @@ const querySite = new URLSearchParams(location.search).get('site') || pathSite;
 const siteBasePath = pathSite ? `/${encodeURIComponent(pathSite)}` : '';
 const storefrontPathname = pathSite ? `/${pathSegments.slice(1).join('/')}` : location.pathname;
 const api = async <T,>(path: string, init?: RequestInit): Promise<T> => { const token = localStorage.getItem(customerTokenKey); const res = await fetch(path, { ...init, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}), ...(init?.headers || {}) } }); const body = await res.json(); if (!res.ok) throw new Error(body.message || 'Request failed'); return body.data as T; };
-const imageUrl = (id: string) => id.startsWith('http') ? id : `https://images.unsplash.com/${id}?w=900&h=700&fit=crop&auto=format`;
+const imageUrl = (id: string) => /^(?:https?:|data:|blob:|\/)/i.test(id)
+  ? id
+  : `https://images.unsplash.com/${id}?w=900&h=700&fit=crop&auto=format`;
 const formatPrice = (price: string, currency = 'CNY') => {
-  if (!price) return '—';
+  if (!price) return '-';
   if (/^[¥$€£]/.test(price) || /[A-Z]{3}/.test(price)) return price;
   const symbol = ({ CNY: '¥', USD: '$', EUR: '€', GBP: '£' } as Record<string, string>)[currency];
   return symbol ? `${symbol}${price}` : `${currency} ${price}`;
@@ -97,11 +97,8 @@ const ContactModal = ({ open, onClose, info, title, subtitle }: { open: boolean;
   const contact = info.contactDetails;
   const copy = (key: string, value: string) => navigator.clipboard.writeText(value).then(() => { setCopied(key); window.setTimeout(() => setCopied(''), 1800); });
   const whatsapp = (contact.whatsapp || contact.phone).replace(/\D/g, '');
-  return <div className="contact-modal" role="dialog" aria-modal="true" aria-label={title}>
-    <button className="contact-modal-backdrop" onClick={onClose} aria-label="关闭联系我们弹窗" />
-    <section className="contact-modal-panel">
-      <header><div><h2>{title}</h2><p>{contact.hours || subtitle}</p></div><button onClick={onClose} aria-label="关闭"><X /></button></header>
-      <div className="contact-modal-body">
+  return <StorefrontModal open title={title} description={contact.hours || subtitle} onCancel={onClose} footer={null} width={460} styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}>
+      <div className="contact-modal-body storefront-modal-body">
         <p className="contact-modal-note">{subtitle}</p>
         {contact.phone && <div className="contact-modal-card"><span className="contact-modal-icon"><Phone /></span><div><small>电话 / WhatsApp</small><strong>{contact.phone}</strong></div><button onClick={() => copy('phone', contact.phone)} aria-label="复制电话">{copied === 'phone' ? <Check /> : <Copy />}</button></div>}
         {whatsapp && <a className="contact-modal-card whatsapp" href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer"><span className="contact-modal-icon"><MessageCircle /></span><div><strong>WhatsApp 聊天</strong><small>{contact.whatsapp || contact.phone}</small></div><ExternalLink /></a>}
@@ -111,36 +108,21 @@ const ContactModal = ({ open, onClose, info, title, subtitle }: { open: boolean;
         {contact.hours && <div className="contact-modal-card"><span className="contact-modal-icon"><Clock /></span><div><small>工作时间</small><strong>{contact.hours}</strong></div></div>}
         {!!info.socialLinks.filter(item => item.visible && item.url).length && <div className="contact-modal-socials">{info.socialLinks.filter(item => item.visible && item.url).map(item => <a key={item.id} href={item.url} target="_blank" rel="noreferrer">{item.label}</a>)}</div>}
       </div>
-    </section>
-  </div>;
+  </StorefrontModal>;
 };
 
 function App() {
   const [site, setSite] = useState<PublishedSite | null>(null);
   const [error, setError] = useState('');
-  const [chatOpen, setChatOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
-  const [messages, setMessages] = useState([{ role: 'ai', text: '您好！请问有什么采购需求可以帮您？' }]);
-  const [input, setInput] = useState('');
-  const [inquiry, setInquiry] = useState<Inquiry>({ name: '', email: '', company: '', phone: '', country: '', requirements: '', website: '' });
   const [productCategory, setProductCategory] = useState('全部');
   const [productSubcategory, setProductSubcategory] = useState('全部');
   const [heroIndex, setHeroIndex] = useState(0);
   const [language, setLanguage] = useState('');
-  const [translations, setTranslations] = useState<Record<string, string>>({});
-  const [translating, setTranslating] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [loginForm, setLoginForm] = useState({ phone: '' });
   const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
-  const visitorId = useMemo(() => {
-    const key = 'mercivo_storefront_visitor';
-    const existing = localStorage.getItem(key);
-    if (existing) return existing;
-    const value = crypto.randomUUID();
-    localStorage.setItem(key, value);
-    return value;
-  }, []);
   const loadSite = () => api<PublishedSite>(`/api/v1/public/site${querySite ? `?site=${encodeURIComponent(querySite)}` : ''}`).then(data => { setSite(data); setLanguage(current => current || data.site.defaultLanguage || 'zh'); applySeo(data); setError(''); });
   useEffect(() => { loadSite().catch(err => setError(err.message)); }, [querySite]);
   const loginCustomer = async (event: React.FormEvent) => {
@@ -152,19 +134,8 @@ function App() {
     finally { setLoggingIn(false); }
   };
   const logoutCustomer = () => { localStorage.removeItem(customerTokenKey); setSite(current => current ? { ...current, customer: null } : current); void loadSite(); };
-  const t = (key: string, fallback: string) => translations[key] || fallback;
-  const changeLanguage = async (next: string) => {
-    if (!site || next === language) return;
-    setLanguage(next); document.documentElement.lang = next;
-    if (next === site.site.defaultLanguage) { setTranslations({}); return; }
-    const storageKey = `mercivo_translation_${site.versionId}_${next}`;
-    const stored = sessionStorage.getItem(storageKey);
-    if (stored) { setTranslations(JSON.parse(stored)); return; }
-    setTranslating(true);
-    try { const result = await api<TranslationResponse>(`/api/v1/public/site/translate${querySite ? `?site=${encodeURIComponent(querySite)}` : ''}`, { method: 'POST', body: JSON.stringify({ language: next }) }); setTranslations(result.translations); sessionStorage.setItem(storageKey, JSON.stringify(result.translations)); }
-    catch (err) { setLanguage(site.site.defaultLanguage); document.documentElement.lang = site.site.defaultLanguage; alert(err instanceof Error ? err.message : '暂时无法翻译'); }
-    finally { setTranslating(false); }
-  };
+  const t = (_key: string, fallback: string) => fallback;
+  const changeLanguage = (next: string) => { setLanguage(next); document.documentElement.lang = next; };
   const editorSections = useMemo<EditorSection[]>(() => {
     const pages = site?.config.pages as Record<string, { sections?: EditorSection[] }> | undefined;
     return pages?.home?.sections?.filter(section => section.visible !== false) || [];
@@ -177,7 +148,6 @@ function App() {
   const textSection = section('text');
   const formSection = section('form');
   const footerSection = section('footer');
-  const assistantSection = section('assistant');
   const contactModalSection = section('contactModal');
   const sectionBackgroundStyle = (value?: EditorSection): React.CSSProperties | undefined => {
     if (!value?.backgroundColor && !value?.sectionBackgroundImage) return undefined;
@@ -245,21 +215,11 @@ function App() {
     const parent = entry.parentCode ? site?.categories?.find(item => item.code === entry.parentCode) : null;
     return `${parent ? `${t(`category.${parent.code}`, parent.label)} / ` : ''}${t(`category.${entry.code}`, entry.label)}`;
   };
-  const inquiryFields = (formSection?.formFields || defaultFormFields).filter(field => field.enabled);
   const runAction = (action?: string) => {
     if (!action) return;
     if (action === 'contactModal' || action === contactModalSection?.id) return setContactOpen(true);
     const target = editorSections.find(item => item.id === action || item.type === action);
     if (target?.id) document.getElementById(`section-${target.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-  const sendChat = async () => { if (!input.trim() || !site) return; const text = input; setInput(''); setMessages(v => [...v, { role: 'user', text }]); try { const sessionKey = `mercivo_chat_session_${site.siteId}`; const reply = await api<PublicChatResponse>(`/api/v1/chat/public/send${querySite ? `?site=${encodeURIComponent(querySite)}` : ''}`, { method: 'POST', body: JSON.stringify({ sessionId: localStorage.getItem(sessionKey) || undefined, visitorId, text }) }); localStorage.setItem(sessionKey, reply.sessionId); setMessages(v => [...v, { role: 'ai', text: reply.message.text || '' }]); } catch { setMessages(v => [...v, { role: 'ai', text: '请留下您的采购需求，我们会尽快回复。' }]); } };
-  const submitInquiry = async (e: React.FormEvent) => { e.preventDefault(); if (!site) return; const payload = Object.fromEntries(Object.entries(inquiry).filter(([key, value]) => key === 'website' || value.trim())); await api(`/api/v1/public/inquiries${querySite ? `?site=${encodeURIComponent(querySite)}` : ''}`, { method: 'POST', body: JSON.stringify(payload) }); setInquiry({ name: '', email: '', company: '', phone: '', country: '', requirements: '', website: '' }); alert('提交成功，我们将在 24 小时内回复。'); };
-  const renderInquiryField = (field: FormField) => {
-    const placeholder = field.key === 'email' ? 'name@company.com' : '请填写产品、数量、规格、交付国家等信息';
-    const update = (value: string) => setInquiry(current => ({ ...current, [field.key]: value }));
-    return <label className={`form-field ${field.key === 'requirements' ? 'wide' : ''}`} key={field.key}><span>{field.label}<b>*</b></span>{field.key === 'requirements'
-      ? <textarea required={field.required} placeholder={placeholder} value={inquiry[field.key]} onChange={event => update(event.target.value)} />
-      : <input required={field.required} type={field.key === 'email' ? 'email' : field.key === 'phone' ? 'tel' : 'text'} placeholder={placeholder} value={inquiry[field.key]} onChange={event => update(event.target.value)} />}</label>;
   };
   if (error) return <main className="unavailable-page">
     <section className="unavailable-card" role="alert">
@@ -274,19 +234,17 @@ function App() {
   </main>;
   if (!site) return <main className="state"><div className="loader"/><p>正在加载站点…</p></main>;
   return <div style={{ '--theme': themeColor, '--theme-contrast': contrastColor(themeColor) } as React.CSSProperties}>
-    {hasSection('header') && <header className="nav"><a className="brand" href="#top">{section('header')?.logoUrl ? <img src={section('header')!.logoUrl} alt={section('header')?.title || site.site.name} /> : <><Globe2/> {section('header')?.title || site.site.name}</>}</a><nav>{section('header')?.navItems?.length ? section('header')!.navItems!.map(item=><a key={item.id} href={`#section-${item.targetId}`}>{item.label}</a>) : (section('header')?.links || ['产品','关于我们','联系我们']).map(link=><a key={link} href={`#${link.toLowerCase()}`}>{link}</a>)}</nav><button className="customer-account" onClick={() => site.customer ? logoutCustomer() : setLoginOpen(true)} title={site.customer ? '清除客户识别' : '识别客户'}>{site.customer ? <><User/><span>{site.customer.name}</span><LogOut className="logout-icon"/></> : <><User/><span>客户识别</span></>}</button><div className={`language-control ${translating ? 'is-translating' : ''}`}><Globe2/><AntSelect className="language-select" label="切换站点语言" disabled={translating} value={language || siteLanguages[0] || 'zh'} onChange={changeLanguage} options={(siteLanguages.length ? siteLanguages : ['zh']).map(code => ({ value: code, label: languageName(code) }))} />{translating && <span className="language-loading" aria-live="polite">翻译中…</span>}</div><button className="icon"><Menu/></button></header>}
+    {hasSection('header') && <header className="nav"><a className="brand" href="#top">{section('header')?.logoUrl ? <img src={section('header')!.logoUrl} alt={section('header')?.title || site.site.name} /> : <><Globe2/> {section('header')?.title || site.site.name}</>}</a><nav>{section('header')?.navItems?.length ? section('header')!.navItems!.map(item=><a key={item.id} href={`#section-${item.targetId}`}>{item.label}</a>) : (section('header')?.links || ['产品','关于我们','联系我们']).map(link=><a key={link} href={`#${link.toLowerCase()}`}>{link}</a>)}</nav><button className="customer-account" onClick={() => site.customer ? logoutCustomer() : setLoginOpen(true)} title={site.customer ? '清除客户识别' : '识别客户'}>{site.customer ? <><User/><span>{site.customer.name}</span><LogOut className="logout-icon"/></> : <><User/><span>客户识别</span></>}</button><div className="language-control"><Globe2/><AntSelect className="language-select" label="切换站点语言" value={language || siteLanguages[0] || 'zh'} onChange={changeLanguage} options={(siteLanguages.length ? siteLanguages : ['zh']).map(code => ({ value: code, label: languageName(code) }))} /></div><button className="icon"><Menu/></button></header>}
     <main id="top">
       {hasSection('hero') && <section id={anchorId(heroSection)} className="hero"><div className="hero-carousel">{heroImages.map((url, index) => <img key={url} className={index === heroIndex ? 'active' : ''} src={url} alt={`轮播图片 ${index + 1}`} />)}<div className="hero-shade"/><div className="hero-copy"><h1>{heroSection?.title || t('hero.title','为您的品牌打造高品质产品')}</h1><p>{heroSection?.subtitle || t('hero.description','工厂直供、品牌定制与可靠的全球交付，由专业外贸团队全程服务。')}</p><div className="actions">{heroSection?.showButton !== false && <button className="primary" onClick={() => runAction(heroSection?.buttonAction || 'products')}>{heroSection?.buttonText || t('hero.productsCta','查看产品')}<ArrowRight /></button>}{heroSection?.showSecondaryButton !== false && <button className="secondary" onClick={() => runAction(heroSection?.secondaryButtonAction || 'contactModal')}>{heroSection?.secondaryButtonText || t('hero.quoteCta','获取报价')}</button>}</div><div className="trust"><span><ShieldCheck/> {t('hero.quality','品质保障')}</span><span><Truck/> {t('hero.shipping','全球发货')}</span><span><CheckCircle/> {t('hero.samples','支持定制样品')}</span></div></div>{heroImages.length > 1 && <><button className="carousel-arrow prev" onClick={() => setHeroIndex(index => (index - 1 + heroImages.length) % heroImages.length)} aria-label="上一张"><ChevronLeft /></button><button className="carousel-arrow next" onClick={() => setHeroIndex(index => (index + 1) % heroImages.length)} aria-label="下一张"><ChevronRight /></button><div className="carousel-dots">{heroImages.map((_, index) => <button aria-label={`切换到第 ${index + 1} 张`} className={index === heroIndex ? 'active' : ''} key={index} onClick={() => setHeroIndex(index)} />)}</div></>}</div></section>}
       {hasSection('products') && <section className="section" id={anchorId(productSection, "products")}><div className="section-head"><div><span className="eyebrow">{t('products.eyebrow','产品系列')}</span><h2>{productSection?.title || t('products.title','助力业务增长的优质产品')}</h2></div><p>{t('products.description','灵活的起订量与工厂直供价格，满足全球品牌的采购需求。')}</p></div>{productSection?.showCategories !== false && categoryTree.length > 0 && <div className="category-navigation"><div className="category-selects"><AntSelect className="category-select" value={productCategory} onChange={value => { setProductCategory(value); setProductSubcategory('全部'); }} options={[{ value: '全部', label: '全部商品' }, ...categoryTree.map(category => ({ value: category.code, label: t(`category.${category.code}`, category.label) }))]} />{activePrimary?.children.length ? <AntSelect className="category-select" value={productSubcategory} onChange={setProductSubcategory} options={[{ value: '全部', label: `全部${t(`category.${activePrimary.code}`, activePrimary.label)}` }, ...activePrimary.children.map(category => ({ value: category.code, label: t(`category.${category.code}`, category.label) }))]} /> : null}</div><div className="category-tabs primary-tabs"><button className={productCategory === '全部' ? 'active' : ''} onClick={() => { setProductCategory('全部'); setProductSubcategory('全部'); }}>全部商品</button>{categoryTree.map(category => <button className={category.code === productCategory ? 'active' : ''} key={category.code} onClick={() => { setProductCategory(category.code); setProductSubcategory('全部'); }}>{t(`category.${category.code}`, category.label)}</button>)}</div>{activePrimary?.children.length ? <div className="category-tabs secondary-tabs"><button className={productSubcategory === '全部' ? 'active' : ''} onClick={() => setProductSubcategory('全部')}>全部</button>{activePrimary.children.map(category => <button className={category.code === productSubcategory ? 'active' : ''} key={category.code} onClick={() => setProductSubcategory(category.code)}>{t(`category.${category.code}`, category.label)}</button>)}</div> : null}</div>}<div className="grid">{visibleProducts.map(product => <article className="product" key={product.id}><a className="product-detail-link" href={`${siteBasePath}/products/${product.id}`} aria-label={`查看 ${product.nameZh || product.nameEn} 详情`}/><div className="product-image"><img src={imageUrl(product.img)} alt={t(`product.${product.id}.name`,product.nameEn)}/>{product.hot && <span>{t('products.bestSeller','热销产品')}</span>}</div><div className="product-info"><small>{categoryName(product.category)}</small><h3>{t(`product.${product.id}.name`,product.nameZh || product.nameEn)}</h3><p>{t(`product.${product.id}.description`,product.description || '支持材质、颜色及品牌印刷定制。')}</p><footer>{product.priceVisible === false ? <button className="price-login" onClick={() => setLoginOpen(true)}>登录后查看价格</button> : <strong>{formatPrice(product.price, site.site.defaultCurrency)}</strong>}<span>{t('products.moq','最低起订量')} {product.moq}</span></footer></div></article>)}</div>{!visibleProducts.length && <div className="product-empty">当前分类暂无商品</div>}</section>}
       {hasSection('text') && <section className={`about ${textSection?.backgroundImageUrl ? 'has-background' : ''}`} style={textSection?.backgroundImageUrl ? { backgroundImage: `linear-gradient(rgba(8,20,38,.72),rgba(8,20,38,.72)),url(${textSection.backgroundImageUrl})` } : undefined} id={anchorId(textSection, "about")}><div><span className="eyebrow">{t('about.eyebrow','关于我们')}</span><h2>{textSection?.title || t('about.title','不只是供应商，更是您的采购合作伙伴。')}</h2></div><div className="about-copy">{textSection?.subtitle || t('about.description','以稳定的产品品质、灵活的定制能力和专业的外贸服务，帮助全球客户高效完成采购。')}</div></section>}
       {site.testimonials.length > 0 && <section className="section"><span className="eyebrow">{t('testimonials.title','客户评价')}</span><div className="quotes">{site.testimonials.slice(0,3).map(item => <blockquote key={item.id}><p>“{t(`testimonial.${item.id}.text`,item.text)}”</p><footer><strong>{item.name}</strong><span>{item.company}</span></footer></blockquote>)}</div></section>}
-      {hasSection('form') && <section className={`contact ${formSection?.backgroundImageUrl ? 'has-background' : ''}`} style={formSection?.backgroundImageUrl ? { backgroundImage: `linear-gradient(rgba(8,20,38,.72),rgba(8,20,38,.72)),url(${formSection.backgroundImageUrl})` } : undefined} id={anchorId(formSection, "contact")}><div><span className="eyebrow">{t('contact.eyebrow','开启合作')}</span><h2>{formSection?.title || t('contact.title','告诉我们您的采购需求')}</h2><p>{formSection?.subtitle || t('contact.description','请填写邮箱和采购需求，我们的外贸团队将为您准备专属报价。')}</p>{siteInfo && <ContactInfo info={siteInfo} />}</div><form onSubmit={submitInquiry}>{inquiryFields.map(renderInquiryField)}<input tabIndex={-1} autoComplete="off" aria-hidden="true" style={{position:'absolute',left:'-9999px'}} value={inquiry.website} onChange={event=>setInquiry(current=>({...current,website:event.target.value}))}/>{formSection?.showButton !== false && <button className="primary" type="submit">{formSection?.buttonText || t('contact.submit','提交询盘')}</button>}</form></section>}
+      {hasSection('form') && <section className={`contact ${formSection?.backgroundImageUrl ? 'has-background' : ''}`} style={formSection?.backgroundImageUrl ? { backgroundImage: `linear-gradient(rgba(8,20,38,.72),rgba(8,20,38,.72)),url(${formSection.backgroundImageUrl})` } : undefined} id={anchorId(formSection, "contact")}><div><span className="eyebrow">{t('contact.eyebrow','联系我们')}</span><h2>{formSection?.title || t('contact.title','与我们的外贸团队联系')}</h2><p>{formSection?.subtitle || t('contact.description','通过电话、邮件或 WhatsApp 直接沟通产品与合作信息。')}</p>{siteInfo && <ContactInfo info={siteInfo} />}</div>{siteInfo && <button className="primary" type="button" onClick={()=>setContactOpen(true)}>查看联系方式</button>}</section>}
     </main>
     {hasSection('footer') && <footer id={anchorId(footerSection)} className="footer"><div className="footer-brand"><strong>{footerSection?.title || site.site.name}</strong><p>{footerSection?.subtitle || '为全球客户提供专业采购服务。'}</p>{footerSection?.showSocials !== false && <div className="footer-socials">{(siteInfo?.socialLinks || []).filter(item => item.visible && item.url).map(item => <a key={item.id} href={item.url} target="_blank" rel="noreferrer">{item.label}</a>)}</div>}</div>{footerSection?.navItems?.length ? <nav>{footerSection.navItems.map(item => <a key={item.id} href={`#section-${item.targetId}`}>{item.label}</a>)}</nav> : null}{footerSection?.showContact !== false && siteInfo?.contactDetails && <address className="footer-contact"><strong>联系我们</strong>{siteInfo!.contactDetails.email && <a href={`mailto:${siteInfo!.contactDetails.email}`}>{siteInfo!.contactDetails.email}</a>}{siteInfo!.contactDetails.phone && <a href={`tel:${siteInfo!.contactDetails.phone}`}>{siteInfo!.contactDetails.phone}</a>}{siteInfo!.contactDetails.whatsapp && <a href={`https://wa.me/${siteInfo!.contactDetails.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">WhatsApp: {siteInfo!.contactDetails.whatsapp}</a>}{siteInfo!.contactDetails.address && <span>{siteInfo!.contactDetails.address}</span>}{siteInfo!.contactDetails.hours && <span>{siteInfo!.contactDetails.hours}</span>}</address>}<div className="footer-copyright">© {new Date().getFullYear()} {footerSection?.title || site.site.name}. All rights reserved.</div></footer>}
-    {hasSection('assistant') && site.agent && <button className="chat-trigger" style={assistantSection?.position === 'left' ? {left:24,right:'auto'} : undefined} onClick={()=>setChatOpen(true)} aria-label="打开 AI 助手"><MessageCircle/></button>}
-    {hasSection('assistant') && site.agent && chatOpen && <aside className="chat" style={assistantSection?.position === 'left' ? {left:24,right:'auto'} : undefined}><header><div><Bot/><span><strong>{site.agent?.name || '销售助手'}</strong><small>{t('chat.online','在线')}</small></span></div><button onClick={()=>setChatOpen(false)}><X/></button></header><div className="messages">{messages.map((m,i)=><p className={m.role} key={i}>{m.text}</p>)}</div><footer><input placeholder={t('chat.placeholder','请输入产品、价格或物流问题…')} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendChat()}/><button onClick={sendChat}><Send/></button></footer></aside>}
     {siteInfo && <ContactModal open={contactOpen} onClose={() => setContactOpen(false)} info={siteInfo} title={siteInfo.contactModalTitle || '联系我们'} subtitle={siteInfo.contactModalSubtitle || '请直接联系我们确认产品、价格与定制需求，我们将在工作日 24 小时内回复。'} />}
-    {loginOpen && <div className="customer-login-modal" role="dialog" aria-modal="true" aria-label="客户识别"><button className="customer-login-backdrop" onClick={() => setLoginOpen(false)} aria-label="关闭弹窗"/><form className="customer-login-panel" onSubmit={loginCustomer}><div className="customer-login-head"><div className="customer-login-icon"><User/></div><div><h2>客户识别</h2><p>输入预留手机号，查看对应等级价格</p></div><button type="button" onClick={() => setLoginOpen(false)} aria-label="关闭"><X/></button></div><label><span>客户手机号</span><input required autoFocus type="tel" autoComplete="tel" value={loginForm.phone} onChange={event => setLoginForm({ phone: event.target.value })} placeholder="+86 138 0000 0000"/></label>{loginError && <p className="customer-login-error">{loginError}</p>}<button className="primary customer-login-submit" disabled={loggingIn} type="submit">{loggingIn ? '匹配中…' : '匹配并查看客户价'}</button><small>手机号仅用于匹配供应商为您设置的客户价格等级。</small></form></div>}
+    {loginOpen && <StorefrontModal open title="客户识别" description="输入预留手机号，查看对应等级价格" onCancel={() => setLoginOpen(false)} width={430} footer={<button form="customer-login-form" className="primary customer-login-submit" disabled={loggingIn} type="submit">{loggingIn ? '匹配中…' : '匹配并查看客户价'}</button>}><form id="customer-login-form" className="customer-login-form" onSubmit={loginCustomer}><label><span>客户手机号</span><input required autoFocus type="tel" autoComplete="tel" value={loginForm.phone} onChange={event => setLoginForm({ phone: event.target.value })} placeholder="+86 138 0000 0000"/></label>{loginError && <p className="customer-login-error">{loginError}</p>}<small>手机号仅用于匹配供应商为您设置的客户价格等级。</small></form></StorefrontModal>}
   </div>;
 }
 

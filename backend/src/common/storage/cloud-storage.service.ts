@@ -9,14 +9,12 @@ export type StoredObject = { url: string; objectName: string };
 @Injectable()
 export class CloudStorageService {
   private readonly bucketName: string;
-  private readonly privateBucketName: string;
   private readonly publicBaseUrl: string;
   private readonly objectPrefix: string;
   private readonly storage: Storage;
 
   constructor(config: ConfigService) {
     this.bucketName = config.get<string>('GCS_BUCKET')?.trim() || '';
-    this.privateBucketName = config.get<string>('GCS_PRIVATE_BUCKET')?.trim() || '';
     this.publicBaseUrl = (config.get<string>('GCS_PUBLIC_BASE_URL') || '').replace(/\/$/, '');
     this.objectPrefix = (config.get<string>('GCS_OBJECT_PREFIX') || '').split('/').filter(Boolean).map(this.safeSegment).join('/');
     const projectId = config.get<string>('GCS_PROJECT_ID')?.trim();
@@ -27,33 +25,30 @@ export class CloudStorageService {
     });
   }
 
-  async upload(file: Express.Multer.File, pathPrefix: string, options: { public?: boolean } = {}): Promise<StoredObject> {
-    this.ensureConfigured(options.public !== false);
+  async upload(file: Express.Multer.File, pathPrefix: string): Promise<StoredObject> {
+    this.ensureConfigured();
     const extension = extname(file.originalname).toLowerCase() || this.extensionFor(file.mimetype);
     const safePrefix = pathPrefix.split('/').filter(Boolean).map(this.safeSegment).join('/');
     const objectName = [this.objectPrefix, safePrefix, `${randomUUID()}${extension}`].filter(Boolean).join('/');
-    const bucketName = options.public === false ? this.privateBucketName : this.bucketName;
-    await this.storage.bucket(bucketName).file(objectName).save(file.buffer, {
+    await this.storage.bucket(this.bucketName).file(objectName).save(file.buffer, {
       resumable: false,
       contentType: file.mimetype,
       metadata: {
-        cacheControl: options.public === false ? 'private, no-store' : 'public, max-age=31536000, immutable',
+        cacheControl: 'public, max-age=31536000, immutable',
         metadata: { originalName: encodeURIComponent(file.originalname) },
       },
       validation: 'crc32c',
     });
-    return { url: options.public === false ? '' : this.publicUrl(objectName), objectName };
+    return { url: this.publicUrl(objectName), objectName };
   }
 
-  async delete(objectName: string, options: { public?: boolean } = {}): Promise<void> {
-    const bucketName = options.public === false ? this.privateBucketName : this.bucketName;
-    if (!bucketName || !objectName) return;
-    await this.storage.bucket(bucketName).file(objectName).delete({ ignoreNotFound: true });
+  async delete(objectName: string): Promise<void> {
+    if (!this.bucketName || !objectName) return;
+    await this.storage.bucket(this.bucketName).file(objectName).delete({ ignoreNotFound: true });
   }
 
-  private ensureConfigured(publicObject: boolean) {
+  private ensureConfigured() {
     if (!this.bucketName) throw new ServiceUnavailableException('文件存储服务尚未配置');
-    if (!publicObject && !this.privateBucketName) throw new ServiceUnavailableException('私有文件存储服务尚未配置');
   }
 
   private publicUrl(objectName: string): string {

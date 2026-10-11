@@ -10,7 +10,6 @@ export class Plan {
   @Column({ name: 'billing_cycle', length: 20, default: 'month' }) billingCycle: 'month' | 'year';
   @Column({ type: 'text', nullable: true }) description: string | null;
   @Column({ name: 'max_products', type: 'int', default: 100 }) maxProducts: number;
-  @Column({ name: 'max_agents', type: 'int', default: 2 }) maxAgents: number;
   @Column({ name: 'max_members', type: 'int', default: 1 }) maxMembers: number;
   @Column({ name: 'max_sites', type: 'int', default: 1 }) maxSites: number;
   @Column({ type: 'json', nullable: true }) features: Record<string, boolean> | null;

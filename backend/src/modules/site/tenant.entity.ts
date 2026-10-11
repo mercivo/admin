@@ -8,7 +8,6 @@ export class Tenant {
   @Column({ length: 20, default: 'active' }) status: 'active' | 'suspended';
   @Column({ length: 30, default: 'trial' }) plan: string;
   @Column({ name: 'max_products', type: 'int', default: 100 }) maxProducts: number;
-  @Column({ name: 'max_agents', type: 'int', default: 2 }) maxAgents: number;
   @Column({ name: 'max_members', type: 'int', default: 1 }) maxMembers: number;
   @Column({ name: 'max_sites', type: 'int', default: 0 }) maxSites: number;
   @Column({ type: 'json', nullable: true }) features: Record<string, boolean> | null;

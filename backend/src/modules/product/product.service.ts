@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { Product } from './product.entity';
 import { CreateProductDto, UpdateProductDto, UpdateProductSeoDto } from './product.dto';
 import { Tenant } from '../site/tenant.entity';
-import { DictEntry } from '../dict/dict-entry.entity';
+import { ProductCategory } from '../product-category/product-category.entity';
 import { FilterXSS } from 'xss';
 
 @Injectable()
@@ -15,7 +15,7 @@ export class ProductService {
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
     @InjectRepository(Tenant) private readonly tenantRepository: Repository<Tenant>,
-    @InjectRepository(DictEntry) private readonly dictEntryRepository: Repository<DictEntry>,
+    @InjectRepository(ProductCategory) private readonly productCategoryRepository: Repository<ProductCategory>,
   ) { }
 
   async findAll(siteId: string): Promise<Product[]> {
@@ -67,7 +67,7 @@ export class ProductService {
   }
 
   private async ensureCategory(code: string, siteId: string): Promise<void> {
-    const exists = await this.dictEntryRepository.exist({ where: { siteId, typeId: 'category', code, status: 'enabled' } });
+    const exists = await this.productCategoryRepository.exist({ where: { siteId, code, status: 'enabled' } });
     if (!exists) throw new BadRequestException('请选择有效的商品分类');
   }
 

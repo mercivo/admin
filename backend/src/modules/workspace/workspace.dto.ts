@@ -27,9 +27,3 @@ export class UpdateTeamMemberDto {
   @IsOptional() @IsIn(['admin', 'editor', 'viewer']) role?: 'admin' | 'editor' | 'viewer';
   @IsOptional() @IsArray() @IsString({ each: true }) permissions?: string[];
 }
-export class CreateKnowledgeFileDto {
-  @IsString() @MaxLength(255) name: string;
-  @IsString() @MaxLength(30) type: string;
-  @IsString() @MaxLength(30) size: string;
-  @IsString() @MaxLength(500000) content: string;
-}

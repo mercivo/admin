@@ -31,7 +31,7 @@ export class CustomerLevelRule {
   @Column({ type: 'varchar', length: 500, default: '' }) note: string;
   @Column({ name: 'min_amount', type: 'decimal', precision: 14, scale: 2, default: 0 }) minAmount: number;
   @Column({ name: 'min_orders', type: 'int', default: 0 }) minOrders: number;
-  @Column({ name: 'discount_rate', type: 'decimal', precision: 5, scale: 2, default: 0 }) discountRate: number;
+  @Column({ name: 'discount_rate', type: 'decimal', precision: 8, scale: 2, nullable: true }) discountRate: number | null;
   @Column({ type: 'int', default: 0 }) sort: number;
   @UpdateDateColumn({ name: 'updated_at' }) updatedAt: Date;
 }

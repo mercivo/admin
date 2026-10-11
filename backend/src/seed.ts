@@ -1,16 +1,10 @@
 import { DataSource } from 'typeorm';
 import * as dotenv from 'dotenv';
 import { Product } from './modules/product/product.entity';
-import { Lead } from './modules/lead/lead.entity';
-import { DictType } from './modules/dict/dict-type.entity';
-import { DictEntry } from './modules/dict/dict-entry.entity';
-import { Agent } from './modules/agent/agent.entity';
+import { ProductCategory } from './modules/product-category/product-category.entity';
 import { Testimonial } from './modules/storefront/testimonial.entity';
 import { AppConfig } from './modules/workspace/app-config.entity';
 import { TeamMember } from './modules/workspace/team-member.entity';
-import { KnowledgeFile } from './modules/workspace/knowledge-file.entity';
-import { ChatSession } from './modules/chat/chat-session.entity';
-import { ChatMessage } from './modules/chat/chat-message.entity';
 import { Tenant } from './modules/site/tenant.entity';
 import { Site } from './modules/site/site.entity';
 import { SiteDomain } from './modules/site/site-domain.entity';
@@ -32,7 +26,7 @@ async function seed() {
       connectionLimit: parseInt(process.env.DB_POOL_MAX || '5', 10),
       ...(process.env.DB_SOCKET_PATH ? { socketPath: process.env.DB_SOCKET_PATH } : {}),
     },
-    entities: [Product, Lead, DictType, DictEntry, Agent, Testimonial, AppConfig, TeamMember, KnowledgeFile, ChatSession, ChatMessage, Tenant, Site, SiteDomain, SiteVersion, User],
+    entities: [Product, ProductCategory, Testimonial, AppConfig, TeamMember, Tenant, Site, SiteDomain, SiteVersion, User],
     synchronize: process.env.DB_SCHEMA_BOOTSTRAP === 'true',
     charset: 'utf8mb4',
     timezone: '+00:00',
@@ -42,16 +36,10 @@ async function seed() {
   console.log('Database connected');
 
   const productRepo = ds.getRepository(Product);
-  const leadRepo = ds.getRepository(Lead);
-  const dictTypeRepo = ds.getRepository(DictType);
-  const dictEntryRepo = ds.getRepository(DictEntry);
-  const agentRepo = ds.getRepository(Agent);
+  const productCategoryRepo = ds.getRepository(ProductCategory);
   const testimonialRepo = ds.getRepository(Testimonial);
   const configRepo = ds.getRepository(AppConfig);
   const teamRepo = ds.getRepository(TeamMember);
-  const knowledgeRepo = ds.getRepository(KnowledgeFile);
-  const sessionRepo = ds.getRepository(ChatSession);
-  const messageRepo = ds.getRepository(ChatMessage);
   const tenantRepo = ds.getRepository(Tenant);
   const siteRepo = ds.getRepository(Site);
   const domainRepo = ds.getRepository(SiteDomain);
@@ -106,77 +94,28 @@ async function seed() {
   }
   console.log('Products seeded');
 
-  // ---- Leads ----
-  const leads = [
-    { name: 'Sarah Johnson', company: 'GreenLife Co.', email: 'sarah@greenlife.com', phone: '+1 555-0192', country: 'USA', product: 'Eco Bags', summary: '询问环保袋MOQ，有500个采购需求，希望了解定制印刷方案', status: 'new' as const, score: 85, tag: '高意向' },
-    { name: 'Marco Rossi', company: 'EcoShop Italy', email: 'marco@ecoshop.it', phone: '+39 06 1234567', country: 'Italy', product: 'Tote Bags', summary: '要求报价单，已提供公司邮箱，询问印刷定制及交货时间', status: 'contacted' as const, score: 72, tag: '跟进中' },
-    { name: 'Yuki Tanaka', company: 'NaturalJP', email: 'yuki@naturaljp.co', phone: '+81 3-1234-5678', country: 'Japan', product: 'Cotton Bags', summary: '已签订购买合同，首批1000个棉质手提包，预付30%货款', status: 'converted' as const, score: 98, tag: '已成交' },
-    { name: 'Emma Clarke', company: 'SustainUK', email: 'emma@sustainuk.co', phone: '+44 20 1234 5678', country: 'UK', product: 'Drawstring Bags', summary: '对抽绳袋感兴趣，询问环保认证情况及材料来源', status: 'new' as const, score: 61, tag: '待跟进' },
-    { name: 'Carlos Mendez', company: 'EcoMex', email: 'carlos@ecomex.mx', phone: '+52 55 1234 5678', country: 'Mexico', product: 'Eco Bags', summary: '了解产品后要求安排视频通话演示，已预约下周三', status: 'contacted' as const, score: 79, tag: '高意向' },
-    { name: 'Annika Johansson', company: 'GreenSweden AB', email: 'annika@greensweden.se', phone: '+46 8 1234567', country: 'Sweden', product: 'Canvas Bags', summary: '大客户，年需求量10万件，要求样品和详细报价', status: 'new' as const, score: 94, tag: '大客户' },
+
+  // ---- Product Categories ----
+  const productCategories = [
+    { code: 'eco', label: '环保袋', sort: 1, status: 'enabled' as const, remark: '可降解环保材质产品', parentCode: null },
+    { code: 'eco-shopping', label: '购物袋', sort: 1, status: 'enabled' as const, remark: '', parentCode: 'eco' },
+    { code: 'eco-grocery', label: '杂货袋', sort: 2, status: 'enabled' as const, remark: '', parentCode: 'eco' },
+    { code: 'eco-produce', label: '蔬果袋', sort: 3, status: 'enabled' as const, remark: '', parentCode: 'eco' },
+    { code: 'tote', label: '手提包', sort: 2, status: 'enabled' as const, remark: '时尚手提类产品', parentCode: null },
+    { code: 'tote-cotton', label: '棉质手提包', sort: 1, status: 'enabled' as const, remark: '', parentCode: 'tote' },
+    { code: 'tote-canvas', label: '帆布手提包', sort: 2, status: 'enabled' as const, remark: '', parentCode: 'tote' },
+    { code: 'tote-jute', label: '黄麻手提包', sort: 3, status: 'disabled' as const, remark: '', parentCode: 'tote' },
+    { code: 'drawstring', label: '抽绳袋', sort: 3, status: 'enabled' as const, remark: '抽绳收口类袋包', parentCode: null },
+    { code: 'draw-sport', label: '运动抽绳袋', sort: 1, status: 'enabled' as const, remark: '', parentCode: 'drawstring' },
+    { code: 'draw-gift', label: '礼品抽绳袋', sort: 2, status: 'enabled' as const, remark: '', parentCode: 'drawstring' },
+    { code: 'nonwoven', label: '无纺布袋', sort: 4, status: 'disabled' as const, remark: '无纺布材质', parentCode: null },
   ];
 
-  if (await leadRepo.count() === 0) {
-    for (const l of leads) await leadRepo.save(l);
+  if (await productCategoryRepo.count() === 0) {
+    for (const category of productCategories) await productCategoryRepo.save(category as ProductCategory);
   }
-  console.log('Leads seeded');
+  console.log('Product categories seeded');
 
-  // ---- Dict Types ----
-  const dictTypes = [
-    { typeId: 'category', label: '商品分类', icon: '📦' },
-    { typeId: 'lead-status', label: '线索状态', icon: '👥' },
-    { typeId: 'order-status', label: '订单状态', icon: '📋' },
-  ];
-
-  if (await dictTypeRepo.count() === 0) {
-    for (const dt of dictTypes) await dictTypeRepo.save(dt);
-  }
-
-  // ---- Dict Entries ----
-  const dictEntries = [
-    // category
-    { typeId: 'category', code: 'eco', label: '环保袋', sort: 1, status: 'enabled' as const, remark: '可降解环保材质产品', parentCode: null },
-    { typeId: 'category', code: 'eco-shopping', label: '购物袋', sort: 1, status: 'enabled' as const, remark: '', parentCode: 'eco' },
-    { typeId: 'category', code: 'eco-grocery', label: '杂货袋', sort: 2, status: 'enabled' as const, remark: '', parentCode: 'eco' },
-    { typeId: 'category', code: 'eco-produce', label: '蔬果袋', sort: 3, status: 'enabled' as const, remark: '', parentCode: 'eco' },
-    { typeId: 'category', code: 'tote', label: '手提包', sort: 2, status: 'enabled' as const, remark: '时尚手提类产品', parentCode: null },
-    { typeId: 'category', code: 'tote-cotton', label: '棉质手提包', sort: 1, status: 'enabled' as const, remark: '', parentCode: 'tote' },
-    { typeId: 'category', code: 'tote-canvas', label: '帆布手提包', sort: 2, status: 'enabled' as const, remark: '', parentCode: 'tote' },
-    { typeId: 'category', code: 'tote-jute', label: '黄麻手提包', sort: 3, status: 'disabled' as const, remark: '', parentCode: 'tote' },
-    { typeId: 'category', code: 'drawstring', label: '抽绳袋', sort: 3, status: 'enabled' as const, remark: '抽绳收口类袋包', parentCode: null },
-    { typeId: 'category', code: 'draw-sport', label: '运动抽绳袋', sort: 1, status: 'enabled' as const, remark: '', parentCode: 'drawstring' },
-    { typeId: 'category', code: 'draw-gift', label: '礼品抽绳袋', sort: 2, status: 'enabled' as const, remark: '', parentCode: 'drawstring' },
-    { typeId: 'category', code: 'nonwoven', label: '无纺布袋', sort: 4, status: 'disabled' as const, remark: '无纺布材质', parentCode: null },
-    // lead-status
-    { typeId: 'lead-status', code: 'new', label: '新线索', sort: 1, status: 'enabled' as const, remark: '刚进入系统的线索', parentCode: null },
-    { typeId: 'lead-status', code: 'new-ai', label: 'AI询盘', sort: 1, status: 'enabled' as const, remark: '通过AI助手产生', parentCode: 'new' },
-    { typeId: 'lead-status', code: 'new-form', label: '表单提交', sort: 2, status: 'enabled' as const, remark: '官网表单', parentCode: 'new' },
-    { typeId: 'lead-status', code: 'new-refer', label: '客户推荐', sort: 3, status: 'enabled' as const, remark: '', parentCode: 'new' },
-    { typeId: 'lead-status', code: 'contacted', label: '已联系', sort: 2, status: 'enabled' as const, remark: '已与客户取得联系', parentCode: null },
-    { typeId: 'lead-status', code: 'converted', label: '已转化', sort: 3, status: 'enabled' as const, remark: '已成功转化为客户', parentCode: null },
-    { typeId: 'lead-status', code: 'lost', label: '已流失', sort: 4, status: 'enabled' as const, remark: '线索已流失', parentCode: null },
-    // order-status
-    { typeId: 'order-status', code: 'pending', label: '待确认', sort: 1, status: 'enabled' as const, remark: '', parentCode: null },
-    { typeId: 'order-status', code: 'confirmed', label: '已确认', sort: 2, status: 'enabled' as const, remark: '', parentCode: null },
-    { typeId: 'order-status', code: 'confirmed-deposit', label: '已付定金', sort: 1, status: 'enabled' as const, remark: '', parentCode: 'confirmed' },
-    { typeId: 'order-status', code: 'confirmed-full', label: '已付全款', sort: 2, status: 'enabled' as const, remark: '', parentCode: 'confirmed' },
-  ];
-
-  if (await dictEntryRepo.count() === 0) {
-    for (const de of dictEntries) await dictEntryRepo.save(de as DictEntry);
-  }
-  console.log('Dictionary seeded');
-
-  // ---- Agents ----
-  const agents = [
-    { agentId: 'inquiry', name: '询盘智能体', description: '自动接待独立站访客，识别采购意向并将有效询盘沉淀为客户线索', status: 'active' as const, model: 'GPT-4o', lang: '多语言', agentType: 'sales' as const, chats: 0, leads: 0, rate: '—', satisfaction: 0, icon: 'MessageOutlined', color: 'bg-blue-50 text-blue-600 border-blue-200' },
-    { agentId: 'translation', name: '翻译智能体', description: '将独立站的中文内容生成为目标语言版本，并按站点发布版本缓存', status: 'active' as const, model: 'GPT-4o', lang: '多语言', agentType: 'translation' as const, systemPrompt: '保留品牌名、商品编码、数值和 HTML 结构，使用符合目标市场的自然商业表达。', chats: 0, leads: 0, rate: '—', satisfaction: 0, icon: 'GlobalOutlined', color: 'bg-violet-50 text-violet-600 border-violet-200' },
-  ];
-
-  if (await agentRepo.count() === 0) {
-    for (const a of agents) await agentRepo.save(a);
-  }
-  console.log('Agents seeded');
 
   // ---- Testimonials ----
   const testimonials = [
@@ -198,28 +137,17 @@ async function seed() {
       { name: 'Lisa Park', email: 'lisa@mercivo.com', role: 'viewer', avatar: 'LP', color: 'bg-amber-500 text-white' },
     ] as TeamMember[]);
   }
-  if (await knowledgeRepo.count() === 0) {
-    await knowledgeRepo.save([
-      { name: '产品目录-2026.pdf', type: 'PDF', size: '4.2 MB', status: 'indexed', chunks: 126 },
-      { name: '常见问题FAQ.docx', type: 'DOCX', size: '820 KB', status: 'indexed', chunks: 48 },
-      { name: '物流与付款政策.pdf', type: 'PDF', size: '1.1 MB', status: 'indexed', chunks: 35 },
-    ] as KnowledgeFile[]);
-  }
   const configs = {
     settings: { account: { name: 'Alex Johnson', email: 'alex@mercivo.com', phone: '+1 (555) 123-4567', timezone: 'UTC+8 (Asia/Shanghai)' }, site: { name: 'Mercivo Official', domain: 'www.mercivo.com', description: 'Global B2B sourcing platform connecting buyers with premium suppliers', language: 'English', currency: 'USD ($)' }, billing: { currentPlan: 'pro' } },
-    plans: { items: [{ id: 'starter', name: 'Starter', price: '$29/mo', desc: '适合个人创业者', limits: ['1个智能体', '500次对话/月', '基础分析'] }, { id: 'pro', name: 'Professional', price: '$99/mo', desc: '适合小型团队', limits: ['5个智能体', '5,000次对话/月', '高级分析', '知识库'] }, { id: 'enterprise', name: 'Enterprise', price: '$299/mo', desc: '适合大型企业', limits: ['无限智能体', '无限对话', '专属模型', 'API接入', '优先支持'] }] },
-    siteEditor: { page: 'home', status: 'published', version: 1, productSource: '全部商品', sort: '最新上架', displayCount: 9, columns: 3, welcome: '你好！我是EcoBags的AI助手，有什么可以帮您？', position: '右下角' },
+    plans: { items: [{ id: 'starter', name: 'Starter', price: '$29/mo', desc: '适合个人创业者', limits: ['20件商品', '1位成员', '1个独立站'] }, { id: 'pro', name: 'Professional', price: '$99/mo', desc: '适合小型团队', limits: ['500件商品', '5位成员', '1个独立站'] }, { id: 'enterprise', name: 'Enterprise', price: '$299/mo', desc: '适合大型企业', limits: ['无限商品', '20位成员', '1个独立站', '优先支持'] }] },
+    siteEditor: { page: 'home', status: 'published', version: 1, productSource: '全部商品', sort: '最新上架', displayCount: 9, columns: 3 },
     seo: { title: '', description: '', keywords: '', shareImage: '', canonicalUrl: '', robots: 'index,follow,max-image-preview:large' },
-    dashboard: { traffic: [{ day: '周一', visitors: 0, leads: 0, aiChats: 0 }, { day: '周二', visitors: 0, leads: 0, aiChats: 0 }, { day: '周三', visitors: 0, leads: 0, aiChats: 0 }, { day: '周四', visitors: 0, leads: 0, aiChats: 0 }, { day: '周五', visitors: 0, leads: 0, aiChats: 0 }, { day: '周六', visitors: 0, leads: 0, aiChats: 0 }, { day: '周日', visitors: 0, leads: 0, aiChats: 0 }], activities: [] },
+    dashboard: { activities: [] },
   };
   for (const [key, value] of Object.entries(configs)) {
     if (!(await configRepo.exist({ where: { key } }))) await configRepo.save({ key, value });
   }
   console.log('Workspace data seeded');
-  if (await sessionRepo.count() === 0) {
-    const session = await sessionRepo.save({ title: '产品咨询', starred: true });
-    await messageRepo.save({ sessionId: session.id, type: 'ai', text: '你好！我是迈犀沃 AI 助手，可以协助您处理商品、客户、商机、开发信与独立站运营。' });
-  }
   let site = (await siteRepo.find({ order: { createdAt: 'ASC' }, take: 1 }))[0] || null;
   if (!site) {
     let tenant = (await tenantRepo.find({ order: { createdAt: 'ASC' }, take: 1 }))[0] || null;
@@ -232,17 +160,12 @@ async function seed() {
   }
   await Promise.all([
     productRepo.update({ siteId: '' }, { tenantId: site.tenantId, siteId: site.id }),
-    leadRepo.update({ siteId: '' }, { tenantId: site.tenantId, siteId: site.id }),
-    agentRepo.update({ siteId: '' }, { tenantId: site.tenantId, siteId: site.id }),
     testimonialRepo.update({ siteId: '' }, { tenantId: site.tenantId, siteId: site.id }),
-    knowledgeRepo.update({ siteId: '' }, { tenantId: site.tenantId, siteId: site.id }),
-    sessionRepo.update({ siteId: '' }, { tenantId: site.tenantId, siteId: site.id }),
     teamRepo.update({ siteId: '' }, { tenantId: site.tenantId, siteId: site.id }),
-    dictTypeRepo.update({ siteId: '' }, { tenantId: site.tenantId, siteId: site.id }),
-    dictEntryRepo.update({ siteId: '' }, { tenantId: site.tenantId, siteId: site.id }),
+    productCategoryRepo.update({ siteId: '' }, { tenantId: site.tenantId, siteId: site.id }),
   ]);
   if (!site.publishedVersionId) {
-    const snapshot = { site: { id: site.id, slug: site.slug, name: site.name, defaultLanguage: site.defaultLanguage, defaultCurrency: site.defaultCurrency }, config: configs.siteEditor, products: await productRepo.find({ where: { siteId: site.id, status: 'published' } }), testimonials: await testimonialRepo.find({ where: { siteId: site.id } }), agent: await agentRepo.findOne({ where: { siteId: site.id, status: 'active' } }), generatedAt: new Date().toISOString() };
+    const snapshot = { site: { id: site.id, slug: site.slug, name: site.name, defaultLanguage: site.defaultLanguage, defaultCurrency: site.defaultCurrency }, config: configs.siteEditor, products: await productRepo.find({ where: { siteId: site.id, status: 'published' } }), testimonials: await testimonialRepo.find({ where: { siteId: site.id } }), generatedAt: new Date().toISOString() };
     const version = await versionRepo.save({ siteId: site.id, version: 1, status: 'published', snapshot, publishedBy: 'seed' });
     site.status = 'published'; site.publishedVersionId = version.id; await siteRepo.save(site);
   }

@@ -5,7 +5,7 @@ describe('ProductService', () => {
   let service: ProductService;
   let products: Record<string, jest.Mock>;
   let tenants: Record<string, jest.Mock>;
-  let dictionaries: Record<string, jest.Mock>;
+  let categories: Record<string, jest.Mock>;
   const dto = {
     nameZh: '测试商品', nameEn: 'Test Product', sku: 'P-001', description: '<p>安全<strong>描述</strong><script>alert(1)</script></p>',
     basePrice: 10, variants: [{ specification: '尺寸', option: 'L', stock: 8, surcharge: 2 }], tags: ['新品', ' 新品 ', '推荐'],
@@ -18,8 +18,8 @@ describe('ProductService', () => {
       create: jest.fn(value => value), save: jest.fn(value => Promise.resolve({ id: 'product-1', ...value })), remove: jest.fn().mockResolvedValue(undefined),
     };
     tenants = { findOne: jest.fn().mockResolvedValue({ id: 'tenant-1', maxProducts: 20 }) };
-    dictionaries = { exist: jest.fn().mockResolvedValue(true) };
-    service = new ProductService(products as never, tenants as never, dictionaries as never);
+    categories = { exist: jest.fn().mockResolvedValue(true) };
+    service = new ProductService(products as never, tenants as never, categories as never);
   });
 
   it('lists products only from the active site', async () => {
@@ -31,7 +31,7 @@ describe('ProductService', () => {
     const result = await service.create(dto, 'tenant-1', 'site-1');
     expect(result).toMatchObject({ tenantId: 'tenant-1', siteId: 'site-1', price: '12.00', tags: ['新品', '推荐'] });
     expect(result.description).toBe('<p>安全<strong>描述</strong></p>');
-    expect(dictionaries.exist).toHaveBeenCalledWith({ where: { siteId: 'site-1', typeId: 'category', code: 'bags', status: 'enabled' } });
+    expect(categories.exist).toHaveBeenCalledWith({ where: { siteId: 'site-1', code: 'bags', status: 'enabled' } });
   });
 
   it('calculates a price range from base price and specification surcharges', async () => {
@@ -40,7 +40,7 @@ describe('ProductService', () => {
   });
 
   it('rejects disabled or foreign-site categories', async () => {
-    dictionaries.exist.mockResolvedValue(false);
+    categories.exist.mockResolvedValue(false);
     await expect(service.create(dto, 'tenant-1', 'site-1')).rejects.toBeInstanceOf(BadRequestException);
   });
 

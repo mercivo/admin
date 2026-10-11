@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AppConfig } from './app-config.entity';
 import { TeamMember } from './team-member.entity';
-import { KnowledgeFile } from './knowledge-file.entity';
 import { CreateTeamMemberDto, UpdateTeamMemberDto } from './workspace.dto';
 import { UpdateAccountSettingsDto, UpdateSiteSettingsDto } from './workspace.dto';
 import { User } from '../auth/user.entity';
@@ -12,20 +11,17 @@ import { Site } from '../site/site.entity';
 import { SiteDomain } from '../site/site-domain.entity';
 import { hashPassword } from '../auth/password.util';
 import { AuthUser } from '../../common/types/auth-user';
-import { PERMISSION_CATALOG } from '../system/permission-catalog';
-import { CloudStorageService } from '../../common/storage/cloud-storage.service';
+import { PERMISSION_CATALOG, withPermissionParents } from '../system/permission-catalog';
 
 @Injectable()
 export class WorkspaceService {
   constructor(
     @InjectRepository(AppConfig) private readonly configRepo: Repository<AppConfig>,
     @InjectRepository(TeamMember) private readonly teamRepo: Repository<TeamMember>,
-    @InjectRepository(KnowledgeFile) private readonly knowledgeRepo: Repository<KnowledgeFile>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     @InjectRepository(Tenant) private readonly tenantRepo: Repository<Tenant>,
     @InjectRepository(Site) private readonly siteRepo: Repository<Site>,
     @InjectRepository(SiteDomain) private readonly domainRepo: Repository<SiteDomain>,
-    private readonly storage: CloudStorageService,
   ) {}
 
   private async optionalConfig<T extends Record<string, unknown>>(key: string, siteId: string, fallback: T): Promise<T> {
@@ -46,7 +42,7 @@ export class WorkspaceService {
     return {
       account: { enterpriseName: tenant.name, phone: user.phone || '', email: account.email || '', timezone: 'Asia/Shanghai', role: user.role, joinedAt: user.createdAt },
       site: { id: site.id, slug: site.slug, name: site.name, description: siteMeta.description || '', defaultLanguage: site.defaultLanguage, defaultCurrency: site.defaultCurrency, domain: domain?.hostname || '', domainStatus: domain?.sslStatus || 'unconfigured', status: site.status },
-      billing: { plan: tenant.plan, status: tenant.status, expiresAt: tenant.expiresAt, limits: { products: tenant.maxProducts, agents: tenant.maxAgents, members: tenant.maxMembers }, sitePublishing: (tenant.permissions || []).includes('site.publish'), features: tenant.features || {}, permissions: tenant.permissions || [] },
+      billing: { plan: tenant.plan, status: tenant.status, expiresAt: tenant.expiresAt, limits: { products: tenant.maxProducts, members: tenant.maxMembers }, sitePublishing: (tenant.permissions || []).includes('site.publish'), features: tenant.features || {}, permissions: tenant.permissions || [] },
     };
   }
 
@@ -125,7 +121,7 @@ export class WorkspaceService {
   async teamPermissions(tenantId: string) {
     const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
     if (!tenant) throw new NotFoundException('商户不存在');
-    const allowed = new Set(tenant.permissions || []);
+    const allowed = new Set(withPermissionParents(tenant.permissions || []));
     return PERMISSION_CATALOG.filter(item => allowed.has(item.key));
   }
   async createMember(dto: CreateTeamMemberDto, requester: AuthUser) {
@@ -162,34 +158,13 @@ export class WorkspaceService {
     await this.userRepo.delete({ id: member.userId, tenantId: requester.tenantId });
   }
   private validateMemberPermissions(requested: string[], tenantPermissions: string[]) {
-    const allowed = new Set(tenantPermissions);
-    const invalid = requested.find(key => !allowed.has(key));
+    const known = new Set(PERMISSION_CATALOG.map(item => item.key));
+    const invalidUnknown = requested.find(key => !known.has(key));
+    if (invalidUnknown) throw new ForbiddenException('成员权限不能超出商户权限范围');
+    const normalized = withPermissionParents(requested);
+    const allowed = new Set(withPermissionParents(tenantPermissions));
+    const invalid = normalized.find(key => !allowed.has(key));
     if (invalid) throw new ForbiddenException('成员权限不能超出商户权限范围');
-    return [...new Set(requested)];
-  }
-  listKnowledge(siteId: string) { return this.knowledgeRepo.find({ where: { siteId }, order: { createdAt: 'DESC' } }); }
-  async createKnowledge(file: Express.Multer.File, tenantId: string, siteId: string) {
-    if (!/\.(txt|md|csv|json)$/i.test(file.originalname)) throw new BadRequestException('当前支持 TXT、Markdown、CSV 和 JSON 文本文档');
-    const content = file.buffer.toString('utf8').trim();
-    if (!content) throw new BadRequestException('知识文档内容不能为空');
-    const stored = await this.storage.upload(file, `tenants/${tenantId}/sites/${siteId}/knowledge`, { public: false });
-    try {
-      return await this.knowledgeRepo.save(this.knowledgeRepo.create({
-        name: file.originalname,
-        type: file.originalname.split('.').pop()?.toUpperCase() || 'TXT',
-        size: `${Math.max(1, Math.ceil(file.size / 1024))} KB`,
-        content: '', objectName: stored.objectName, tenantId, siteId,
-        status: 'indexed', chunks: Math.max(1, Math.ceil(content.length / 1200)),
-      }));
-    } catch (error) {
-      await this.storage.delete(stored.objectName, { public: false });
-      throw error;
-    }
-  }
-  async deleteKnowledge(id: string, siteId: string) {
-    const item = await this.knowledgeRepo.findOne({ where: { id, siteId } });
-    if (!item) return;
-    await this.knowledgeRepo.remove(item);
-    if (item.objectName) await this.storage.delete(item.objectName, { public: false });
+    return normalized;
   }
 }

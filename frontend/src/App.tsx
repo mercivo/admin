@@ -10,14 +10,9 @@ const ProductsPage = lazy(() => import('./pages/Products'));
 const ProductEditPage = lazy(() => import('./pages/ProductEdit'));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetail'));
 const SiteEditorPage = lazy(() => import('./pages/SiteEditor'));
-const LeadsPage = lazy(() => import('./pages/Leads'));
 const CustomerLevelsPage = lazy(() => import('./pages/CustomerLevels'));
-const OpportunitiesPage = lazy(() => import('./pages/Opportunities'));
-const OutreachPage = lazy(() => import('./pages/Outreach'));
-const AICenterPage = lazy(() => import('./pages/AICenter'));
-const AIChatPage = lazy(() => import('./pages/AIChat'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
-const DictMgmtPage = lazy(() => import('./pages/DictMgmt'));
+const ProductCategoriesPage = lazy(() => import('./pages/ProductCategories'));
 const LoginPage = lazy(() => import('./pages/Login'));
 const SystemAdminPage = lazy(() => import('./pages/SystemAdmin'));
 
@@ -44,7 +39,8 @@ const PermissionDenied = () => <div className="grid min-h-[50vh] place-items-cen
 const RequirePermission: React.FC<{ permission: string; children: React.ReactElement }> = ({ permission, children }) => can(permission) ? children : <PermissionDenied />;
 const SettingsRoute = () => {
   const tab = new URLSearchParams(useLocation().search).get('tab');
-  const permission = tab === 'site' || tab === 'seo' ? 'menu.site.config' : tab === 'team' ? 'menu.team' : 'menu.settings';
+  if (tab === 'site' || tab === 'seo') return <Navigate to="/site-editor" replace />;
+  const permission = tab === 'team' ? 'page.settings.team' : 'page.settings.account';
   return <RequirePermission permission={permission}><SettingsPage /></RequirePermission>;
 };
 
@@ -83,24 +79,19 @@ const App: React.FC = () => {
         <Route element={<AppLayout />}>
           {/* Backend pages with sidebar */}
           <Route element={<BackendLayout />}>
-            <Route index element={<RequirePermission permission="menu.dashboard"><DashboardPage /></RequirePermission>} />
-            <Route path="dashboard" element={<RequirePermission permission="menu.dashboard"><DashboardPage /></RequirePermission>} />
-            <Route path="products" element={<RequirePermission permission="menu.products"><ProductsPage /></RequirePermission>} />
+            <Route index element={<RequirePermission permission="page.dashboard"><DashboardPage /></RequirePermission>} />
+            <Route path="dashboard" element={<RequirePermission permission="page.dashboard"><DashboardPage /></RequirePermission>} />
+            <Route path="products" element={<RequirePermission permission="page.products"><ProductsPage /></RequirePermission>} />
             <Route path="products/new" element={<RequirePermission permission="product.create"><ProductEditPage /></RequirePermission>} />
             <Route path="products/:id/edit" element={<RequirePermission permission="product.edit"><ProductEditPage /></RequirePermission>} />
-            <Route path="leads" element={<RequirePermission permission="menu.leads"><LeadsPage /></RequirePermission>} />
-            <Route path="customer-levels" element={<RequirePermission permission="menu.customers"><CustomerLevelsPage /></RequirePermission>} />
-            <Route path="opportunities" element={<RequirePermission permission="menu.opportunities"><OpportunitiesPage /></RequirePermission>} />
-            <Route path="outreach" element={<RequirePermission permission="menu.outreach"><OutreachPage /></RequirePermission>} />
-            <Route path="ai-center" element={<RequirePermission permission="menu.agents"><AICenterPage /></RequirePermission>} />
+            <Route path="customer" element={<RequirePermission permission="page.customers"><CustomerLevelsPage /></RequirePermission>} />
             <Route path="settings" element={<SettingsRoute />} />
-            <Route path="dict-mgmt" element={<RequirePermission permission="menu.dictionary"><DictMgmtPage /></RequirePermission>} />
+            <Route path="product-categories" element={<RequirePermission permission="page.product-categories"><ProductCategoriesPage /></RequirePermission>} />
           </Route>
           {/* Frontend pages without sidebar */}
-          <Route path="site-editor" element={<RequirePermission permission="menu.site"><SiteEditorPage /></RequirePermission>} />
+          <Route path="site-editor" element={<RequirePermission permission="page.site.editor"><SiteEditorPage /></RequirePermission>} />
           <Route path="storefront" element={<Navigate to="/dashboard" replace />} />
-          <Route path="products/:id" element={<RequirePermission permission="menu.products"><ProductDetailPage /></RequirePermission>} />
-          <Route path="ai-chat" element={<RequirePermission permission="menu.agents"><AIChatPage /></RequirePermission>} />
+          <Route path="products/:id" element={<RequirePermission permission="page.products"><ProductDetailPage /></RequirePermission>} />
         </Route>
         </Route>
         </Route>

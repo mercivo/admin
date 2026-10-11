@@ -107,7 +107,6 @@
 .site-editor-controls .editor-panel-tabs button.is-active{background:#fff;color:var(--editor-primary);font-weight:600;box-shadow:inset 0 -2px var(--editor-primary),0 1px 2px rgba(0,0,0,.08)}
 .site-editor-controls .ant-input,.site-editor-controls .ant-select-selector{border-radius:6px!important}
 .site-editor-controls .ant-input:hover,.site-editor-controls .ant-select:hover .ant-select-selector{border-color:var(--editor-primary)!important}
-.site-editor-modal-footer{display:flex;justify-content:flex-end;gap:8px}.site-editor-modal-footer>button{min-width:74px;height:32px;border:1px solid #d9d9d9;border-radius:6px;background:#fff;padding:4px 15px}.site-editor-modal-footer>button:last-child{border-color:#8b7cf6;background:#8b7cf6;color:#fff}
 .site-editor-controls [data-editor-canvas] button{font-size:inherit;border-radius:inherit}
 .site-editor-controls [data-editor-canvas] .ant-select-borderless .ant-select-selector,.site-editor-controls [data-editor-canvas] .ant-select-borderless:hover .ant-select-selector,.site-editor-controls [data-editor-canvas] .ant-select-borderless.ant-select-focused .ant-select-selector,.site-editor-controls [data-editor-canvas] .ant-select-borderless.ant-select-open .ant-select-selector{border-color:transparent!important;box-shadow:none!important;background:transparent!important}
 .site-editor-controls [data-editor-canvas] .ant-select-borderless:hover{color:var(--site-theme)}
@@ -184,7 +183,6 @@
 .site-editor-controls [data-editor-canvas][data-device="mobile"] [data-section-type="footer"] footer{padding:42px 20px}
 .site-editor-controls [data-editor-canvas][data-device="mobile"] [data-section-type="footer"] footer>div:first-child{grid-template-columns:1fr;gap:28px}
 .site-editor-controls [data-editor-canvas][data-device="mobile"] [data-section-type="contactModal"]>div{padding:36px 16px}
-.site-editor-controls [data-editor-canvas][data-device="mobile"] [data-section-type="assistant"]>div{bottom:16px;right:16px}
 .site-editor-controls [data-editor-canvas] [data-section-type="footer"] footer>div:first-child>div:has(nav:empty){display:none}
 .site-editor-controls [data-editor-canvas][data-device="mobile"] [data-section-type="products"] aside{max-height:280px;overflow:auto;border:1px solid #eeeae4;border-radius:14px;padding:16px;background:#fafaf9;scrollbar-width:thin}
 .site-editor-controls [data-editor-canvas][data-device="mobile"] [data-section-type="products"] aside>div.space-y-1{display:block;overflow:visible}

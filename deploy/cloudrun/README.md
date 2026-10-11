@@ -77,19 +77,18 @@ Server running on http://localhost:8080
   - `mercivo-system-admin-password`
 - 运行服务账号：`mercivo-runtime@PROJECT_ID.iam.gserviceaccount.com`
 
-未配置 `REDIS_HOST` 时验证码保存在 API 实例内存中，因此 API 必须限制为最多 1 个实例。上传统一使用 Cloud Storage：公开图片桶 `mercivo-images-753805870951`，私有知识文件桶 `mercivo-private-753805870951`，均位于 `asia-east1`、Standard、关闭软删除；API 运行账号仅授予两个桶的 Object Admin。公开图片桶允许匿名读取，私有桶不允许公开访问。
+未配置 `REDIS_HOST` 时验证码保存在 API 实例内存中，因此 API 必须限制为最多 1 个实例。商品与站点图片统一使用 Cloud Storage 公开图片桶 `mercivo-images-753805870951`，位于 `asia-east1`、Standard、关闭软删除；API 运行账号仅授予该桶的 Object Admin，图片桶允许匿名读取。
 
 API 环境变量：
 
 ```text
 GCS_PROJECT_ID=mercivo-admin
 GCS_BUCKET=mercivo-images-753805870951
-GCS_PRIVATE_BUCKET=mercivo-private-753805870951
 GCS_PUBLIC_BASE_URL=https://image.aihubflux.com
 GCS_OBJECT_PREFIX=production
 ```
 
-`image.aihubflux.com` 由 Cloudflare Worker `mercivo-image-cdn` 代理公开图片桶并缓存一年，避免 Google External HTTPS Load Balancer 的固定费用。知识文件永远不经过该域名。
+`image.aihubflux.com` 由 Cloudflare Worker `mercivo-image-cdn` 代理公开图片桶并缓存一年，避免 Google External HTTPS Load Balancer 的固定费用。
 
 启用 API：
 

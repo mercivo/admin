@@ -1,3 +1,189 @@
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';
+
+/* One scrollbar system for page, panels, modals and third-party scroll containers. */
+html,
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track) !important;
+}
+
+::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  min-width: 24px;
+  min-height: 24px;
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--scrollbar-track);
+}
+
+/* Ant Design may set its own scrollbar colors on the table scroll node. */
+.ant-table-wrapper .ant-table-content,
+.ant-table-wrapper .ant-table-body {
+  scrollbar-width: thin !important;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track) !important;
+}
+
+/* Keep Ant Design's synthetic sticky horizontal scrollbar on the same palette. */
+.ant-table-wrapper .ant-table-sticky-scroll {
+  height: var(--scrollbar-size) !important;
+  border-radius: 999px;
+  background: var(--scrollbar-track) !important;
+}
+
+.ant-table-wrapper .ant-table-sticky-scroll-bar {
+  height: var(--scrollbar-size) !important;
+  border-radius: 999px;
+  background: var(--scrollbar-thumb) !important;
+}
+
+.ant-table-wrapper .ant-table-sticky-scroll-bar:hover {
+  background: var(--scrollbar-thumb-hover) !important;
+}
+
+/* Shared fixed operation column: opaque layers prevent scrolled headers/cells bleeding through. */
+.ant-table-wrapper .ant-table-thead > tr > th.app-table-action-column {
+  z-index: 4;
+  background: #f8f7ff !important;
+  text-align: center !important;
+}
+.ant-table-wrapper .ant-table-tbody > tr > td.app-table-action-column {
+  z-index: 3;
+  background: var(--card) !important;
+  text-align: center !important;
+}
+.ant-table-wrapper .ant-table-tbody > tr:hover > td.app-table-action-column {
+  background: #faf9ff !important;
+}
+.app-table-action-column-manual {
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  text-align: center;
+  box-shadow: -8px 0 12px -12px rgba(30, 27, 53, 0.28);
+}
+.app-table-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-height: 28px;
+}
+
+/* Shared application modal */
+.app-modal .ant-modal-title,
+.app-confirm-modal .ant-modal-confirm-title {
+  color: var(--foreground);
+}
+.app-modal-heading {
+  display: grid;
+  gap: 3px;
+}
+.app-modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.app-modal-description {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.app-modal .category-style-form .ant-form-item {
+  margin-bottom: 16px;
+}
+.app-modal .category-style-form .ant-form-item-label {
+  padding-bottom: 6px;
+}
+.app-modal .category-style-form .ant-form-item-label > label {
+  height: auto;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  line-height: 18px;
+}
+.app-modal .category-style-form .ant-form-item.mb-0 {
+  margin-bottom: 0;
+}
+.app-modal .ant-modal-content {
+  display: flex;
+  max-height: 90vh;
+  padding: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+.app-modal .ant-modal-header {
+  display: flex;
+  flex: none;
+  min-height: 64px;
+  align-items: center;
+  margin-bottom: 0;
+  padding: 12px 56px 12px 24px;
+  border-bottom: 1px solid var(--border);
+}
+.app-modal .ant-modal-body {
+  min-height: 0;
+  padding: 20px 24px;
+  overflow-y: auto;
+}
+.app-modal .ant-modal-close {
+  top: 16px;
+  inset-inline-end: 20px;
+}
+.app-modal .ant-modal-footer,
+.app-confirm-modal .ant-modal-confirm-btns {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 0;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+}
+.app-modal .ant-modal-footer .ant-btn + .ant-btn,
+.app-confirm-modal .ant-modal-confirm-btns .ant-btn + .ant-btn {
+  margin-inline-start: 0;
+}
+.app-confirm-modal .ant-modal-confirm-title {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  margin: -24px -24px 16px;
+  padding: 8px 56px 8px 24px;
+  border-bottom: 1px solid var(--border);
+}
+.app-confirm-modal .ant-modal-confirm-body-wrapper {
+  display: flex;
+  max-height: 90vh;
+  min-height: 0;
+  flex-direction: column;
+}
+.app-confirm-modal .ant-modal-confirm-body {
+  min-height: 0;
+  padding: 24px;
+  overflow-y: auto;
+}
+.app-confirm-modal .ant-modal-confirm-btns {
+  margin: 0;
+}

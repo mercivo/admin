@@ -29,12 +29,13 @@
 | `STOREFRONT_CNAME_TARGET` | 租户 CNAME 引导目标；本地使用 `localhost` | 否 |
 | `TRUST_PROXY_HOPS` | API 信任的反向代理跳数 | 否 |
 | `GCS_PROJECT_ID` | GCS 所属 Google Cloud 项目 | 否 |
-| `GCS_BUCKET` | 公开图片桶 | 否 |
-| `GCS_PRIVATE_BUCKET` | 知识库等私有文件桶；不允许回退到公开桶 | 否 |
+| `GCS_BUCKET` | 统一的公开图片桶；不同环境通过对象前缀隔离 | 否 |
 | `GCS_PUBLIC_BASE_URL` | 返回给客户端的公开图片域名 | 否 |
 | `GCS_OBJECT_PREFIX` | 对象环境目录；本地为 `local`，线上为 `production` | 否 |
 
 本地 GCS 凭据不写进 `.env.local`。Compose 只读挂载 `secrets/gcs-key.json` 到容器内的 `/run/secrets/gcs-key.json`；该目录已被 Git 忽略。
+
+项目只使用 `mercivo-images-753805870951` 一个运行时存储桶：本地对象写入 `local/`，Cloud Run 对象写入 `production/`。旧的 `GCS_PRIVATE_BUCKET` 配置不再被代码读取，不应在新环境中配置。
 
 ## Cloud Run
 
@@ -60,10 +61,10 @@
 2. 唯一启用的 `system_admin` 用户：平台首次登录入口。
 3. `plans` 平台套餐配置：至少保留 `trial`，注册租户和权限上限依赖它。
 
-租户、站点、域名、商品、客户、线索、商机、推广、聊天、知识库、站点版本、字典、成员、预制/实例智能体和 Sitemap 状态均不属于空系统的必需数据。
+租户、站点、域名、商品、客户、站点版本、字典、成员和 Sitemap 状态均不属于空系统的必需数据。
 
 ## 安全重置
 
 `npm run data:reset` 要求 `RESET_ENVIRONMENT`、`RESET_DATA_CONFIRM=mercivo-admin:<environment>:DELETE_BUSINESS_DATA` 和完全匹配的 `GCS_OBJECT_PREFIX`。默认的 `RESET_STORAGE_SCOPE=prefix` 只清理 `<GCS_OBJECT_PREFIX>/` 目录。
 
-只有一次性清理历史遗留的无前缀模拟文件时才可设置 `RESET_STORAGE_SCOPE=all`；此时还必须提供 `RESET_STORAGE_CONFIRM=mercivo-admin:<environment>:DELETE_ALL_STORAGE_OBJECTS`。脚本会先验证公开与私有存储桶均可访问，再开始数据库清理。
+只有一次性清理历史遗留的无前缀模拟文件时才可设置 `RESET_STORAGE_SCOPE=all`；此时还必须提供 `RESET_STORAGE_CONFIRM=mercivo-admin:<environment>:DELETE_ALL_STORAGE_OBJECTS`。脚本会先验证统一图片桶可访问，再开始数据库清理。

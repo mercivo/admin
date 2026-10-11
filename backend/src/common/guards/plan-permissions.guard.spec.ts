@@ -5,7 +5,7 @@ describe('PlanPermissionsGuard', () => {
   const tenantRepository = {
     findOne: jest.fn().mockResolvedValue({
       id: 'tenant-1',
-      permissions: ['settings.site', 'settings.team', 'site.publish', 'site.domain'],
+      permissions: ['settings.site', 'settings.team', 'site.publish', 'site.domain', 'page.settings.team'],
     }),
   };
   const guard = new PlanPermissionsGuard(tenantRepository as never);

@@ -17,6 +17,6 @@ Cloudflare 中这三个名称只创建 Cloud Run 映射流程要求的记录，�
 1. 共享入口：`https://site.aihubflux.com/<tenantId>`，也兼容站点 slug。
 2. 自定义域名：租户先添加 `_mercivo-verification.<hostname>` TXT 完成所有权验证，再把 hostname CNAME 到 `site.aihubflux.com`。
 
-共享入口的租户参数会透传给站点、商品详情、客户登录、询盘、聊天、翻译、robots 和 sitemap 请求。自定义域名不使用路径参数，继续根据 `X-Forwarded-Host`/`Host` 查询已启用的 `site_domains` 记录。
+共享入口的租户参数会透传给站点、商品详情、客户登录、robots 和 sitemap 请求。自定义域名不使用路径参数，继续根据 `X-Forwarded-Host`/`Host` 查询已启用的 `site_domains` 记录。
 
 Cloud Run 原生域名映射只能覆盖三个平台固定域名，不能为数量不断增长的租户 hostname 自动签发证书。租户自定义域名的规模化 HTTPS 应使用 Cloudflare for SaaS Custom Hostnames；在该功能启用前，业务层 DNS 验证成功不代表租户域名已经具备边缘证书。

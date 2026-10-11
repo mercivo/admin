@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { SiteService } from './site.service';
-import { CreateDomainDto, CreatePublicInquiryDto, CreateSiteDto, PublishSiteDto, RollbackSiteDto, TranslatePublishedSiteDto, UpdateSiteDto } from './site.dto';
+import { CreateDomainDto, CreateSiteDto, PublishSiteDto, RollbackSiteDto, UpdateSiteDto } from './site.dto';
 import { PublicCustomerLoginDto } from '../customer/customer.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -35,8 +35,4 @@ export class SitePublicController {
   @Get('robots.txt') async robots(@Headers('x-forwarded-host') forwardedHost: string, @Headers('host') host: string, @Query('site') site: string | undefined, @Res() response: Response) { response.type('text/plain').send(await this.service.robots(forwardedHost || host || 'localhost', site)); }
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('customer/login') customerLogin(@Headers('x-forwarded-host') forwardedHost: string, @Headers('host') host: string, @Query('site') site: string | undefined, @Body() dto: PublicCustomerLoginDto) { return this.service.loginPublicCustomer(forwardedHost || host || 'localhost', site, dto.phone); }
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @Post('site/translate') translateSite(@Headers('x-forwarded-host') forwardedHost: string, @Headers('host') host: string, @Query('site') site: string | undefined, @Body() dto: TranslatePublishedSiteDto) { return this.service.translatePublished(forwardedHost || host || 'localhost', site, dto.language); }
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
-  @Post('inquiries') createInquiry(@Headers('x-forwarded-host') forwardedHost: string, @Headers('host') host: string, @Query('site') site: string | undefined, @Body() dto: CreatePublicInquiryDto) { return this.service.createPublicInquiry(forwardedHost || host || 'localhost', site, dto); }
 }

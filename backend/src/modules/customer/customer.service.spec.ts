@@ -35,14 +35,14 @@ describe('CustomerService', () => {
 
   it('creates a tenant and site scoped customer with a valid level', async () => {
     levels.exists.mockResolvedValue(true);
-    const result = await service.create({ name: '张三', company: '示例公司', phone: '13800000001', level: 'lvl_a' }, 'tenant-1', 'site-1');
+    const result = await service.create({ name: '张三', phone: '13800000001', level: 'lvl_a' }, 'tenant-1', 'site-1');
     expect(levels.exists).toHaveBeenCalledWith({ where: { siteId: 'site-1', code: 'lvl_a' } });
-    expect(customers.create).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 'tenant-1', siteId: 'site-1', level: 'lvl_a' }));
+    expect(customers.create).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 'tenant-1', siteId: 'site-1', name: '张三', company: '张三', level: 'lvl_a' }));
     expect(result.id).toBe('customer-1');
   });
 
   it('rejects a customer level from another site', async () => {
-    await expect(service.create({ name: '张三', company: '示例公司', phone: '13800000001', level: 'foreign' }, 'tenant-1', 'site-1')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.create({ name: '张三', phone: '13800000001', level: 'foreign' }, 'tenant-1', 'site-1')).rejects.toBeInstanceOf(BadRequestException);
     expect(customers.save).not.toHaveBeenCalled();
   });
 
@@ -50,8 +50,8 @@ describe('CustomerService', () => {
     const customer = { id: 'customer-1', siteId: 'site-1', name: '旧名称', level: '' };
     customers.createQueryBuilder.mockReturnValue({ addSelect: jest.fn().mockReturnThis(), where: jest.fn().mockReturnThis(), getOne: jest.fn().mockResolvedValue(customer) });
     customers.findOne.mockResolvedValue(customer);
-    await service.update('customer-1', { name: '新名称', company: '示例公司', phone: '13800000001', level: '' }, 'site-1');
-    expect(customers.save).toHaveBeenCalledWith(expect.objectContaining({ name: '新名称' }));
+    await service.update('customer-1', { name: '新名称', phone: '13800000001', level: '' }, 'site-1');
+    expect(customers.save).toHaveBeenCalledWith(expect.objectContaining({ name: '新名称', company: '新名称' }));
     await service.remove('customer-1', 'site-1');
     expect(customers.findOne).toHaveBeenLastCalledWith({ where: { id: 'customer-1', siteId: 'site-1' } });
     expect(customers.remove).toHaveBeenCalledWith(customer);
@@ -60,14 +60,19 @@ describe('CustomerService', () => {
   it('returns not found when a customer is outside the active site', async () => {
     customers.findOne.mockResolvedValue(null);
     customers.createQueryBuilder.mockReturnValue({ addSelect: jest.fn().mockReturnThis(), where: jest.fn().mockReturnThis(), getOne: jest.fn().mockResolvedValue(null) });
-    await expect(service.update('foreign', { name: '名称', company: '公司', phone: '13800000001' }, 'site-1')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.update('foreign', { name: '名称', phone: '13800000001' }, 'site-1')).rejects.toBeInstanceOf(NotFoundException);
     await expect(service.remove('foreign', 'site-1')).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('creates a custom level with normalized data and unique code', async () => {
-    const result = await service.createLevel({ name: '  重点客户  ', note: '  重点跟进  ' }, 'tenant-1', 'site-1');
-    expect(result).toMatchObject({ name: '重点客户', note: '重点跟进', tenantId: 'tenant-1', siteId: 'site-1' });
+    const result = await service.createLevel({ name: '  重点客户  ', note: '  重点跟进  ', discountRate: 95 }, 'tenant-1', 'site-1');
+    expect(result).toMatchObject({ name: '重点客户', note: '重点跟进', discountRate: 95, tenantId: 'tenant-1', siteId: 'site-1' });
     expect(result.code).toMatch(/^lvl_[a-f0-9]{20}$/);
+  });
+
+  it('stores an unconfigured discount policy as no rule', async () => {
+    const result = await service.createLevel({ name: '普通客户' }, 'tenant-1', 'site-1');
+    expect(result.discountRate).toBeNull();
   });
 
   it('rejects duplicate level names in the same site', async () => {

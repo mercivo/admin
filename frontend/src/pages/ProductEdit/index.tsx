@@ -12,14 +12,13 @@ import {
   CircleHelp,
   Info,
 } from 'lucide-react';
-import { RichTextEditor, StatusBadge } from '../../components/shared';
+import { AppModal, EmptyState, RichTextEditor, StatusBadge } from '../../components/shared';
 import Toast, { ToastType } from '../../components/shared/Toast';
-import { useNavigate, useParams } from 'react-router-dom';
-import { customerApi, dictApi, productApi, workspaceApi } from '../../services/api/index';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { customerApi, productApi, productCategoryApi, workspaceApi } from '../../services/api/index';
 import type { CustomerLevel, GuestPricingPolicy } from '../../services/api/index';
-import type { DictType, Product } from '../../types';
+import type { Product, ProductCategory } from '../../types';
 
-const IMGS = ['photo-1542601906990-b4d3fb778b09', 'photo-1553062407-98eeb64c6a62', 'photo-1584917865442-de89df76afd3'];
 type ProductVariant = { specification: string; option: string; stock: number; surcharge: number };
 
 const TABS = [
@@ -39,7 +38,7 @@ const ProductEditPage: React.FC = () => {
   const [categories, setCategories] = useState<Array<{ code: string; label: string }>>([]);
   const [form, setForm] = useState<Partial<Product>>({
     nameZh: '', nameEn: '', description: '', sku: '', price: '0.00', basePrice: 0,
-    stock: 0, moq: 0, category: '', img: IMGS[0], hot: false, badge: '', likeCount: 0,
+    stock: 0, moq: 0, category: '', img: '', hot: false, badge: '', likeCount: 0,
     status: 'draft', tags: [], seoTitle: '', seoDescription: '',
     levelPrices: {},
   });
@@ -60,13 +59,17 @@ const ProductEditPage: React.FC = () => {
     return min === max ? min : `${min}–${max}`;
   };
 
+  const referencePrice = (level: CustomerLevel) => {
+    const basePrice = Math.max(0, Number(form.basePrice) || 0);
+    return level.discountRate == null ? basePrice : basePrice * Number(level.discountRate) / 100;
+  };
+
   useEffect(() => {
     workspaceApi.getSettings().then(settings => {
       setCurrency(settings.site.defaultCurrency || 'CNY');
     }).catch(() => undefined);
-    dictApi.getTree().then((types: DictType[]) => {
-      const categoryDict = types.find(type => type.id === 'category');
-      const options = (categoryDict?.children || []).flatMap(parent => [
+    productCategoryApi.list().then((categories: ProductCategory[]) => {
+      const options = categories.flatMap(parent => [
         ...(parent.status === 'enabled' ? [{ code: parent.code, label: parent.label }] : []),
         ...parent.children.filter(child => child.status === 'enabled').map(child => ({ code: child.code, label: `${parent.label} / ${child.label}` })),
       ]);
@@ -103,7 +106,7 @@ const ProductEditPage: React.FC = () => {
     setSaving(true);
     if (!form.category) {
       setSaving(false);
-      showToast('请先在字典管理中添加并启用商品分类', 'error');
+      showToast('请先在商品分类中添加并启用分类', 'error');
       return;
     }
     const payload: Partial<Product> = {
@@ -111,7 +114,7 @@ const ProductEditPage: React.FC = () => {
       nameZh: form.nameZh || '未命名商品', nameEn: form.nameEn || form.nameZh || '未命名商品',
       sku: form.sku || `PRODUCT-${Date.now()}`, basePrice: Number(form.basePrice) || 0, variants, tags: form.tags || [],
       stock: variants.reduce((sum, item) => sum + (Number(item.stock) || 0), 0), moq: Number(form.moq) || 0,
-      category: form.category, img: form.img || IMGS[0], hot: form.badge === 'hot' || form.badge === 'bestseller', badge: form.badge || '', likeCount: Math.max(0, Number(form.likeCount) || 0),
+      category: form.category, img: form.img || '', hot: form.badge === 'hot' || form.badge === 'bestseller', badge: form.badge || '', likeCount: Math.max(0, Number(form.likeCount) || 0),
       description: form.description || '', seoTitle: form.seoTitle || '', seoDescription: form.seoDescription || '',
       levelPrices: form.levelPrices || {},
     };
@@ -199,7 +202,7 @@ const ProductEditPage: React.FC = () => {
             <div className="flex border-b border-border bg-secondary/20">
               {TABS.map(tab => (
                 <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                  className={`px-5 py-3.5 text-sm font-medium relative transition-colors ${activeTab === tab.id ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+                  className={`px-5 py-3.5 text-sm font-normal relative transition-colors ${activeTab === tab.id ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
                   {tab.label}
                   {activeTab === tab.id && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
                 </button>
@@ -210,17 +213,17 @@ const ProductEditPage: React.FC = () => {
               {activeTab === 'basic' && (
                 <div className="space-y-5">
                   <div>
-                    <label className="block text-sm font-semibold text-foreground mb-1.5">商品名称</label>
+                    <label className="block text-sm font-normal text-foreground mb-1.5">商品名称</label>
                     <Input value={form.nameZh} onChange={e => setForm(v => ({ ...v, nameZh: e.target.value, nameEn: e.target.value }))} variant="filled" size="middle" />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-foreground mb-1.5">商品描述</label>
+                    <label className="block text-sm font-normal text-foreground mb-1.5">商品描述</label>
                     <RichTextEditor value={form.description || ''} onChange={description => setForm(current => ({ ...current, description }))} onUploadImage={uploadDescriptionImage} />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-foreground mb-2">商品图片（拖拽排序）</label>
+                    <label className="block text-sm font-normal text-foreground mb-2">商品图片（拖拽排序）</label>
                     <div className="grid grid-cols-4 gap-3">
-                      {form.img && <div className="relative overflow-hidden rounded-xl ring-2 ring-primary"><img src={form.img.startsWith('http') ? form.img : `https://images.unsplash.com/${form.img}?w=240&h=240&fit=crop&auto=format`} alt="商品主图" className="aspect-square w-full object-cover" /><div className="absolute left-1 top-1 rounded bg-primary px-1.5 py-0.5 text-xs font-bold text-white">主图</div><button type="button" aria-label="删除商品图片" onClick={() => setForm(current => ({ ...current, img: '' }))} className="absolute right-1 top-1 rounded bg-black/60 p-1 text-white"><Trash2 className="h-4 w-4" /></button></div>}
+                      {form.img && <div className="relative overflow-hidden rounded-xl ring-2 ring-primary"><img src={form.img} alt="商品主图" className="aspect-square w-full object-cover" /><div className="absolute left-1 top-1 rounded bg-primary px-1.5 py-0.5 text-xs font-normal text-white">主图</div><button type="button" aria-label="删除商品图片" onClick={() => setForm(current => ({ ...current, img: '' }))} className="absolute right-1 top-1 rounded bg-black/60 p-1 text-white"><Trash2 className="h-4 w-4" /></button></div>}
                       <label className="border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center aspect-square cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors">
                         <input data-testid="product-image-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploading} className="hidden" onChange={event => { void uploadImage(event.target.files?.[0]); event.target.value = ''; }} />
                         <Upload className="w-5 h-5 text-muted-foreground mb-1" />
@@ -243,7 +246,7 @@ const ProductEditPage: React.FC = () => {
                       { label: `价格区间（${currency}）`, key: 'price', value: priceRange(), disabled: true },
                     ].map(f => (
                       <div key={f.label}>
-                        <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide">{f.label}</label>
+                        <label className="block text-xs font-normal text-muted-foreground mb-1.5 uppercase tracking-wide">{f.label}</label>
                         {f.number ? <InputNumber value={Number(f.value)} min={0} precision={2} onChange={value => setForm(current => ({ ...current, basePrice: Number(value) || 0 }))} variant="filled" size="middle" style={{ width: '100%' }} /> : <Input value={f.value} disabled={f.disabled} onChange={e => setForm(v => ({
                           ...v,
                           [f.key]: f.key === 'stock' || f.key === 'moq' ? Number(e.target.value) : e.target.value,
@@ -253,7 +256,7 @@ const ProductEditPage: React.FC = () => {
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm font-semibold text-foreground">规格表（尺寸 × 颜色）</label>
+                      <label className="text-sm font-normal text-foreground">规格表（尺寸 × 颜色）</label>
                       <button onClick={handleAddVariant} className="flex items-center gap-1 text-xs text-primary hover:underline"><Plus className="w-3 h-3" />添加规格行</button>
                     </div>
                     <div className="border border-border rounded-xl overflow-hidden">
@@ -261,20 +264,26 @@ const ProductEditPage: React.FC = () => {
                         <thead>
                           <tr className="bg-secondary/40 border-b border-border">
                             {['规格', '选项', '库存', `额外加价（${currency}）`, ''].map(h => (
-                              <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">{h}</th>
+                              <th key={h} className="px-4 py-2.5 text-left text-xs font-normal text-muted-foreground">{h}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
-                          {variants.map((variant, i) => (
+                          {variants.length > 0 ? variants.map((variant, i) => (
                             <tr key={i} className="border-b border-border last:border-0 hover:bg-secondary/20">
-                              <td className="px-4 py-2.5"><Input value={variant.specification} placeholder="如：尺寸" onChange={e => setVariants(items => items.map((item, index) => index === i ? { ...item, specification: e.target.value } : item))} variant="borderless" size="small" style={{ fontWeight: 500 }} /></td>
+                              <td className="px-4 py-2.5"><Input value={variant.specification} placeholder="如：尺寸" onChange={e => setVariants(items => items.map((item, index) => index === i ? { ...item, specification: e.target.value } : item))} variant="borderless" size="small" /></td>
                               <td className="px-4 py-2.5"><Input value={variant.option} placeholder="如：L" onChange={e => setVariants(items => items.map((item, index) => index === i ? { ...item, option: e.target.value } : item))} variant="borderless" size="small" /></td>
                               <td className="px-4 py-2.5"><InputNumber value={variant.stock} min={0} precision={0} onChange={value => setVariants(items => items.map((item, index) => index === i ? { ...item, stock: Number(value) || 0 } : item))} variant="borderless" size="small" /></td>
                               <td className="px-4 py-2.5"><InputNumber value={variant.surcharge} min={0} precision={2} onChange={value => setVariants(items => items.map((item, index) => index === i ? { ...item, surcharge: Number(value) || 0 } : item))} variant="borderless" size="small" /></td>
                               <td className="px-4 py-2.5"><button onClick={() => setDeleteVariantIndex(i)} className="text-muted-foreground hover:text-red-500 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button></td>
                             </tr>
-                          ))}
+                          )) : (
+                            <tr>
+                              <td colSpan={5}>
+                                <EmptyState description="暂无规格数据，请添加规格行" />
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -288,19 +297,19 @@ const ProductEditPage: React.FC = () => {
                   <div>
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-bold text-foreground">客户等级专属价</h3>
+                        <h3 className="text-sm font-normal text-foreground">客户等级专属价</h3>
                         <Tooltip title="客户通过手机号匹配价格等级；等级价留空时使用基础价，规格额外加价会继续叠加。" placement="top">
                           <button type="button" aria-label="查看等级价规则" className="flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition hover:bg-secondary hover:text-primary"><CircleHelp className="h-4 w-4" /></button>
                         </Tooltip>
                       </div>
                       <div className="flex items-center gap-2">
                         <Tooltip title={guestPricingMode === 'hidden' ? '游客当前不显示价格，识别客户手机号后显示对应价格。' : '游客当前展示商品基础价。'} placement="top">
-                          <span className="inline-flex cursor-help items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-muted-foreground"><Info className="h-3 w-3" />游客：{guestPricingMode === 'hidden' ? '不显示价格' : '基础价'}</span>
+                          <span className="inline-flex cursor-help items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs font-normal text-muted-foreground"><Info className="h-3 w-3" />游客：{guestPricingMode === 'hidden' ? '不显示价格' : '基础价'}</span>
                         </Tooltip>
-                        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">基础价 {currency} {Number(form.basePrice || 0).toFixed(2)}</span>
+                        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-normal text-primary">基础价 {currency} {Number(form.basePrice || 0).toFixed(2)}</span>
                       </div>
                     </div>
-                    {customerLevels.length ? <div className="overflow-hidden rounded-xl border border-border"><table className="w-full text-sm"><thead><tr className="border-b border-border bg-secondary/40"><th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">客户等级</th><th className="w-64 px-4 py-3 text-left text-xs font-semibold text-muted-foreground">专属价（{currency}）</th></tr></thead><tbody>{customerLevels.map(level => <tr key={level.id} className="border-b border-border last:border-0"><td className="px-4 py-3"><div className="flex items-center gap-2 font-semibold text-foreground"><span>{level.name}</span>{level.note && <Tooltip title={level.note} placement="topLeft"><button type="button" aria-label={`查看${level.name}说明`} className="text-muted-foreground transition hover:text-primary"><Info className="h-3.5 w-3.5" /></button></Tooltip>}</div></td><td className="px-4 py-3"><InputNumber value={form.levelPrices?.[level.code]} min={0} precision={2} placeholder={`默认 ${Number(form.basePrice || 0).toFixed(2)}`} onChange={value => setForm(current => { const prices = { ...(current.levelPrices || {}) }; if (value === null) delete prices[level.code]; else prices[level.code] = Number(value); return { ...current, levelPrices: prices }; })} variant="filled" style={{ width: '100%' }} /></td></tr>)}</tbody></table></div> : <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center"><p className="text-sm font-semibold text-foreground">尚未创建客户等级</p><button onClick={() => navigate('/customers')} className="mt-3 text-xs font-semibold text-primary hover:underline">前往客户管理</button></div>}
+                    {customerLevels.length ? <div className="overflow-hidden rounded-xl border border-border"><table className="w-full text-sm"><thead><tr className="border-b border-border bg-secondary/40"><th className="px-4 py-3 text-left text-xs font-normal text-muted-foreground">客户等级</th><th className="w-64 px-4 py-3 text-left text-xs font-normal text-muted-foreground">专属价（{currency}）</th><th className="w-52 px-4 py-3 text-left text-xs font-normal text-muted-foreground">参考价（{currency}）</th></tr></thead><tbody>{customerLevels.map(level => <tr key={level.id} className="border-b border-border last:border-0"><td className="px-4 py-3"><div className="flex items-center gap-2 font-normal text-foreground"><span>{level.name}</span>{level.note && <Tooltip title={level.note} placement="topLeft"><button type="button" aria-label={`查看${level.name}说明`} className="text-muted-foreground transition hover:text-primary"><Info className="h-3.5 w-3.5" /></button></Tooltip>}</div></td><td className="px-4 py-3"><InputNumber value={form.levelPrices?.[level.code]} min={0} precision={2} placeholder={`默认 ${Number(form.basePrice || 0).toFixed(2)}`} onChange={value => setForm(current => { const prices = { ...(current.levelPrices || {}) }; if (value === null) delete prices[level.code]; else prices[level.code] = Number(value); return { ...current, levelPrices: prices }; })} variant="filled" style={{ width: '100%' }} /></td><td className="px-4 py-3"><div className="font-normal text-foreground">{referencePrice(level).toFixed(2)}</div><div className="mt-0.5 text-xs text-muted-foreground">{level.discountRate == null ? '无规则，按原价' : `${Number(level.discountRate)}%`}</div></td></tr>)}</tbody></table></div> : <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center"><p className="text-sm font-normal text-foreground">尚未创建客户等级</p><Link to="/customer" className="mt-3 inline-block text-xs font-normal text-primary hover:underline">前往客户管理</Link></div>}
                   </div>
                 </div>
               )}
@@ -312,7 +321,7 @@ const ProductEditPage: React.FC = () => {
         {/* Sidebar Publish Card */}
         <div className="flex flex-col gap-4">
           <div className="order-2 backdrop-blur-xl bg-white/80 rounded-2xl border border-white/60 shadow-sm p-5 space-y-4">
-            <h3 className="font-bold text-foreground text-sm">发布设置</h3>
+            <h3 className="font-normal text-foreground text-sm">发布设置</h3>
             <div className="space-y-3">
               {[
                 { label: '发布状态', value: publishToSite ? 'published' : 'draft', badge: true },
@@ -321,7 +330,7 @@ const ProductEditPage: React.FC = () => {
               ].map(f => (
                 <div key={f.label} className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">{f.label}</span>
-                  {f.badge ? <StatusBadge status={f.value as 'published' | 'draft'} /> : <span className="text-xs font-semibold text-foreground">{f.value}</span>}
+                  {f.badge ? <StatusBadge status={f.value as 'published' | 'draft'} /> : <span className="text-xs font-normal text-foreground">{f.value}</span>}
                 </div>
               ))}
             </div>
@@ -329,44 +338,44 @@ const ProductEditPage: React.FC = () => {
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <Checkbox checked={publishToSite} onChange={e => setPublishToSite(e.target.checked)} className="mt-0.5" />
                 <div>
-                  <div className="text-sm font-semibold text-foreground">同步到独立站</div>
+                  <div className="text-sm font-normal text-foreground">同步到独立站</div>
                   <div className="text-xs text-muted-foreground mt-0.5">保存后立即更新前台展示</div>
                 </div>
               </label>
             </div>
-            <button disabled={saving} onClick={handleSave} className="w-full py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 shadow-sm disabled:opacity-60">
+            <button disabled={saving} onClick={handleSave} className="w-full py-2.5 bg-primary text-white rounded-xl text-sm font-normal hover:bg-primary/90 shadow-sm disabled:opacity-60">
               {saving ? '保存中...' : publishToSite ? '保存并发布' : '保存草稿'}
             </button>
-            <button onClick={() => navigate('/products')} className="w-full py-2.5 border border-border text-muted-foreground rounded-xl text-sm font-medium hover:bg-secondary transition-colors">
+            <button onClick={() => navigate('/products')} className="w-full py-2.5 border border-border text-muted-foreground rounded-xl text-sm font-normal hover:bg-secondary transition-colors">
               取消
             </button>
           </div>
 
           <div className="order-1 backdrop-blur-xl bg-white/80 rounded-2xl border border-white/60 shadow-sm p-5">
-            <h3 className="font-bold text-foreground text-sm mb-3">商品分类</h3>
+            <h3 className="font-normal text-foreground text-sm mb-3">商品分类</h3>
             <div className="space-y-5">
               <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-2 block">分类</label>
+                <label className="text-xs font-normal text-muted-foreground mb-2 block">分类</label>
                 <Select value={form.category || undefined} onChange={value => setForm(current => ({ ...current, category: value }))} placeholder="请选择商品分类" style={{ width: '100%' }} size="middle" variant="filled" options={categories.map(item => ({ value: item.code, label: item.label }))} />
-                {categories.length === 0 && <p className="mt-1.5 text-xs text-amber-600">请先前往字典管理添加商品分类项</p>}
+                {categories.length === 0 && <p className="mt-1.5 text-xs text-amber-600">请先前往商品分类添加分类项</p>}
               </div>
               <div>
-                  <label className="text-xs font-semibold text-muted-foreground mb-2 block">标签</label>
+                  <label className="text-xs font-normal text-muted-foreground mb-2 block">标签</label>
                     <div className="mb-2 flex gap-1 flex-wrap">
                       {(form.tags || []).map(t => (
-                        <span key={t} className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-xs font-medium flex items-center gap-1">
+                        <span key={t} className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-xs font-normal flex items-center gap-1">
                           {t}<button onClick={() => setForm(current => ({ ...current, tags: (current.tags || []).filter(tag => tag !== t) }))} className="hover:text-red-500"><X className="w-2.5 h-2.5" /></button>
                         </span>
                       ))}
                     </div>
-                    <Input value={tagInput} onChange={e => setTagInput(e.target.value)} onPressEnter={addTag} placeholder="输入标签后按回车" variant="filled" size="middle" suffix={<button onClick={addTag} className="text-xs font-semibold text-primary">添加</button>} />
+                    <Input value={tagInput} onChange={e => setTagInput(e.target.value)} onPressEnter={addTag} placeholder="输入标签后按回车" variant="filled" size="middle" suffix={<button onClick={addTag} className="text-xs font-normal text-primary">添加</button>} />
               </div>
               <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-2 block">商品标记</label>
+                <label className="text-xs font-normal text-muted-foreground mb-2 block">商品标记</label>
                 <Select value={form.badge || ''} onChange={(badge: Product['badge']) => setForm(current => ({ ...current, badge }))} style={{ width: '100%' }} variant="filled" options={[{ value: '', label: '无标记' }, { value: 'new', label: '新品' }, { value: 'hot', label: '爆品' }, { value: 'bestseller', label: '热销' }, { value: 'recommended', label: '推荐' }]} />
               </div>
               <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-2 block">点赞数量</label>
+                <label className="text-xs font-normal text-muted-foreground mb-2 block">点赞数量</label>
                 <InputNumber value={Number(form.likeCount) || 0} min={0} precision={0} onChange={likeCount => setForm(current => ({ ...current, likeCount: Number(likeCount) || 0 }))} variant="filled" style={{ width: '100%' }} />
               </div>
             </div>
@@ -375,7 +384,7 @@ const ProductEditPage: React.FC = () => {
           <div className={`order-3 ${totalStock <= warningStock ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'} rounded-2xl border p-4`}>
             <div className="flex items-center gap-2 mb-2">
               <AlertCircle className={`h-4 w-4 ${totalStock <= warningStock ? 'text-amber-600' : 'text-emerald-600'}`} />
-              <span className={`text-xs font-bold ${totalStock <= warningStock ? 'text-amber-700' : 'text-emerald-700'}`}>库存提醒</span>
+              <span className={`text-xs font-normal ${totalStock <= warningStock ? 'text-amber-700' : 'text-emerald-700'}`}>库存提醒</span>
             </div>
             <p className={`text-xs ${totalStock <= warningStock ? 'text-amber-700' : 'text-emerald-700'}`}>当前库存 {totalStock.toLocaleString()} 件，预警值 {warningStock.toLocaleString()} 件。{totalStock <= warningStock ? '库存偏低，请及时补货。' : '当前库存充足。'}</p>
           </div>
@@ -384,56 +393,36 @@ const ProductEditPage: React.FC = () => {
 
       {/* Save Confirmation Modal */}
       {saveConfirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setSaveConfirmOpen(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="font-bold text-foreground">确认发布</h3>
-              <button onClick={() => setSaveConfirmOpen(false)} className="p-1.5 hover:bg-secondary rounded-lg text-muted-foreground"><X className="w-4 h-4" /></button>
-            </div>
-            <div className="p-6">
+        <AppModal open title="确认发布" onCancel={() => setSaveConfirmOpen(false)} onOk={doSave} okText="确认发布" cancelText="取消" width={440}>
+            <div className="py-3">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
                   <AlertTriangle className="w-5 h-5 text-amber-600" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-foreground mb-1">即将发布到独立站</p>
+                  <p className="text-sm font-normal text-foreground mb-1">即将发布到独立站</p>
                   <p className="text-sm text-muted-foreground">保存后，商品将立即更新到前台展示。请确认所有信息填写正确。</p>
                 </div>
               </div>
             </div>
-            <div className="flex gap-3 px-6 py-4 border-t border-border bg-secondary/20">
-              <button onClick={() => setSaveConfirmOpen(false)} className="flex-1 py-2.5 border border-border text-foreground rounded-xl text-sm font-semibold hover:bg-secondary">取消</button>
-              <button onClick={doSave} className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90">确认发布</button>
-            </div>
-          </div>
-        </div>
+        </AppModal>
       )}
 
       {/* Delete Variant Confirmation Modal */}
       {deleteVariantIndex !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setDeleteVariantIndex(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <h3 className="font-bold text-foreground">删除规格</h3>
-              <button onClick={() => setDeleteVariantIndex(null)} className="p-1.5 hover:bg-secondary rounded-lg text-muted-foreground"><X className="w-4 h-4" /></button>
-            </div>
-            <div className="p-6">
+        <AppModal open title="删除规格" onCancel={() => setDeleteVariantIndex(null)} onOk={() => handleDeleteVariant(deleteVariantIndex)} okText="确认删除" cancelText="取消" okButtonProps={{ danger: true }} width={440}>
+            <div className="py-3">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
                   <AlertTriangle className="w-5 h-5 text-red-500" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-foreground mb-1">确认删除此规格？</p>
+                  <p className="text-sm font-normal text-foreground mb-1">确认删除此规格？</p>
                   <p className="text-sm text-muted-foreground">删除后不可恢复，该规格的库存数据将一并移除。</p>
                 </div>
               </div>
             </div>
-            <div className="flex gap-3 px-6 py-4 border-t border-border bg-secondary/20">
-              <button onClick={() => setDeleteVariantIndex(null)} className="flex-1 py-2.5 border border-border text-foreground rounded-xl text-sm font-semibold hover:bg-secondary">取消</button>
-              <button onClick={() => handleDeleteVariant(deleteVariantIndex)} className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-sm font-bold hover:bg-red-600">确认删除</button>
-            </div>
-          </div>
-        </div>
+        </AppModal>
       )}
 
       {/* Toast */}

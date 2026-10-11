@@ -7,7 +7,7 @@ import {
   ShopOutlined,
   UserOutlined,
 } from '@ant-design/icons';
-import { ArrowRight, Bot, Globe2, Package, Sparkles, Users } from 'lucide-react';
+import { ArrowRight, Globe2, Package, Sparkles } from 'lucide-react';
 import { AppForm, AppFormItem, AppInput, AppPasswordInput, BrandMark } from '../../components/shared';
 import api from '../../services/api';
 import { LanguageSwitcher } from '../../i18n';
@@ -17,9 +17,7 @@ type AuthResult = { accessToken: string; user: { role: string; account: string }
 
 const capabilities = [
   { icon: Package, label: '外贸 ERP' },
-  { icon: Users, label: 'CRM 商机' },
-  { icon: Bot, label: 'AI 智能体' },
-  { icon: Globe2, label: '独立站获客' },
+  { icon: Globe2, label: '品牌独立站' },
 ];
 
 const LoginPage: React.FC = () => {
@@ -81,9 +79,9 @@ const LoginPage: React.FC = () => {
             <span className="relative inline-block bg-gradient-to-r from-white via-violet-200 to-cyan-200 bg-clip-text pr-3 text-transparent drop-shadow-[0_8px_28px_rgba(103,232,249,.2)] after:absolute after:inset-x-1 after:-bottom-2 after:h-[3px] after:origin-left after:-rotate-1 after:rounded-full after:bg-gradient-to-r after:from-violet-400/80 after:via-cyan-300/70 after:to-transparent">让外贸增长，全程在线</span>
           </h1>
           <p className="mt-6 max-w-md text-base leading-8 text-indigo-100/65">
-            ERP、CRM 商机、开发信、独立站与 AI 智能体，一体化驱动外贸获客、转化与履约。
+            外贸 ERP 与品牌独立站一体化，集中管理商品、客户、定价与全球站点发布。
           </p>
-          <div className="mt-9 grid max-w-xl grid-cols-4 gap-3">
+          <div className="mt-9 grid max-w-sm grid-cols-2 gap-3">
             {capabilities.map(({ icon: Icon, label }) => (
               <div key={label} className="rounded-2xl border border-white/10 bg-white/[.07] px-3 py-4 backdrop-blur-sm">
                 <Icon className="mb-3 text-violet-300" size={19} />
@@ -93,7 +91,7 @@ const LoginPage: React.FC = () => {
           </div>
         </div>
 
-        <p className="relative z-10 text-xs text-indigo-200/45">© 2026 迈犀沃 · 外贸一体化智能经营平台</p>
+        <p className="relative z-10 text-xs text-indigo-200/45">© 2026 迈犀沃 · 外贸 ERP 与独立站管理平台</p>
       </section>
 
       <section className="relative flex min-h-[100dvh] items-center justify-center px-4 py-4 sm:px-8 lg:px-12">

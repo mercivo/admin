@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Input, Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
 import {
@@ -10,12 +10,8 @@ import {
   ExternalLink,
   LayoutDashboard,
   Package,
-  Edit,
   Globe,
-  Users,
-  Bot,
-  BookOpen,
-  MessageSquare,
+  Tags,
   CheckCircle,
   AlertTriangle,
   Eye,
@@ -32,12 +28,9 @@ const PATH_PAGE_MAP: Record<string, string> = {
   '/dashboard': 'dashboard',
   '/products': 'products',
   '/products/new': 'product-edit',
-  '/leads': 'leads',
-  '/customer-levels': 'customer-levels',
-  '/ai-center': 'ai-center',
-  '/ai-chat': 'ai-chat',
+  '/customer': 'customer',
   '/settings': 'settings',
-  '/dict-mgmt': 'dict-mgmt',
+  '/product-categories': 'product-categories',
   '/site-editor': 'site-editor',
 };
 
@@ -46,12 +39,9 @@ const PAGE_ROUTES: Record<string, string> = {
   products: '/products',
   'product-edit': '/products/new',
   'site-editor': '/site-editor',
-  leads: '/leads',
-  'customer-levels': '/customer-levels',
-  'ai-center': '/ai-center',
-  'ai-chat': '/ai-chat',
+  customer: '/customer',
   settings: '/settings',
-  'dict-mgmt': '/dict-mgmt',
+  'product-categories': '/product-categories',
   'product-detail': '/products/1',
 };
 
@@ -75,27 +65,31 @@ const NAV_GROUPS: Array<{
   pages: Array<{ id: string; label: string; icon: React.FC<{ className?: string }> }>;
 }> = [
   {
-    id: 'backend',
-    label: '管理后台',
+    id: 'erp',
+    label: 'ERP 管理',
     activeCls: 'bg-primary/10 text-primary',
     dotCls: 'bg-primary',
     pages: [
-      { id: 'dashboard', label: '工作台', icon: LayoutDashboard },
-      { id: 'products', label: '商品管理', icon: Package },
-      { id: 'customer-levels', label: '客户管理', icon: ContactRound },
-      { id: 'leads', label: '客户线索', icon: Users },
-      { id: 'site-editor', label: '站点设计', icon: Globe },
-      { id: 'ai-center', label: '智能体中心', icon: Bot },
+      { id: 'dashboard', label: '经营概览', icon: LayoutDashboard },
+      { id: 'products', label: '商品列表', icon: Package },
+      { id: 'product-categories', label: '商品分类', icon: Tags },
+      { id: 'customer', label: '客户管理', icon: ContactRound },
       { id: 'settings', label: '设置', icon: Settings },
-      { id: 'dict-mgmt', label: '字典管理', icon: BookOpen },
     ],
+  },
+  {
+    id: 'site',
+    label: '独立站',
+    activeCls: 'bg-primary/10 text-primary',
+    dotCls: 'bg-primary',
+    pages: [{ id: 'site-editor', label: '站点设计', icon: Globe }],
   },
 ];
 
 // ─────────────── Notification Data ───────────────
 
 const ACTIVITIES = [
-  { text: 'Sarah Johnson 通过AI助手发起询盘', time: '2分钟前', color: 'bg-violet-100', icon: MessageSquare, iconColor: 'text-violet-600' },
+  { text: '商品目录已完成同步', time: '2分钟前', color: 'bg-violet-100', icon: Package, iconColor: 'text-violet-600' },
   { text: 'Yuki Tanaka 签订棉质手提袋合同 ¥12,000', time: '1小时前', color: 'bg-emerald-100', icon: CheckCircle, iconColor: 'text-emerald-600' },
   { text: '抽绳袋库存降至预警线以下', time: '2小时前', color: 'bg-amber-100', icon: AlertTriangle, iconColor: 'text-amber-700' },
   { text: 'Emma Clarke 查看了帆布包产品详情', time: '3小时前', color: 'bg-violet-100', icon: Eye, iconColor: 'text-violet-600' },
@@ -169,33 +163,33 @@ const DemoNav: React.FC = () => {
       <div className="flex h-16 items-center gap-5 border-b border-border px-5">
 
         {/* Brand */}
-        <div className="flex items-center gap-2.5 flex-shrink-0">
+        <div className="flex h-full flex-shrink-0 items-center gap-3">
           <BrandMark size={30} />
-          <div>
+          <div className="flex flex-col justify-center gap-0.5">
             <div className="text-sm font-bold text-foreground leading-tight tracking-tight">迈犀沃</div>
-            <div className="text-[10px] text-muted-foreground leading-tight">AI 外贸一体化智能平台</div>
+            <div className="text-[10px] text-muted-foreground leading-tight">外贸 ERP 与独立站平台</div>
           </div>
         </div>
 
         <div className="w-px h-6 bg-border flex-shrink-0" />
 
         {/* Group switcher */}
-        <div className="flex items-center gap-1">
+        <div className="flex h-full items-center gap-1">
           {NAV_GROUPS.map(group => {
             const isActive = group.id === activeGroupId;
             return (
-              <button
+              <Link
                 key={group.id}
-                onClick={() => handleNav(group.pages[0].id)}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all duration-150 whitespace-nowrap ${
+                to={PAGE_ROUTES[group.pages[0].id]}
+                className={`flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 text-sm font-normal transition-all duration-150 ${
                   isActive
                     ? group.activeCls
-                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                    : 'text-muted-foreground hover:bg-secondary hover:text-primary'
                 }`}
               >
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${group.dotCls} ${isActive ? 'opacity-100' : 'opacity-30'}`} />
+                <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${group.dotCls} ${isActive ? 'opacity-100' : 'opacity-30'}`} />
                 {group.label}
-              </button>
+              </Link>
             );
           })}
         </div>
@@ -205,7 +199,7 @@ const DemoNav: React.FC = () => {
         {/* Global Search */}
         <div style={{ width: 320 }}>
           <Input
-            placeholder="搜索商品、客户、线索或智能体..."
+            placeholder="搜索商品、客户或站点..."
             prefix={<Search className="w-4 h-4 text-muted-foreground" />}
             suffix={<kbd className="text-[10px] bg-white border border-border px-1.5 py-0.5 rounded text-muted-foreground">⌘K</kbd>}
             variant="filled" size="middle"

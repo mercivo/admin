@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Input, Select } from 'antd';
-import { ShoppingCart, Star, CheckCircle, Truck, Shield, ArrowLeft, Globe, MessageCircle, X, Send } from 'lucide-react';
+import { ShoppingCart, Star, CheckCircle, Truck, Shield, ArrowLeft, Globe, MessageCircle } from 'lucide-react';
+import { AppModal, ProductImage } from '../../components/shared';
 import Toast, { ToastType } from '../../components/shared/Toast';
-import { leadApi, productApi } from '../../services/api/index';
+import { productApi } from '../../services/api/index';
 import type { Product } from '../../types';
 
 const ProductDetailPage: React.FC = () => {
@@ -28,15 +29,13 @@ const ProductDetailPage: React.FC = () => {
   };
 
   const handleSendInquiry = async () => {
-    try { await leadApi.create({ name: inquiryForm.name, email: inquiryForm.email, company: inquiryForm.company, phone: '', country: '', product: product?.nameEn || inquiryForm.bagType || 'Product inquiry', summary: inquiryForm.requirements, status: 'new', score: inquiryType === 'sample' ? 75 : 65, tag: inquiryType === 'sample' ? '样品申请' : '商品询盘' }); }
-    catch { showToast('提交失败，请稍后重试', 'error'); return; }
     setInquiryOpen(false);
-    showToast(inquiryType === 'inquiry' ? '询价已发送，我们将在24小时内回复' : '样品申请已提交，我们将尽快与您联系', 'success');
+    showToast('请通过独立站公开联系方式与外贸团队沟通', 'success');
     setInquiryForm({ name: '', email: '', company: '', requirements: '', bagType: '' });
   };
 
   const images = [
-    product?.img || 'photo-1542601906990-b4d3fb778b09',
+    product?.img || '',
     'photo-1553062407-98eeb64c6a62',
     'photo-1584917865442-de89df76afd3',
     'photo-1491637639811-60e2756cc1c7',
@@ -93,13 +92,13 @@ const ProductDetailPage: React.FC = () => {
         {/* Left: Images */}
         <div>
           <div className="aspect-square bg-gray-50 rounded-2xl overflow-hidden mb-3">
-            <img src={images[mainImage].startsWith('http') ? images[mainImage] : `https://images.unsplash.com/${images[mainImage]}?w=600&h=600&fit=crop&auto=format`} alt="Product" className="w-full h-full object-cover" />
+            <ProductImage image={images[mainImage]} width={600} height={600} alt={product?.nameZh || product?.nameEn || '商品主图'} className="h-full w-full object-cover" />
           </div>
           <div className="grid grid-cols-4 gap-3">
             {images.map((img, i) => (
               <button key={i} onClick={() => setMainImage(i)}
                 className={`aspect-square rounded-xl overflow-hidden border-2 transition-colors ${i === mainImage ? 'border-primary' : 'border-transparent hover:border-gray-300'}`}>
-                <img src={`https://images.unsplash.com/${img}?w=120&h=120&fit=crop&auto=format`} alt="" className="w-full h-full object-cover" />
+                <ProductImage image={img} width={120} height={120} alt={`${product?.nameZh || product?.nameEn || '商品'}图片 ${i + 1}`} className="h-full w-full object-cover" />
               </button>
             ))}
           </div>
@@ -130,7 +129,7 @@ const ProductDetailPage: React.FC = () => {
           {/* Price */}
           <div className="mt-6 p-5 bg-gray-50 rounded-2xl border border-gray-100">
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-primary">{product?.price || '—'}</span>
+              <span className="text-3xl font-bold text-primary">{product?.price || '-'}</span>
               <span className="text-sm text-gray-400">/ pcs</span>
             </div>
             <p className="text-xs text-gray-500 mt-1">Price varies by quantity, material, and printing options</p>
@@ -272,16 +271,8 @@ const ProductDetailPage: React.FC = () => {
 
       {/* Inquiry Modal */}
       {inquiryOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setInquiryOpen(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <MessageCircle className="w-5 h-5 text-primary" />
-                <h3 className="font-bold text-gray-900">{inquiryType === 'inquiry' ? 'Send Inquiry' : 'Request Sample'}</h3>
-              </div>
-              <button onClick={() => setInquiryOpen(false)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400"><X className="w-4 h-4" /></button>
-            </div>
-            <div className="p-6 space-y-4">
+        <AppModal open title={<span className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-primary" />{inquiryType === 'inquiry' ? 'Send Inquiry' : 'Request Sample'}</span>} onCancel={() => setInquiryOpen(false)} onOk={handleSendInquiry} okText={inquiryType === 'inquiry' ? 'Send Inquiry' : 'Request Sample'} cancelText="Cancel" width={520} styles={{ body: { maxHeight: '68vh', overflowY: 'auto' } }}>
+            <div className="space-y-4">
               <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
                 <img src="https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=80&h=80&fit=crop&auto=format" alt="" className="w-16 h-16 rounded-xl object-cover" />
                 <div>
@@ -329,14 +320,7 @@ const ProductDetailPage: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className="flex gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50">
-              <button onClick={() => setInquiryOpen(false)} className="flex-1 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-100">Cancel</button>
-              <button onClick={handleSendInquiry} className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 flex items-center justify-center gap-2">
-                <Send className="w-4 h-4" />{inquiryType === 'inquiry' ? 'Send Inquiry' : 'Request Sample'}
-              </button>
-            </div>
-          </div>
-        </div>
+        </AppModal>
       )}
 
       {/* Toast */}

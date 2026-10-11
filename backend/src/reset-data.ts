@@ -69,9 +69,8 @@ async function resetDatabase(): Promise<void> {
 function configuredStorage(): { storage: Storage; buckets: string[] } {
   const projectId = process.env.GCS_PROJECT_ID?.trim();
   const keyFilename = process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
-  const buckets = [process.env.GCS_BUCKET?.trim(), process.env.GCS_PRIVATE_BUCKET?.trim()].filter(Boolean) as string[];
-  if (!projectId || buckets.length !== 2) throw new Error('Both public and private GCS buckets must be configured');
-  if (new Set(buckets).size !== 2) throw new Error('Public and private GCS buckets must be different');
+  const buckets = [process.env.GCS_BUCKET?.trim()].filter(Boolean) as string[];
+  if (!projectId || buckets.length !== 1) throw new Error('The public GCS bucket must be configured');
 
   const storage = new Storage({ projectId, ...(keyFilename ? { keyFilename } : {}) });
   return { storage, buckets: [...new Set(buckets)] };

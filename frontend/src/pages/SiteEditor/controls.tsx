@@ -1,7 +1,7 @@
 import React from 'react';
-import { ConfigProvider, Modal as AntModal, Switch } from 'antd';
+import { ConfigProvider, Switch } from 'antd';
 import type { ThemeConfig } from 'antd';
-import { X } from 'lucide-react';
+import { AppModal } from '../../components/shared/AppModal';
 import './controls.css';
 
 const createEditorTheme = (primaryColor: string): ThemeConfig => ({
@@ -30,8 +30,8 @@ const createEditorTheme = (primaryColor: string): ThemeConfig => ({
   },
 });
 
-export const SiteEditorDesignProvider = ({ children, primaryColor = '#1A3D2E' }: { children: React.ReactNode; primaryColor?: string }) => <ConfigProvider theme={createEditorTheme(primaryColor)}>{children}</ConfigProvider>;
+export const SiteEditorDesignProvider = ({ children, primaryColor = '#7C6EF5' }: { children: React.ReactNode; primaryColor?: string }) => <ConfigProvider theme={createEditorTheme(primaryColor)}>{children}</ConfigProvider>;
 
 export const EditorSwitch = ({ value, onChange }: { value: boolean; onChange: (value: boolean) => void }) => <Switch size="small" checked={value} onChange={onChange} />;
 
-export const EditorModal = ({ title, children, footer, onClose, width = 520 }: { title: string; children: React.ReactNode; footer: React.ReactNode; onClose: () => void; width?: number }) => <AntModal open title={title} onCancel={onClose} footer={<div className="site-editor-modal-footer">{footer}</div>} closeIcon={<X className="h-4 w-4" />} width={width} centered destroyOnHidden>{children}</AntModal>;
+export const EditorModal = ({ title, children, footer, onClose, width = 520 }: { title: string; children: React.ReactNode; footer: React.ReactNode; onClose: () => void; width?: number }) => <AppModal open title={title} onCancel={onClose} footer={footer} width={width}>{children}</AppModal>;

@@ -19,24 +19,16 @@ describe('CloudStorageService', () => {
     expect(save).toHaveBeenCalledWith(expect.any(Buffer), expect.objectContaining({ contentType: 'image/webp' }));
   });
 
-  it('keeps knowledge objects private', async () => {
-    const config = { get: jest.fn((key: string) => ({ GCS_BUCKET: 'mercivo-assets', GCS_PRIVATE_BUCKET: 'mercivo-private' } as Record<string, string>)[key]) };
-    const service = new CloudStorageService(config as never);
-    const result = await service.upload({ originalname: 'guide.md', mimetype: 'text/markdown', buffer: Buffer.from('text') } as Express.Multer.File, 'tenants/t1/sites/s1/knowledge', { public: false });
-    expect(result.url).toBe('');
-    expect(bucket).toHaveBeenCalledWith('mercivo-private');
-  });
-
   it('returns a friendly error when storage is not configured', async () => {
     const service = new CloudStorageService({ get: jest.fn() } as never);
     await expect(service.upload({} as Express.Multer.File, 'images')).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
-  it('never falls back to the public bucket for private objects', async () => {
+  it('deletes uploaded objects from the configured image bucket', async () => {
     const config = { get: jest.fn((key: string) => ({ GCS_BUCKET: 'mercivo-assets' } as Record<string, string>)[key]) };
     const service = new CloudStorageService(config as never);
-    await expect(service.upload({ originalname: 'guide.md', mimetype: 'text/markdown', buffer: Buffer.from('text') } as Express.Multer.File, 'knowledge', { public: false }))
-      .rejects.toThrow('私有文件存储服务尚未配置');
-    expect(save).not.toHaveBeenCalled();
+    await service.delete('products/image.webp');
+    expect(bucket).toHaveBeenCalledWith('mercivo-assets');
+    expect(remove).toHaveBeenCalledWith({ ignoreNotFound: true });
   });
 });

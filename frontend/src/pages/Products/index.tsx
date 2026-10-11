@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Empty, Input, Select, Checkbox } from 'antd';
+import { Button, Empty, Input, Select, Table, Tree } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 import {
   Plus,
   Search,
@@ -11,7 +12,6 @@ import {
   BarChart2,
   ChevronLeft,
   ChevronRight,
-  X,
   ShoppingCart,
   Tag,
   Package,
@@ -24,13 +24,11 @@ import {
   Archive,
   Ban,
 } from 'lucide-react';
-import { StatusBadge, Toast } from '../../components/shared';
-import { dictApi, productApi } from '../../services/api/index';
+import { AppModal, createActionColumn, ProductImage, StatusBadge, TableActions, Toast } from '../../components/shared';
+import { productApi, productCategoryApi } from '../../services/api/index';
 import { useNavigate } from 'react-router-dom';
-import type { DictType, Product } from '../../types';
+import type { Product, ProductCategory } from '../../types';
 import { can } from '../../utils/permissions';
-
-const productImageUrl = (image: string, width: number, height: number) => image?.startsWith('http') ? image : `https://images.unsplash.com/${image}?w=${width}&h=${height}&fit=crop&auto=format`;
 
 const downloadCsv = (filename: string, rows: Array<Array<string | number>>) => {
   const csv = rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -41,31 +39,11 @@ const downloadCsv = (filename: string, rows: Array<Array<string | number>>) => {
 // ─────────────── Product Preview Modal ───────────────
 
 const ProductPreviewModal: React.FC<{ product: Product; onClose: () => void; onEdit: () => void }> = ({ product, onClose, onEdit }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-            <Eye className="w-4.5 h-4.5" />
-          </div>
-          <div>
-            <h3 className="font-bold text-foreground">{product.nameZh}</h3>
-            <p className="text-xs text-muted-foreground">{product.nameEn}</p>
-          </div>
-        </div>
-        <button onClick={onClose} className="p-1.5 hover:bg-secondary rounded-lg text-muted-foreground">
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-auto">
+  <AppModal open title={<div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary"><Eye className="h-4 w-4" /></div><div><div>{product.nameZh}</div><p className="text-xs font-normal text-muted-foreground">{product.nameEn}</p></div></div>} onCancel={onClose} width={680} styles={{ body: { maxHeight: '68vh', overflowY: 'auto', padding: 0 } }} footer={<><Button onClick={onClose}>关闭</Button><Button onClick={onEdit} type="primary" icon={<Edit className="h-4 w-4" />}>编辑商品</Button></>}>
+      <div>
         {/* Hero Image */}
         <div className="relative">
-          <img
-            src={productImageUrl(product.img, 800, 350)}
-            alt={product.nameEn}
-            className="w-full h-56 object-cover bg-secondary"
-          />
+          <ProductImage image={product.img} width={800} height={350} alt={product.nameZh || product.nameEn} className="h-56 w-full object-cover" />
           <div className="absolute top-3 right-3 flex gap-2">
             {product.hot && <span className="px-2.5 py-1 bg-red-500 text-white text-xs rounded-full font-bold shadow">热销</span>}
             <StatusBadge status={product.status} />
@@ -105,28 +83,16 @@ const ProductPreviewModal: React.FC<{ product: Product; onClose: () => void; onE
             <div className="border border-border rounded-xl p-4">
               <h4 className="text-xs font-semibold text-muted-foreground mb-3">销售数据</h4>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">本月询盘</span><span className="text-foreground font-medium">—</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">转化率</span><span className="text-emerald-600 font-medium">—</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">浏览量</span><span className="text-foreground font-medium">—</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">本月询盘</span><span className="text-foreground font-medium">-</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">转化率</span><span className="text-emerald-600 font-medium">-</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">浏览量</span><span className="text-foreground font-medium">-</span></div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="flex gap-3 px-6 py-4 border-t border-border bg-secondary/20 flex-shrink-0">
-        <button onClick={onEdit} className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 flex items-center justify-center gap-2">
-          <Edit className="w-4 h-4" />编辑商品
-        </button>
-        <button className="py-2.5 px-4 border border-border text-foreground rounded-xl text-sm font-semibold hover:bg-secondary flex items-center gap-2">
-          <Share2 className="w-4 h-4" />分享
-        </button>
-        <button className="py-2.5 px-4 border border-border text-muted-foreground rounded-xl text-sm font-semibold hover:bg-secondary flex items-center gap-2">
-          <Copy className="w-4 h-4" />复制
-        </button>
-      </div>
-    </div>
-  </div>
+  </AppModal>
 );
 
 // ─────────────── Delete Confirmation Modal ───────────────
@@ -136,13 +102,11 @@ const DeleteConfirmModal: React.FC<{
   onClose: () => void;
   onConfirm: () => void;
 }> = ({ product, onClose, onConfirm }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
-      <div className="px-6 py-6 text-center">
+  <AppModal open title="确认删除商品" onCancel={onClose} onOk={onConfirm} okText="确认删除" cancelText="取消" okButtonProps={{ danger: true }} width={440}>
+      <div className="py-3 text-center">
         <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
           <AlertTriangle className="w-6 h-6 text-red-500" />
         </div>
-        <h3 className="text-lg font-bold text-foreground mb-2">确认删除商品</h3>
         <p className="text-sm text-muted-foreground leading-relaxed">
         确定要删除 <strong className="text-foreground">{product.nameZh}</strong>（商品编码：{product.sku}）吗？此操作不可撤销。
         </p>
@@ -152,12 +116,7 @@ const DeleteConfirmModal: React.FC<{
           </div>
         )}
       </div>
-      <div className="flex gap-3 px-6 py-4 border-t border-border bg-secondary/20">
-        <button onClick={onClose} className="flex-1 py-2.5 border border-border text-foreground rounded-xl text-sm font-semibold hover:bg-secondary">取消</button>
-        <button onClick={onConfirm} className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-sm font-bold hover:bg-red-600">确认删除</button>
-      </div>
-    </div>
-  </div>
+  </AppModal>
 );
 
 // ─────────────── Batch Operations Modal ───────────────
@@ -170,15 +129,11 @@ const BatchConfirmModal: React.FC<{
 }> = ({ count, action, onClose, onConfirm }) => {
   const isOffline = action === 'offline';
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
-        <div className="px-6 py-6 text-center">
+    <AppModal open title={isOffline ? '批量下架商品' : '导出商品数据'} onCancel={onClose} onOk={onConfirm} okText={isOffline ? '确认下架' : '确认导出'} cancelText="取消" okButtonProps={isOffline ? { danger: true } : undefined} width={440}>
+        <div className="py-3 text-center">
           <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${isOffline ? 'bg-amber-100' : 'bg-primary/10'}`}>
             {isOffline ? <Ban className="w-6 h-6 text-amber-500" /> : <Download className="w-6 h-6 text-primary" />}
           </div>
-          <h3 className="text-lg font-bold text-foreground mb-2">
-            {isOffline ? '批量下架商品' : '导出商品数据'}
-          </h3>
           <p className="text-sm text-muted-foreground">
             {isOffline
               ? `确定要将选中的 ${count} 件商品批量下架吗？下架后商品将不在独立站展示。`
@@ -186,14 +141,7 @@ const BatchConfirmModal: React.FC<{
             }
           </p>
         </div>
-        <div className="flex gap-3 px-6 py-4 border-t border-border bg-secondary/20">
-          <button onClick={onClose} className="flex-1 py-2.5 border border-border text-foreground rounded-xl text-sm font-semibold hover:bg-secondary">取消</button>
-          <button onClick={onConfirm} className={`flex-1 py-2.5 text-white rounded-xl text-sm font-bold ${isOffline ? 'bg-amber-500 hover:bg-amber-600' : 'bg-primary hover:bg-primary/90'}`}>
-            {isOffline ? '确认下架' : '确认导出'}
-          </button>
-        </div>
-      </div>
-    </div>
+    </AppModal>
   );
 };
 
@@ -260,7 +208,7 @@ const ProductsPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [category, setCategory] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [categories, setCategories] = useState<Array<{ id: string; label: string; codes: string[] }>>([]);
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
 
   // Modal states
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
@@ -271,29 +219,66 @@ const ProductsPage: React.FC = () => {
 
   useEffect(() => {
     productApi.list().then(setProducts).catch(() => { }).finally(() => setLoading(false));
-    dictApi.getTree().then((types: DictType[]) => {
-      const categoryDict = types.find(type => type.id === 'category');
-      setCategories((categoryDict?.children || [])
-        .filter(parent => parent.status === 'enabled')
-        .map(parent => ({
-          id: parent.code,
-          label: parent.label,
-          codes: [parent.code, ...parent.children.filter(child => child.status === 'enabled').map(child => child.code)],
-        })));
+    productCategoryApi.list().then((productCategories: ProductCategory[]) => {
+      setCategories(productCategories.filter(parent => parent.status === 'enabled').map(parent => ({
+        ...parent,
+        children: parent.children.filter(child => child.status === 'enabled'),
+      })));
     }).catch(() => setCategories([]));
   }, []);
 
-  const toggle = (id: Product['id']) =>
-    setSelected(s => (s.includes(id) ? s.filter(x => x !== id) : [...s, id]));
+  const selectedCategoryCodes = category === 'all'
+    ? []
+    : categories.flatMap(parent => parent.code === category
+      ? [parent.code, ...parent.children.map(child => child.code)]
+      : parent.children.some(child => child.code === category) ? [category] : []);
+  const categoryCount = (code: string) => {
+    const parent = categories.find(item => item.code === code);
+    const codes = parent ? [parent.code, ...parent.children.map(child => child.code)] : [code];
+    return products.filter(product => codes.includes(product.category)).length;
+  };
+  const categoryLabel = (code: string) => categories.find(parent => parent.code === code)?.label
+    || categories.flatMap(parent => parent.children).find(child => child.code === code)?.label
+    || '未分类';
+  const categoryTreeData = categories.map(parent => ({
+    key: parent.code,
+    title: <span className="flex min-h-6 min-w-0 flex-1 items-center justify-between gap-2"><span className="truncate text-sm font-normal leading-5">{parent.label}</span><span className="min-w-5 text-right text-xs leading-5 tabular-nums text-muted-foreground">{categoryCount(parent.code)}</span></span>,
+    children: parent.children.map(child => ({
+      key: child.code,
+      title: <span className="flex min-h-6 min-w-0 flex-1 items-center justify-between gap-2"><span className="truncate text-sm leading-5">{child.label}</span><span className="min-w-5 text-right text-xs leading-5 tabular-nums text-muted-foreground">{categoryCount(child.code)}</span></span>,
+    })),
+  }));
 
   const filtered = products.filter(
     p =>
-      (category === 'all' || categories.find(item => item.id === category)?.codes.includes(p.category)) &&
+      (category === 'all' || selectedCategoryCodes.includes(p.category)) &&
       (statusFilter === 'all' || p.status === statusFilter) &&
       (p.nameZh.includes(search) ||
         p.nameEn.toLowerCase().includes(search.toLowerCase()) ||
         p.sku.includes(search))
   );
+
+  const columns: ColumnsType<Product> = [
+    {
+      title: '商品',
+      width: 320,
+      render: (_, product) => <div className="flex min-w-0 items-center gap-3"><div className="relative shrink-0"><ProductImage image={product.img} width={64} height={64} alt={product.nameZh || product.nameEn} className="h-14 w-14 rounded-xl object-cover" />{product.hot && <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs text-white">🔥</span>}</div><div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold text-foreground">{product.nameZh || '-'}</div><div className="mt-0.5 truncate text-xs text-muted-foreground">{product.nameEn || '-'}</div><div className="mt-1 flex items-center gap-1.5 overflow-hidden"><span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">{categoryLabel(product.category)}</span>{(product.tags || []).slice(0, 2).map(tag => <span key={tag} className="truncate rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">{tag}</span>)}</div></div></div>,
+    },
+    { title: '商品编码', dataIndex: 'sku', render: value => <span className="font-mono text-xs text-muted-foreground">{value}</span> },
+    { title: '价格区间', dataIndex: 'price', render: value => <b className="text-sm text-foreground">{value}</b> },
+    { title: '库存', dataIndex: 'stock', render: value => <div><div className="text-sm text-foreground">{Number(value).toLocaleString()}</div>{Number(value) < 1000 && <div className="text-xs font-medium text-red-500">库存预警</div>}</div> },
+    { title: '最小起订量', dataIndex: 'moq', render: value => <span className="text-sm text-muted-foreground">{value}</span> },
+    { title: '状态', dataIndex: 'status', render: value => <StatusBadge status={value} /> },
+    createActionColumn<Product>({
+      width: 150,
+      render: (_, product) => <TableActions>
+        {can('product.edit') && <button onClick={() => navigate(`/products/${product.id}/edit`)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary" title="编辑"><Edit className="h-3.5 w-3.5" /></button>}
+        <button onClick={() => setPreviewProduct(product)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary" title="预览"><Eye className="h-3.5 w-3.5" /></button>
+        {can('product.delete') && <button onClick={() => setDeleteProduct(product)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600" title="删除"><Trash2 className="h-3.5 w-3.5" /></button>}
+        <div className="relative"><button onClick={() => setOpenDropdown(openDropdown === product.id ? null : product.id)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-secondary" title="更多"><MoreHorizontal className="h-3.5 w-3.5" /></button>{openDropdown === product.id && <MoreActionsDropdown product={product} onClose={() => setOpenDropdown(null)} onPreview={() => setPreviewProduct(product)} onDelete={() => setDeleteProduct(product)} />}</div>
+      </TableActions>,
+    }),
+  ];
 
   const handleBatchConfirm = async () => {
     if (batchAction === 'offline') {
@@ -336,7 +321,7 @@ const ProductsPage: React.FC = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-foreground">商品管理</h1>
+          <h1 className="text-xl font-bold text-foreground">商品列表</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             共 {products.length} 件商品 · {products.filter(p => p.status === 'published').length} 件已发布
           </p>
@@ -349,20 +334,26 @@ const ProductsPage: React.FC = () => {
         </button>}
       </div>
 
-      {/* Category Tabs */}
-      <div className="flex gap-1 bg-secondary rounded-xl p-1 w-fit">
-        {[{ id: 'all', label: '全部商品', codes: [] }, ...categories].map(c => (
-          <button
-            key={c.id}
-            onClick={() => setCategory(c.id)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${category === c.id ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-          >
-            {c.label}
-          </button>
-        ))}
-      </div>
+      <div className="grid min-h-[calc(100vh-12rem)] grid-cols-1 items-stretch gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="h-full overflow-hidden rounded-2xl border border-white/60 bg-white/80 shadow-sm backdrop-blur-xl">
+          <div className="flex items-center justify-between border-b border-border px-4 py-4">
+            <div><h2 className="text-sm font-bold text-foreground">商品分类</h2><p className="mt-0.5 text-xs text-muted-foreground">{categories.length} 个一级分类</p></div>
+            {can('product-category.manage') && <button onClick={() => navigate('/product-categories')} title="管理商品分类" className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary hover:bg-primary/20"><Plus className="h-4 w-4" /></button>}
+          </div>
+          <div className="p-3">
+            <button data-testid="all-products-category" onClick={() => setCategory('all')} className={`mb-1 flex h-[31px] w-full items-center justify-between rounded-lg px-3 text-left transition-colors ${category === 'all' ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-secondary'}`}><span className="text-sm font-normal leading-5">全部商品</span><span className="min-w-5 text-right text-xs leading-5 tabular-nums">{products.length}</span></button>
+            {categories.length === 0 ? <div className="flex min-h-32 items-center justify-center"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无商品分类" /></div> : <Tree
+              blockNode
+              defaultExpandAll
+              selectedKeys={category === 'all' ? [] : [category]}
+              treeData={categoryTreeData}
+              onSelect={keys => setCategory(String(keys[0] || 'all'))}
+              className="product-category-tree bg-transparent [&_.ant-tree-node-selected]:bg-primary/10! [&_.ant-tree-node-selected]:text-primary!"
+            />}
+          </div>
+        </aside>
 
-      <div className="backdrop-blur-xl bg-white/80 rounded-2xl border border-white/60 shadow-sm overflow-hidden">
+        <section className="min-w-0 overflow-hidden rounded-2xl border border-white/60 bg-white shadow-sm">
         {/* Toolbar */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-border">
           <div className="flex-1 max-w-xs">
@@ -422,107 +413,20 @@ const ProductsPage: React.FC = () => {
         </div>
 
         {viewMode === 'table' ? (
-          <>
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border bg-secondary/30">
-                  <th className="px-5 py-3 w-10">
-                    <Checkbox
-                      checked={selected.length === filtered.length && filtered.length > 0}
-                      onChange={e => setSelected(e.target.checked ? filtered.map(p => p.id) : [])}
-                    />
-                  </th>
-                  {['商品', '商品编码', '价格区间', '库存', '最小起订量', '状态', '操作'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 && <tr><td colSpan={8}><div className="flex min-h-72 items-center justify-center"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无商品数据" /></div></td></tr>}
-                {filtered.map(product => (
-                  <tr
-                    key={product.id}
-                    className={`border-b border-border last:border-0 hover:bg-secondary/20 transition-colors group ${selected.includes(product.id) ? 'bg-primary/5' : ''}`}
-                  >
-                    <td className="px-5 py-3.5">
-                      <Checkbox checked={selected.includes(product.id)} onChange={() => toggle(product.id)} />
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <img
-                            src={productImageUrl(product.img, 48, 48)}
-                            alt={product.nameEn}
-                            className="w-11 h-11 rounded-xl object-cover bg-secondary"
-                          />
-                          {product.hot && (
-                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-white text-xs">🔥</span>
-                          )}
-                        </div>
-                        <div>
-                          <div className="text-sm font-semibold text-foreground">{product.nameZh}</div>
-                          <div className="text-xs text-muted-foreground">{product.nameEn}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5 text-xs text-muted-foreground font-mono">{product.sku}</td>
-                    <td className="px-4 py-3.5 text-sm font-semibold text-foreground">{product.price}</td>
-                    <td className="px-4 py-3.5">
-                      <div className="text-sm text-foreground">{product.stock.toLocaleString()}</div>
-                      {product.stock < 1000 && <div className="text-xs text-red-500 font-medium">库存预警</div>}
-                    </td>
-                    <td className="px-4 py-3.5 text-sm text-muted-foreground">{product.moq}</td>
-                    <td className="px-4 py-3.5"><StatusBadge status={product.status} /></td>
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity relative">
-                        {can('product.edit') && <button
-                          onClick={() => navigate(`/products/${product.id}/edit`)}
-                          className="p-1.5 hover:bg-primary/10 rounded-lg text-muted-foreground hover:text-primary transition-colors"
-                          title="编辑"
-                        >
-                          <Edit className="w-3.5 h-3.5" />
-                        </button>}
-                        <button
-                          onClick={() => setPreviewProduct(product)}
-                          className="p-1.5 hover:bg-primary/10 rounded-lg text-muted-foreground hover:text-primary transition-colors"
-                          title="预览"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
-                        {can('product.delete') && <button
-                          onClick={() => setDeleteProduct(product)}
-                          className="p-1.5 hover:bg-red-50 rounded-lg text-muted-foreground hover:text-red-600 transition-colors"
-                          title="删除"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>}
-                        <div className="relative">
-                          <button
-                            onClick={() => setOpenDropdown(openDropdown === product.id ? null : product.id)}
-                            className="p-1.5 hover:bg-secondary rounded-lg text-muted-foreground transition-colors"
-                            title="更多"
-                          >
-                            <MoreHorizontal className="w-3.5 h-3.5" />
-                          </button>
-                          {openDropdown === product.id && (
-                            <MoreActionsDropdown
-                              product={product}
-                              onClose={() => setOpenDropdown(null)}
-                              onPreview={() => setPreviewProduct(product)}
-                              onDelete={() => setDeleteProduct(product)}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
+          <Table
+            loading={loading}
+            rowKey="id"
+            dataSource={filtered}
+            columns={columns}
+            scroll={{ x: 1180 }}
+            pagination={{ pageSize: 8, showSizeChanger: false }}
+            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无商品数据" /> }}
+            rowSelection={{ selectedRowKeys: selected, onChange: keys => setSelected(keys as Array<Product['id']>) }}
+            onRow={() => ({ className: 'group' })}
+          />
         ) : (
           <div className="grid grid-cols-3 gap-4 p-5">
-            {filtered.length === 0 && <div className="col-span-3 flex min-h-72 items-center justify-center"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无商品数据" /></div>}
+            {filtered.length === 0 && <div className="col-span-3 flex min-h-72 items-center justify-center bg-white"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无商品数据" /></div>}
             {filtered.map(product => (
               <div
                 key={product.id}
@@ -530,11 +434,7 @@ const ProductsPage: React.FC = () => {
                 onClick={() => setPreviewProduct(product)}
               >
                 <div className="relative">
-                  <img
-                    src={productImageUrl(product.img, 400, 200)}
-                    alt={product.nameEn}
-                    className="w-full h-36 object-cover bg-secondary"
-                  />
+                  <ProductImage image={product.img} width={400} height={200} alt={product.nameZh || product.nameEn} className="h-36 w-full object-cover" />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
                     <button
                       onClick={e => { e.stopPropagation(); navigate(`/products/${product.id}/edit`); }}
@@ -568,9 +468,8 @@ const ProductsPage: React.FC = () => {
           </div>
         )}
 
-        <div className="flex items-center justify-between px-5 py-3.5 border-t border-border">
-          <span className="text-sm text-muted-foreground">共 {filtered.length} 件商品</span>
-          {filtered.length > 0 && <div className="flex items-center gap-1">
+          {viewMode === 'grid' && filtered.length > 0 && <div className="flex items-center justify-end px-5 py-3.5 border-t border-border">
+            <div className="flex items-center gap-1">
             <button className="p-1.5 hover:bg-secondary rounded text-muted-foreground"><ChevronLeft className="w-4 h-4" /></button>
             {[1, 2, 3].map(p => (
               <button key={p} className={`w-8 h-8 text-xs rounded-lg font-semibold ${p === 1 ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-secondary'}`}>{p}</button>
@@ -578,8 +477,9 @@ const ProductsPage: React.FC = () => {
             <span className="text-muted-foreground px-1">...</span>
             <button className="w-8 h-8 text-xs rounded-lg font-semibold text-muted-foreground hover:bg-secondary">8</button>
             <button className="p-1.5 hover:bg-secondary rounded text-muted-foreground"><ChevronRight className="w-4 h-4" /></button>
+            </div>
           </div>}
-        </div>
+        </section>
       </div>
 
       {/* Modals */}

@@ -6,8 +6,6 @@ import { DataSource } from 'typeorm';
 import { User } from '../src/modules/auth/user.entity';
 import { Site } from '../src/modules/site/site.entity';
 import { Tenant } from '../src/modules/site/tenant.entity';
-import { ChatSession } from '../src/modules/chat/chat-session.entity';
-import { ChatMessage } from '../src/modules/chat/chat-message.entity';
 import Redis from 'ioredis';
 
 jest.setTimeout(30000);
@@ -44,15 +42,13 @@ describe('Mercivo API (e2e)', () => {
 
   it('serves a published storefront without authentication', () => request(app.getHttpServer()).get('/api/v1/public/site').set('Host', 'localhost').expect(200));
   it('rejects slug overrides on production storefront hosts', () => request(app.getHttpServer()).get('/api/v1/public/site?site=eco-bags').set('Host', 'tenant.example.com').expect(400));
-  it('isolates public chat sessions by site and visitor', async () => {
-    const first = await request(app.getHttpServer()).post('/api/v1/chat/public/send').set('Host', 'localhost').send({ visitorId: `visitor-a-${Date.now()}`, text: 'MOQ?' }).expect(201);
-    const second = await request(app.getHttpServer()).post('/api/v1/chat/public/send').set('Host', 'localhost').send({ visitorId: `visitor-b-${Date.now()}`, sessionId: first.body.data?.sessionId || first.body.sessionId, text: 'Price?' }).expect(201);
-    const firstData = first.body.data || first.body;
-    const secondData = second.body.data || second.body;
-    expect(firstData.sessionId).not.toBe(secondData.sessionId);
-    const ds = app.get(DataSource);
-    await ds.getRepository(ChatMessage).delete([{ sessionId: firstData.sessionId }, { sessionId: secondData.sessionId }]);
-    await ds.getRepository(ChatSession).delete([firstData.sessionId, secondData.sessionId]);
+  it('does not expose removed CRM and AI APIs', async () => {
+    await request(app.getHttpServer()).get('/api/v1/agent').expect(404);
+    await request(app.getHttpServer()).get('/api/v1/lead').expect(404);
+    await request(app.getHttpServer()).get('/api/v1/opportunities').expect(404);
+    await request(app.getHttpServer()).get('/api/v1/outreach').expect(404);
+    await request(app.getHttpServer()).post('/api/v1/chat/public/send').expect(404);
+    await request(app.getHttpServer()).get('/api/v1/dict/tree').expect(404);
   });
   it('rejects protected APIs without a token', () => request(app.getHttpServer()).get('/api/v1/product').expect(401));
   it('logs in and returns tenant context', async () => {
@@ -72,7 +68,7 @@ describe('Mercivo API (e2e)', () => {
     const suffix = Date.now().toString(36);
 
     const dashboard = await request(server).get('/api/v1/dashboard/stats').set(auth).expect(200);
-    expect(dashboard.body.data || dashboard.body).toMatchObject({ totalProducts: expect.any(Number), totalLeads: expect.any(Number), aiChats: expect.any(Number), customerValue: expect.any(Number) });
+    expect(dashboard.body.data || dashboard.body).toMatchObject({ totalProducts: expect.any(Number), publishedProducts: expect.any(Number), totalCustomers: expect.any(Number), customerValue: expect.any(Number) });
 
     const productResponse = await request(server).post('/api/v1/product').set(auth).send({ nameZh: '自动化测试商品', nameEn: 'Automated Product', sku: `E2E-${suffix}`, price: '$9.90', stock: 30, moq: 3, status: 'draft', category: 'eco', img: 'photo-test', hot: false }).expect(201);
     const product = productResponse.body.data || productResponse.body;
@@ -80,13 +76,6 @@ describe('Mercivo API (e2e)', () => {
     await request(server).put(`/api/v1/product/${product.id}/seo`).set(auth).send({ seoTitle: 'Automated SEO title', seoDescription: 'Automated SEO description' }).expect(200);
     await request(server).get(`/api/v1/product/${product.id}/seo`).set(auth).expect(200).expect(response => expect((response.body.data || response.body).seoTitle).toBe('Automated SEO title'));
 
-    const leadResponse = await request(server).post('/api/v1/lead').set(auth).send({ name: '自动化客户', company: '自动化企业', email: `lead-${suffix}@example.com`, phone: '+8613800000001', country: 'China', product: 'Automated Product', summary: '端到端测试线索', status: 'new', score: 90, tag: 'E2E' }).expect(201);
-    const lead = leadResponse.body.data || leadResponse.body;
-    await request(server).put(`/api/v1/lead/${lead.id}`).set(auth).send({ assignedTo: 'Alex Johnson' }).expect(200).expect(response => expect((response.body.data || response.body).assignedTo).toBe('Alex Johnson'));
-    const conversion = await request(server).post(`/api/v1/lead/${lead.id}/convert`).set(auth).expect(201);
-    const conversionData = conversion.body.data || conversion.body;
-    expect(conversionData.lead.status).toBe('converted');
-    expect(conversionData.customer.email).toBe(`lead-${suffix}@example.com`);
     await request(server).get('/api/v1/customers/levels/rules').set(auth).expect(200).expect(response => expect((response.body.data || response.body)).toHaveLength(4));
 
     const sitesResponse = await request(server).get('/api/v1/admin/sites').set(auth).expect(200);
@@ -105,29 +94,14 @@ describe('Mercivo API (e2e)', () => {
     await request(server).put(`/api/v1/workspace/team/${member.id}`).set(auth).send({ role: 'editor' }).expect(200);
     await request(server).delete(`/api/v1/workspace/team/${member.id}`).set(auth).expect(200);
 
-    const knowledgeResponse = await request(server).post('/api/v1/workspace/knowledge').set(auth).send({ name: `e2e-${suffix}.pdf`, type: 'PDF', size: '1 KB' }).expect(201);
-    const knowledge = knowledgeResponse.body.data || knowledgeResponse.body;
-    await request(server).delete(`/api/v1/workspace/knowledge/${knowledge.id}`).set(auth).expect(200);
+    const categoryCode = `e2e-${suffix}`;
+    await request(server).post('/api/v1/product-categories').set(auth).send({ code: categoryCode, label: '自动化分类', sort: 99, status: 'enabled', remark: 'E2E' }).expect(201);
+    await request(server).put(`/api/v1/product-categories/${categoryCode}`).set(auth).send({ label: '自动化商品分类' }).expect(200);
+    await request(server).get('/api/v1/product-categories').set(auth).expect(200).expect(response => expect((response.body.data || response.body).some((item: { code: string }) => item.code === categoryCode)).toBe(true));
+    await request(server).delete(`/api/v1/product-categories/${categoryCode}`).set(auth).expect(200);
 
-    const agentsResponse = await request(server).get('/api/v1/agent').set(auth).expect(200);
-    const agents = agentsResponse.body.data || agentsResponse.body;
-    expect(agents.length).toBeGreaterThan(0);
-    const originalAgentStatus = agents[0].status;
-    await request(server).put(`/api/v1/agent/${agents[0].agentId}`).set(auth).send({ status: originalAgentStatus === 'paused' ? 'active' : 'paused' }).expect(200);
-    await request(server).put(`/api/v1/agent/${agents[0].agentId}`).set(auth).send({ status: originalAgentStatus }).expect(200);
-
-    const dictTypeId = `e2e-${suffix}`;
-    await request(server).post('/api/v1/dict/types').set(auth).send({ typeId: dictTypeId, label: '自动化字典', icon: '🧪' }).expect(201);
-    await request(server).post(`/api/v1/dict/${dictTypeId}/entries`).set(auth).send({ code: 'enabled', label: '启用', sort: 1, status: 'enabled', remark: 'E2E' }).expect(201);
-    await request(server).put(`/api/v1/dict/${dictTypeId}/entries/enabled`).set(auth).send({ label: '已启用' }).expect(200);
-    await request(server).get('/api/v1/dict/tree').set(auth).expect(200).expect(response => expect((response.body.data || response.body).some((item: { id: string }) => item.id === dictTypeId)).toBe(true));
-    await request(server).delete(`/api/v1/dict/types/${dictTypeId}`).set(auth).expect(200);
-
-    await request(server).delete(`/api/v1/customers/${conversionData.customer.id}`).set(auth).expect(200);
-    await request(server).delete(`/api/v1/lead/${lead.id}`).set(auth).expect(200);
     await request(server).delete(`/api/v1/product/${product.id}`).set(auth).expect(200);
   });
-  it('rejects bot-filled inquiry honeypots', () => request(app.getHttpServer()).post('/api/v1/public/inquiries').set('Host', 'localhost').send({ name: 'Bot User', email: 'bot@example.com', requirements: 'Bulk product request', website: 'spam.example' }).expect(400));
   it('provides a graphical one-time captcha', async () => {
     const response = await request(app.getHttpServer()).get('/api/v1/auth/captcha').expect(200);
     expect(response.body.image || response.body.data?.image).toMatch(/^data:image\/svg\+xml;base64,/);

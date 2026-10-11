@@ -12,18 +12,24 @@ export class CustomerService {
   list(siteId: string) { return this.customers.find({ where: { siteId }, order: { updatedAt: 'DESC' } }); }
   async create(dto: CreateCustomerDto, tenantId: string, siteId: string) {
     await this.ensureLevel(dto.level, siteId);
-    const phoneNormalized = this.normalizePhone(dto.phone);
-    if (await this.customers.exists({ where: { siteId, phoneNormalized } })) throw new ConflictException('该手机号已存在客户档案');
-    return this.customers.save(this.customers.create({ ...dto, phone: dto.phone.trim(), phoneNormalized, status: dto.status || 'active', tenantId, siteId }));
+    const name = dto.name.trim();
+    if (!name) throw new BadRequestException('请输入客户名称');
+    const phone = dto.phone?.trim() || null;
+    const phoneNormalized = phone ? this.normalizePhone(phone) : null;
+    if (phoneNormalized && await this.customers.exists({ where: { siteId, phoneNormalized } })) throw new ConflictException('该手机号已存在客户档案');
+    return this.customers.save(this.customers.create({ ...dto, name, company: name, phone, phoneNormalized, status: dto.status || 'active', tenantId, siteId }));
   }
   async update(id: string, dto: UpdateCustomerDto, siteId: string) {
     const item = await this.customers.findOne({ where: { id, siteId } });
     if (!item) throw new NotFoundException('客户不存在');
     await this.ensureLevel(dto.level, siteId);
-    const phoneNormalized = this.normalizePhone(dto.phone);
-    const duplicate = await this.customers.findOne({ where: { siteId, phoneNormalized } });
+    const name = dto.name.trim();
+    if (!name) throw new BadRequestException('请输入客户名称');
+    const phone = dto.phone?.trim() || null;
+    const phoneNormalized = phone ? this.normalizePhone(phone) : null;
+    const duplicate = phoneNormalized ? await this.customers.findOne({ where: { siteId, phoneNormalized } }) : null;
     if (duplicate && duplicate.id !== id) throw new ConflictException('该手机号已存在客户档案');
-    Object.assign(item, dto, { phone: dto.phone.trim(), phoneNormalized });
+    Object.assign(item, dto, { name, company: name, phone, phoneNormalized });
     return this.customers.save(item);
   }
   async remove(id: string, siteId: string) { const item = await this.customers.findOne({ where: { id, siteId } }); if (!item) throw new NotFoundException('客户不存在'); await this.customers.remove(item); }
@@ -33,7 +39,7 @@ export class CustomerService {
     if (!name) throw new BadRequestException('请输入客户等级名称');
     if (await this.rules.exists({ where: { siteId, name } })) throw new ConflictException('客户等级名称已存在');
     const code = `lvl_${randomUUID().replace(/-/g, '').slice(0, 20)}`;
-    return this.rules.save(this.rules.create({ ...dto, name, note: dto.note?.trim() || '', code, tenantId, siteId, minAmount: 0, minOrders: 0, discountRate: 0, sort: 0 }));
+    return this.rules.save(this.rules.create({ ...dto, name, note: dto.note?.trim() || '', code, tenantId, siteId, minAmount: 0, minOrders: 0, discountRate: dto.discountRate ?? null, sort: 0 }));
   }
   async updateLevel(id: string, dto: UpdateCustomerLevelDto, siteId: string) {
     const level = await this.rules.findOne({ where: { id, siteId } });
@@ -42,7 +48,7 @@ export class CustomerService {
     if (!name) throw new BadRequestException('请输入客户等级名称');
     const duplicate = await this.rules.findOne({ where: { siteId, name } });
     if (duplicate && duplicate.id !== id) throw new ConflictException('客户等级名称已存在');
-    level.name = name; level.note = dto.note?.trim() || '';
+    level.name = name; level.note = dto.note?.trim() || ''; level.discountRate = dto.discountRate ?? null;
     return this.rules.save(level);
   }
   async removeLevel(id: string, siteId: string) {

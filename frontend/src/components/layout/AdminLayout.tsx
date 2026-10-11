@@ -12,15 +12,10 @@ import {
   ExternalLink,
   LayoutDashboard,
   Package,
-  Globe,
   Users,
-  Bot,
-  BookOpen,
+  Tags,
   ContactRound,
-  Handshake,
-  MailPlus,
   CreditCard,
-  SlidersHorizontal,
 } from 'lucide-react';
 
 // ─────────────── Types ───────────────
@@ -36,36 +31,26 @@ const PATH_PAGE_MAP: Record<string, string> = {
   '/dashboard': 'dashboard',
   '/products': 'products',
   '/products/new': 'product-edit',
-  '/leads': 'leads',
-  '/customer-levels': 'customer-levels',
-  '/opportunities': 'opportunities',
-  '/outreach': 'outreach',
-  '/ai-center': 'ai-center',
+  '/customer': 'customer',
   '/settings': 'settings',
-  '/dict-mgmt': 'dict-mgmt',
+  '/product-categories': 'product-categories',
 };
 
 const PAGE_ROUTES: Record<string, string> = {
   dashboard: '/dashboard',
   products: '/products',
   'product-edit': '/products/new',
-  'site-editor': '/site-editor',
-  leads: '/leads',
-  'customer-levels': '/customer-levels',
-  opportunities: '/opportunities',
-  outreach: '/outreach',
-  'ai-center': '/ai-center',
+  customer: '/customer',
   settings: '/settings',
-  'site-config': '/settings?tab=site',
   'team-management': '/settings?tab=team',
   billing: '/settings?tab=billing',
-  'dict-mgmt': '/dict-mgmt',
+  'product-categories': '/product-categories',
 };
 
 function getPageId(pathname: string, search = ''): string {
   if (pathname === '/settings') {
     const tab = new URLSearchParams(search).get('tab');
-    if (tab === 'site' || tab === 'seo') return 'site-config';
+    if (tab === 'site' || tab === 'seo') return 'settings';
     if (tab === 'team') return 'team-management';
     if (tab === 'billing') return 'billing';
   }
@@ -78,37 +63,16 @@ function getPageId(pathname: string, search = ''): string {
 
 const MENU_GROUPS = [
   {
-    label: '工作台',
+    label: '商品管理',
     items: [
-      { id: 'dashboard', icon: LayoutDashboard, label: '仪表盘' },
+      { id: 'products', icon: Package, label: '商品列表' },
+      { id: 'product-categories', icon: Tags, label: '商品分类' },
     ],
   },
   {
-    label: '外贸 ERP',
+    label: '销售管理',
     items: [
-      { id: 'products', icon: Package, label: '商品管理' },
-      { id: 'customer-levels', icon: ContactRound, label: '客户管理' },
-    ],
-  },
-  {
-    label: 'CRM 获客',
-    items: [
-      { id: 'opportunities', icon: Handshake, label: '商机管理' },
-      { id: 'outreach', icon: MailPlus, label: '开发信' },
-    ],
-  },
-  {
-    label: '独立站',
-    items: [
-      { id: 'leads', icon: Users, label: '客户线索', badge: 4 },
-      { id: 'site-editor', icon: Globe, label: '站点设计' },
-      { id: 'site-config', icon: SlidersHorizontal, label: '站点配置' },
-    ],
-  },
-  {
-    label: 'AI赋能',
-    items: [
-      { id: 'ai-center', icon: Bot, label: '智能体中心' },
+      { id: 'customer', icon: ContactRound, label: '客户管理' },
     ],
   },
   {
@@ -116,13 +80,17 @@ const MENU_GROUPS = [
     items: [
       { id: 'settings', icon: Settings, label: '账号设置' },
       { id: 'team-management', icon: Users, label: '成员与权限' },
-      { id: 'dict-mgmt', icon: BookOpen, label: '字典管理' },
     ],
   },
 ] as const;
 
-const MENU_PERMISSIONS: Record<string, string> = { dashboard: 'menu.dashboard', products: 'menu.products', 'customer-levels': 'menu.customers', opportunities: 'menu.opportunities', outreach: 'menu.outreach', leads: 'menu.leads', 'site-editor': 'menu.site', 'site-config': 'menu.site.config', 'ai-center': 'menu.agents', settings: 'menu.settings', 'team-management': 'menu.team', 'dict-mgmt': 'menu.dictionary' };
-const GROUP_PERMISSIONS: Record<string, string> = { '工作台': 'group.workspace', '外贸 ERP': 'group.erp', 'CRM 获客': 'group.crm', '独立站': 'group.site', 'AI赋能': 'group.ai', '系统管理': 'group.system' };
+const DASHBOARD_ITEM = { id: 'dashboard', icon: LayoutDashboard, label: '经营概览' } as const;
+
+const MENU_PERMISSIONS: Record<string, string> = { dashboard: 'menu.dashboard', products: 'menu.products', 'product-categories': 'menu.product-categories', customer: 'menu.customers', settings: 'menu.settings', 'team-management': 'menu.team' };
+const PAGE_PERMISSIONS: Record<string, string[]> = { dashboard: ['page.dashboard'], products: ['page.products'], 'product-categories': ['page.product-categories'], customer: ['page.customers'], settings: ['page.settings.account'], 'team-management': ['page.settings.team'] };
+const GROUP_PERMISSIONS: Record<string, string[]> = { '商品管理': ['group.products'], '销售管理': ['group.sales'], '系统管理': ['group.system'] };
+const canOpenGroup = (label: string) => GROUP_PERMISSIONS[label].some(can);
+const canOpenMenuItem = (id: string) => can(MENU_PERMISSIONS[id]) && PAGE_PERMISSIONS[id].some(can);
 
 // ─────────────── AdminSidebar ───────────────
 
@@ -139,7 +107,7 @@ const AdminSidebar: React.FC = () => {
     }).catch(() => undefined);
   }, []);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
-    const defaults = Object.fromEntries(MENU_GROUPS.map(group => [group.label, group.label !== '工作台']));
+    const defaults = Object.fromEntries(MENU_GROUPS.map(group => [group.label, group.label === '系统管理']));
     try { return { ...defaults, ...JSON.parse(localStorage.getItem('mercivo_menu_collapsed') || '{}') }; } catch { return defaults; }
   });
   const toggleGroup = (label: string) => setCollapsedGroups(current => {
@@ -171,13 +139,14 @@ const AdminSidebar: React.FC = () => {
     <aside className="w-60 flex flex-col h-full flex-shrink-0 border-r border-border" style={{ background: 'var(--sidebar)' }}>
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 overflow-auto space-y-5">
-        {MENU_GROUPS.filter(group => can(GROUP_PERMISSIONS[group.label]) && group.items.some(item => can(MENU_PERMISSIONS[item.id]))).map(group => (
+        {canOpenMenuItem(DASHBOARD_ITEM.id) && <button onClick={() => handleNav(DASHBOARD_ITEM.id)} aria-label={DASHBOARD_ITEM.label} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-normal transition-all ${activePage === DASHBOARD_ITEM.id ? 'bg-primary/10 text-primary' : 'text-foreground/80 hover:bg-secondary hover:text-foreground'}`}><DASHBOARD_ITEM.icon className="h-4 w-4 shrink-0"/><span className="flex-1 text-left">{DASHBOARD_ITEM.label}</span></button>}
+        {MENU_GROUPS.filter(group => canOpenGroup(group.label) && group.items.some(item => canOpenMenuItem(item.id))).map(group => (
           <div key={group.label}>
-            <button onClick={() => toggleGroup(group.label)} className="flex w-full items-center justify-between px-3 pb-2 text-xs font-semibold uppercase tracking-widest text-foreground/60 transition-colors hover:text-foreground/80">
+            <button onClick={() => toggleGroup(group.label)} className="flex w-full items-center justify-between px-3 pb-2 text-xs font-normal uppercase tracking-widest text-foreground/60 transition-colors hover:text-foreground/80">
               <span>{group.label}</span>{collapsedGroups[group.label] ? <ChevronRight className="h-3 w-3"/> : <ChevronDown className="h-3 w-3"/>}
             </button>
             {!collapsedGroups[group.label] && <div className="space-y-0.5">
-              {group.items.filter(item => can(MENU_PERMISSIONS[item.id])).map(item => {
+              {group.items.filter(item => canOpenMenuItem(item.id)).map(item => {
                 const isActive = activePage === item.id;
                 const Icon = item.icon;
                 return (
@@ -185,18 +154,13 @@ const AdminSidebar: React.FC = () => {
                     key={item.id}
                     onClick={() => handleNav(item.id)}
                     aria-label={item.label}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isActive
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-normal transition-all ${isActive
                         ? 'bg-primary/10 text-primary shadow-none'
                         : 'text-foreground/80 hover:bg-secondary hover:text-foreground'
                       }`}
                   >
                     <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-primary' : ''}`} />
                     <span className="flex-1 text-left">{item.label}</span>
-                    {'badge' in item && item.badge && (
-                      <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${isActive ? 'bg-primary/15 text-primary' : 'bg-secondary text-primary'}`}>
-                        {item.badge}
-                      </span>
-                    )}
                   </button>
                 );
               })}

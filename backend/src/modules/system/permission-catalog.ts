@@ -1,80 +1,59 @@
-const ACTION_CATALOG = [
-  { group: '工作台', key: 'menu.dashboard', label: '查看仪表盘', type: 'menu' },
-  { group: '外贸ERP', key: 'menu.products', label: '商品管理', type: 'menu' },
-  { group: '外贸ERP', key: 'product.create', label: '新建商品', type: 'button' },
-  { group: '外贸ERP', key: 'product.edit', label: '编辑商品', type: 'button' },
-  { group: '外贸ERP', key: 'product.delete', label: '删除商品', type: 'button' },
-  { group: '外贸ERP', key: 'product.publish', label: '发布商品', type: 'button' },
-  { group: '外贸ERP', key: 'menu.customers', label: '客户管理', type: 'menu' },
-  { group: '外贸ERP', key: 'customer.create', label: '新建客户', type: 'button' },
-  { group: '外贸ERP', key: 'customer.edit', label: '编辑客户', type: 'button' },
-  { group: '外贸ERP', key: 'customer.delete', label: '删除客户', type: 'button' },
-  { group: 'CRM', key: 'menu.opportunities', label: '商机管理', type: 'menu' },
-  { group: 'CRM', key: 'opportunity.create', label: '新建商机', type: 'button' },
-  { group: 'CRM', key: 'opportunity.edit', label: '编辑商机', type: 'button' },
-  { group: 'CRM', key: 'opportunity.delete', label: '删除商机', type: 'button' },
-  { group: 'CRM', key: 'menu.outreach', label: '开发信', type: 'menu' },
-  { group: 'CRM', key: 'outreach.create', label: '创建开发信任务', type: 'button' },
-  { group: 'CRM', key: 'outreach.edit', label: '编辑开发信任务', type: 'button' },
-  { group: 'CRM', key: 'outreach.schedule', label: '设置发送计划', type: 'button' },
-  { group: 'CRM', key: 'outreach.delete', label: '删除开发信任务', type: 'button' },
-  { group: '独立站', key: 'menu.site', label: '站点设计', type: 'menu' },
-  { group: '独立站', key: 'site.publish', label: '发布/回滚站点', type: 'button' },
-  { group: '独立站', key: 'site.domain', label: '管理自定义域名', type: 'button' },
-  { group: '独立站', key: 'menu.leads', label: '客户线索', type: 'menu' },
-  { group: '独立站', key: 'lead.assign', label: '分配线索', type: 'button' },
-  { group: '独立站', key: 'lead.convert', label: '线索转客户', type: 'button' },
-  { group: '独立站', key: 'lead.delete', label: '删除线索', type: 'button' },
-  { group: '独立站', key: 'lead.export', label: '导出线索', type: 'button' },
-  { group: 'AI赋能', key: 'menu.agents', label: '智能体中心', type: 'menu' },
-  { group: 'AI赋能', key: 'agent.create', label: '新建智能体', type: 'button' },
-  { group: 'AI赋能', key: 'agent.edit', label: '编辑/启停智能体', type: 'button' },
-  { group: 'AI赋能', key: 'agent.delete', label: '删除智能体', type: 'button' },
-  { group: 'AI赋能', key: 'agent.knowledge', label: '管理知识库', type: 'button' },
-  { group: '系统管理', key: 'menu.settings', label: '账号设置', type: 'menu' },
-  { group: '账号设置', key: 'settings.account', label: '账号信息', type: 'button' },
-  { group: '独立站', key: 'menu.site.config', label: '站点配置', type: 'menu' },
-  { group: '站点配置', key: 'settings.site', label: '编辑基础设置', type: 'button' },
-  { group: '站点配置', key: 'settings.seo', label: '编辑 SEO', type: 'button' },
-  { group: '系统管理', key: 'menu.team', label: '成员与权限', type: 'menu' },
-  { group: '成员与权限', key: 'settings.team', label: '管理成员权限', type: 'button' },
-  { group: '系统管理', key: 'menu.dictionary', label: '字典管理', type: 'menu' },
-  { group: '系统管理', key: 'dictionary.manage', label: '编辑字典', type: 'button' },
-] as const;
+export type PermissionLevel = 'primary' | 'secondary' | 'page' | 'button';
+export type PermissionType = 'menu' | 'page' | 'button';
 
-const LEVEL_ONE_CATALOG = [
-  { group: '工作台', key: 'group.workspace', label: '工作台', type: 'menu', level: 'primary', parentKey: null },
-  { group: '外贸ERP', key: 'group.erp', label: '外贸 ERP', type: 'menu', level: 'primary', parentKey: null },
-  { group: 'CRM', key: 'group.crm', label: 'CRM 获客', type: 'menu', level: 'primary', parentKey: null },
-  { group: '独立站', key: 'group.site', label: '独立站', type: 'menu', level: 'primary', parentKey: null },
-  { group: 'AI赋能', key: 'group.ai', label: 'AI 赋能', type: 'menu', level: 'primary', parentKey: null },
-  { group: '系统管理', key: 'group.system', label: '系统管理', type: 'menu', level: 'primary', parentKey: null },
-] as const;
+export interface PermissionCatalogItem {
+  group: string;
+  key: string;
+  label: string;
+  type: PermissionType;
+  level: PermissionLevel;
+  parentKey: string | null;
+}
 
-const MENU_PARENTS: Record<string, string> = {
-  'menu.dashboard': 'group.workspace', 'menu.products': 'group.erp', 'menu.customers': 'group.erp',
-  'menu.opportunities': 'group.crm', 'menu.outreach': 'group.crm',
-  'menu.site': 'group.site', 'menu.leads': 'group.site', 'menu.agents': 'group.ai',
-  'menu.site.config': 'group.site',
-  'menu.settings': 'group.system', 'menu.team': 'group.system', 'menu.dictionary': 'group.system',
-};
-const BUTTON_PARENTS: Record<string, string> = {
-  product: 'menu.products', customer: 'menu.customers', opportunity: 'menu.opportunities', outreach: 'menu.outreach', site: 'menu.site', lead: 'menu.leads', agent: 'menu.agents',
-  settings: 'menu.settings', dictionary: 'menu.dictionary',
-};
-const CUSTOM_BUTTON_PARENTS: Record<string, string> = {
-  'settings.site': 'menu.site.config',
-  'settings.seo': 'menu.site.config',
-  'settings.team': 'menu.team',
-};
+const primary = (key: string, label: string): PermissionCatalogItem => ({ group: label, key, label, type: 'menu', level: 'primary', parentKey: null });
+const secondary = (group: string, key: string, label: string, parentKey: string): PermissionCatalogItem => ({ group, key, label, type: 'menu', level: 'secondary', parentKey });
+const page = (group: string, key: string, label: string, parentKey: string): PermissionCatalogItem => ({ group, key, label, type: 'page', level: 'page', parentKey });
+const button = (group: string, key: string, label: string, parentKey: string): PermissionCatalogItem => ({ group, key, label, type: 'button', level: 'button', parentKey });
 
-export const PERMISSION_CATALOG = [
-  ...LEVEL_ONE_CATALOG,
-  ...ACTION_CATALOG.map(item => ({
-    ...item,
-    level: item.type === 'menu' ? 'secondary' as const : 'button' as const,
-    parentKey: item.type === 'menu' ? MENU_PARENTS[item.key] : (CUSTOM_BUTTON_PARENTS[item.key] || BUTTON_PARENTS[item.key.split('.')[0]]),
-  })),
+export const PERMISSION_CATALOG: PermissionCatalogItem[] = [
+  primary('menu.dashboard', '经营概览'),
+  page('经营概览', 'page.dashboard', '经营概览页面', 'menu.dashboard'),
+  primary('group.products', '商品管理'),
+  secondary('商品管理', 'menu.products', '商品列表', 'group.products'),
+  page('商品管理', 'page.products', '商品管理页面', 'menu.products'),
+  button('商品管理', 'product.create', '新建商品', 'menu.products'),
+  button('商品管理', 'product.edit', '编辑商品', 'menu.products'),
+  button('商品管理', 'product.delete', '删除商品', 'menu.products'),
+  button('商品管理', 'product.publish', '发布商品', 'menu.products'),
+  secondary('商品管理', 'menu.product-categories', '商品分类', 'group.products'),
+  page('商品分类', 'page.product-categories', '商品分类页面', 'menu.product-categories'),
+  button('商品分类', 'product-category.manage', '管理商品分类', 'menu.product-categories'),
+  primary('group.sales', '销售管理'),
+  secondary('销售管理', 'menu.customers', '客户管理', 'group.sales'),
+  page('客户管理', 'page.customers', '客户管理页面', 'menu.customers'),
+  button('客户管理', 'customer.create', '新建客户', 'menu.customers'),
+  button('客户管理', 'customer.edit', '编辑客户', 'menu.customers'),
+  button('客户管理', 'customer.delete', '删除客户', 'menu.customers'),
+  button('客户管理', 'customer.level.manage', '管理客户等级', 'menu.customers'),
+
+  primary('group.site', '独立站'),
+  secondary('独立站', 'menu.site', '站点设计', 'group.site'),
+  page('站点设计', 'page.site.editor', '站点设计页面', 'menu.site'),
+  button('站点设计', 'site.edit', '保存站点内容', 'menu.site'),
+  button('站点设计', 'site.publish', '发布/回滚站点', 'menu.site'),
+  page('站点设计', 'page.site.settings', '基础设置页面', 'menu.site'),
+  page('站点设计', 'page.site.seo', 'SEO 设置页面', 'menu.site'),
+  button('站点设计', 'settings.site', '编辑基础设置', 'menu.site'),
+  button('站点设计', 'settings.seo', '编辑 SEO', 'menu.site'),
+  button('站点设计', 'site.domain', '管理自定义域名', 'menu.site'),
+
+  primary('group.system', '系统管理'),
+  secondary('系统管理', 'menu.settings', '账号设置', 'group.system'),
+  page('账号设置', 'page.settings.account', '账号信息页面', 'menu.settings'),
+  button('账号设置', 'settings.account', '编辑账号信息', 'menu.settings'),
+  secondary('系统管理', 'menu.team', '成员与权限', 'group.system'),
+  page('成员与权限', 'page.settings.team', '成员与权限页面', 'menu.team'),
+  button('成员与权限', 'settings.team', '管理成员权限', 'menu.team'),
 ];
 
 export const ALL_PERMISSIONS = PERMISSION_CATALOG.map(item => item.key);
@@ -88,13 +67,9 @@ export function withPermissionParents(permissions: string[]) {
       current = PERMISSION_CATALOG.find(item => item.key === current?.parentKey);
     }
   }
-  const known = new Set<string>(ALL_PERMISSIONS);
-  return [...selected].filter(key => known.has(key));
+  const known = new Set(ALL_PERMISSIONS);
+  return ALL_PERMISSIONS.filter(key => selected.has(key) && known.has(key));
 }
 
-const TRIAL_UNAVAILABLE_PERMISSIONS = new Set([
-  'site.publish', 'site.domain', 'lead.assign', 'lead.convert', 'lead.delete', 'lead.export',
-  'agent.create', 'agent.edit', 'agent.delete', 'agent.knowledge',
-]);
-
+const TRIAL_UNAVAILABLE_PERMISSIONS = new Set(['site.publish', 'site.domain']);
 export const TRIAL_PERMISSIONS = ALL_PERMISSIONS.filter(key => !TRIAL_UNAVAILABLE_PERMISSIONS.has(key));

@@ -9,7 +9,6 @@ export class Site {
   @Column({ length: 20, default: 'draft' }) status: 'draft' | 'published';
   @Column({ name: 'default_language', length: 10, default: 'zh' }) defaultLanguage: string;
   @Column({ name: 'supported_languages', type: 'json', nullable: true }) supportedLanguages: string[] | null;
-  @Column({ name: 'translation_agent_id', type: 'varchar', length: 36, nullable: true }) translationAgentId: string | null;
   @Column({ name: 'default_currency', length: 10, default: 'CNY' }) defaultCurrency: string;
   @Column({ name: 'guest_price_mode', length: 20, default: 'base' }) guestPriceMode: 'base' | 'hidden';
   @Column({ name: 'published_version_id', type: 'varchar', length: 36, nullable: true }) publishedVersionId: string | null;

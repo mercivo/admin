@@ -11,12 +11,9 @@ import { PageModule } from './modules/page/page.module';
 import { ProductModule } from './modules/product/product.module';
 import { SitemapModule } from './modules/sitemap/sitemap.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { LeadModule } from './modules/lead/lead.module';
-import { DictModule } from './modules/dict/dict.module';
-import { AgentModule } from './modules/agent/agent.module';
+import { ProductCategoryModule } from './modules/product-category/product-category.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { StorefrontModule } from './modules/storefront/storefront.module';
-import { ChatModule } from './modules/chat/chat.module';
 import { WorkspaceModule } from './modules/workspace/workspace.module';
 import { SiteModule } from './modules/site/site.module';
 import { APP_GUARD } from '@nestjs/core';
@@ -25,10 +22,8 @@ import { RolesGuard } from './common/guards/roles.guard';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { SystemModule } from './modules/system/system.module';
 import { CustomerModule } from './modules/customer/customer.module';
-import { OpportunityModule } from './modules/opportunity/opportunity.module';
 import { PlanPermissionsGuard } from './common/guards/plan-permissions.guard';
 import { Tenant } from './modules/site/tenant.entity';
-import { OutreachModule } from './modules/outreach/outreach.module';
 import { CloudStorageModule } from './common/storage/cloud-storage.module';
 import { join } from 'path';
 
@@ -63,18 +58,13 @@ import { join } from 'path';
     ProductModule,
     SitemapModule,
     AuthModule,
-    LeadModule,
-    DictModule,
-    AgentModule,
+    ProductCategoryModule,
     DashboardModule,
     StorefrontModule,
-    ChatModule,
     WorkspaceModule,
     SiteModule,
     SystemModule,
     CustomerModule,
-    OpportunityModule,
-    OutreachModule,
     CloudStorageModule,
     TypeOrmModule.forFeature([Tenant]),
   ],
