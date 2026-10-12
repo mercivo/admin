@@ -10,6 +10,7 @@ import { SubscriptionOrder } from './subscription-order.entity';
 import { Site } from '../site/site.entity';
 import { SiteDomain } from '../site/site-domain.entity';
 import { Customer } from '../customer/customer.entity';
+import { Warehouse } from '../inventory/inventory.entity';
 
-@Module({ imports: [TypeOrmModule.forFeature([Tenant, Product, User, Plan, SubscriptionOrder, Site, SiteDomain, Customer])], controllers: [SystemController], providers: [SystemService], exports: [SystemService] })
+@Module({ imports: [TypeOrmModule.forFeature([Tenant, Product, User, Plan, SubscriptionOrder, Site, SiteDomain, Customer, Warehouse])], controllers: [SystemController], providers: [SystemService], exports: [SystemService] })
 export class SystemModule {}

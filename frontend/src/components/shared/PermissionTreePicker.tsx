@@ -64,7 +64,7 @@ export const PermissionTreePicker: React.FC<PermissionTreePickerProps> = ({ cata
       <div><span className="text-sm font-medium">{title}</span><span className="ml-2 text-xs text-muted-foreground">已选 {value.length} 项</span></div>
       <button type="button" onClick={() => onChange(allSelected ? [] : catalog.map(item => item.key))} className="text-xs text-primary">{allSelected ? '取消全选' : '全选'}</button>
     </div>
-    <div className="max-h-[440px] space-y-3 overflow-auto rounded-xl border border-border bg-secondary/20 p-4">
+    <div className="space-y-3 rounded-xl border border-border bg-secondary/20 p-4">
       {(childrenByParent.get(null) || []).map(primary => {
         const primaryState = stateOf(primary.key);
         const directLeaves = (childrenByParent.get(primary.key) || []).filter(item => item.level === 'page' || item.level === 'button');

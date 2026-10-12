@@ -31,7 +31,7 @@ export class Product {
   levelPrices: Record<string, number> | null;
 
   @Column({ type: 'json', nullable: true })
-  variants: Array<{ specification: string; option: string; stock: number; surcharge: number }> | null;
+  variants: Array<{ id: string; specification: string; option: string; stock: number; surcharge: number }> | null;
 
   @Column({ type: 'json', nullable: true })
   tags: string[] | null;

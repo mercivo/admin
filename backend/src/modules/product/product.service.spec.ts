@@ -6,6 +6,9 @@ describe('ProductService', () => {
   let products: Record<string, jest.Mock>;
   let tenants: Record<string, jest.Mock>;
   let categories: Record<string, jest.Mock>;
+  let warehouses: Record<string, jest.Mock>;
+  let balances: Record<string, jest.Mock>;
+  let ledger: Record<string, jest.Mock>;
   const dto = {
     nameZh: '测试商品', nameEn: 'Test Product', sku: 'P-001', description: '<p>安全<strong>描述</strong><script>alert(1)</script></p>',
     basePrice: 10, variants: [{ specification: '尺寸', option: 'L', stock: 8, surcharge: 2 }], tags: ['新品', ' 新品 ', '推荐'],
@@ -19,7 +22,10 @@ describe('ProductService', () => {
     };
     tenants = { findOne: jest.fn().mockResolvedValue({ id: 'tenant-1', maxProducts: 20 }) };
     categories = { exist: jest.fn().mockResolvedValue(true) };
-    service = new ProductService(products as never, tenants as never, categories as never);
+    warehouses = { findOne: jest.fn().mockResolvedValue(null) };
+    balances = { find: jest.fn().mockResolvedValue([]), create: jest.fn(value => value), save: jest.fn(value => Promise.resolve(value)), createQueryBuilder: jest.fn(() => ({ where: jest.fn().mockReturnThis(), getCount: jest.fn().mockResolvedValue(0) })) };
+    ledger = { exist: jest.fn().mockResolvedValue(false), createQueryBuilder: jest.fn(() => ({ where: jest.fn().mockReturnThis(), getCount: jest.fn().mockResolvedValue(0) })) };
+    service = new ProductService(products as never, tenants as never, categories as never, warehouses as never, balances as never, ledger as never);
   });
 
   it('lists products only from the active site', async () => {

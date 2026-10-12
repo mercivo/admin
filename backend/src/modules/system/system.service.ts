@@ -11,6 +11,8 @@ import { PERMISSION_CATALOG, TRIAL_PERMISSIONS, withPermissionParents } from './
 import { Site } from '../site/site.entity';
 import { SiteDomain } from '../site/site-domain.entity';
 import { Customer } from '../customer/customer.entity';
+import { randomUUID } from 'crypto';
+import { Warehouse } from '../inventory/inventory.entity';
 
 @Injectable()
 export class SystemService {
@@ -23,6 +25,7 @@ export class SystemService {
     @InjectRepository(Site) private readonly sites: Repository<Site>,
     @InjectRepository(SiteDomain) private readonly siteDomains: Repository<SiteDomain>,
     @InjectRepository(Customer) private readonly customers: Repository<Customer>,
+    @InjectRepository(Warehouse) private readonly warehouses: Repository<Warehouse>,
   ) {}
 
   async overview() {
@@ -78,14 +81,14 @@ export class SystemService {
     const [tenants, plans] = await Promise.all([this.tenants.find({ order: { createdAt: 'DESC' } }), this.plans.find()]);
     const planByCode = new Map(plans.map(plan => [plan.code, plan]));
     return Promise.all(tenants.map(async tenant => {
-      const [products, customers, users, sites] = await Promise.all([
+      const [products, customers, users, sites, warehouses] = await Promise.all([
         this.products.count({ where: { tenantId: tenant.id } }), this.customers.count({ where: { tenantId: tenant.id } }),
-        this.users.count({ where: { tenantId: tenant.id } }), this.sites.count({ where: { tenantId: tenant.id } }),
+        this.users.count({ where: { tenantId: tenant.id } }), this.sites.count({ where: { tenantId: tenant.id } }), this.warehouses.count({ where: { tenantId: tenant.id } }),
       ]);
       const plan = planByCode.get(tenant.plan);
-      const defaultQuota = plan ? { maxProducts: plan.maxProducts, maxMembers: plan.maxMembers, maxSites: plan.maxSites } : null;
-      const quotaMode = defaultQuota && tenant.maxProducts === defaultQuota.maxProducts && tenant.maxMembers === defaultQuota.maxMembers && tenant.maxSites === defaultQuota.maxSites ? 'plan' : 'custom';
-      return { ...tenant, defaultQuota, quotaMode, defaultPermissions: plan?.permissions || [], permissionMode: tenant.permissionsCustomized ? 'custom' : 'plan', usage: { products, customers, users, sites } };
+      const defaultQuota = plan ? { maxProducts: plan.maxProducts, maxMembers: plan.maxMembers, maxSites: plan.maxSites, maxWarehouses: plan.maxWarehouses } : null;
+      const quotaMode = defaultQuota && tenant.maxProducts === defaultQuota.maxProducts && tenant.maxMembers === defaultQuota.maxMembers && tenant.maxSites === defaultQuota.maxSites && tenant.maxWarehouses === defaultQuota.maxWarehouses ? 'plan' : 'custom';
+      return { ...tenant, defaultQuota, quotaMode, defaultPermissions: plan?.permissions || [], permissionMode: tenant.permissionsCustomized ? 'custom' : 'plan', usage: { products, customers, users, sites, warehouses } };
     }));
   }
 
@@ -95,7 +98,7 @@ export class SystemService {
     if (dto.plan && dto.plan !== tenant.plan) {
       const plan = await this.plans.findOne({ where: { code: dto.plan, enabled: true } });
       if (!plan) throw new NotFoundException('套餐不存在或已下架');
-      Object.assign(tenant, { plan: plan.code, maxProducts: plan.maxProducts, maxMembers: plan.maxMembers, maxSites: plan.maxSites, features: plan.features || {}, permissions: plan.permissions || [], permissionsCustomized: false });
+      Object.assign(tenant, { plan: plan.code, maxProducts: plan.maxProducts, maxMembers: plan.maxMembers, maxSites: plan.maxSites, maxWarehouses: plan.maxWarehouses, features: plan.features || {}, permissions: plan.permissions || [], permissionsCustomized: false });
     }
     const { expiresAt, ...changes } = dto;
     Object.assign(tenant, changes);
@@ -108,20 +111,24 @@ export class SystemService {
   async ensureDefaultPlans() {
     const trial = await this.plans.findOne({ where: { code: 'trial' } });
     if (trial) return;
-    await this.plans.save(this.plans.create({ code: 'trial', name: '试用版', price: 0, maxProducts: 20, maxMembers: 1, maxSites: 1, features: {}, permissions: TRIAL_PERMISSIONS, sortOrder: 0, currency: 'CNY', billingCycle: 'month', enabled: true, description: '可完整编辑并保存站点草稿，不支持发布' }));
+    await this.plans.save(this.plans.create({ code: 'trial', name: '试用版', price: 0, maxProducts: 20, maxMembers: 1, maxSites: 1, maxWarehouses: 1, features: {}, permissions: TRIAL_PERMISSIONS, sortOrder: 0, currency: 'CNY', billingCycle: 'month', enabled: true, description: '可完整编辑并保存站点草稿，不支持发布' }));
   }
   async listPlans(enabledOnly = true) { await this.ensureDefaultPlans(); return this.plans.find({ where: enabledOnly ? { enabled: true } : {}, order: { sortOrder: 'ASC', price: 'ASC' } }); }
-  async createPlan(dto: SavePlanDto) { return this.plans.save(this.plans.create({ ...dto, permissions: withPermissionParents(dto.permissions || []) })); }
+  async createPlan(dto: SavePlanDto) {
+    let code = `plan-${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+    while (await this.plans.exist({ where: { code } })) code = `plan-${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+    return this.plans.save(this.plans.create({ ...dto, code, maxWarehouses: dto.maxWarehouses || 1, permissions: withPermissionParents(dto.permissions || []) }));
+  }
   async updatePlan(id: string, dto: SavePlanDto) {
     const plan = await this.plans.findOne({ where: { id } });
     if (!plan) throw new NotFoundException('套餐不存在');
-    const previousQuota = { maxProducts: plan.maxProducts, maxMembers: plan.maxMembers, maxSites: plan.maxSites };
+    const previousQuota = { maxProducts: plan.maxProducts, maxMembers: plan.maxMembers, maxSites: plan.maxSites, maxWarehouses: plan.maxWarehouses };
     Object.assign(plan, dto, { permissions: withPermissionParents(dto.permissions || []) });
     const saved = await this.plans.save(plan);
     const planTenants = await this.tenants.find({ where: { plan: saved.code } });
-    const inherited = new Set(planTenants.filter(t => t.maxProducts === previousQuota.maxProducts && t.maxMembers === previousQuota.maxMembers && t.maxSites === previousQuota.maxSites).map(t => t.id));
+    const inherited = new Set(planTenants.filter(t => t.maxProducts === previousQuota.maxProducts && t.maxMembers === previousQuota.maxMembers && t.maxSites === previousQuota.maxSites && t.maxWarehouses === previousQuota.maxWarehouses).map(t => t.id));
     const changed = planTenants.filter(t => inherited.has(t.id) || !t.permissionsCustomized);
-    if (changed.length) await this.tenants.save(changed.map(t => this.tenants.merge(t, { ...(inherited.has(t.id) ? { maxProducts: saved.maxProducts, maxMembers: saved.maxMembers, maxSites: saved.maxSites, features: saved.features || {} } : {}), ...(!t.permissionsCustomized ? { permissions: saved.permissions || [] } : {}) })));
+    if (changed.length) await this.tenants.save(changed.map(t => this.tenants.merge(t, { ...(inherited.has(t.id) ? { maxProducts: saved.maxProducts, maxMembers: saved.maxMembers, maxSites: saved.maxSites, maxWarehouses: saved.maxWarehouses, features: saved.features || {} } : {}), ...(!t.permissionsCustomized ? { permissions: saved.permissions || [] } : {}) })));
     return saved;
   }
   async deletePlan(id: string) { const plan = await this.plans.findOne({ where: { id } }); if (!plan) throw new NotFoundException('套餐不存在'); plan.enabled = false; return this.plans.save(plan); }
@@ -132,7 +139,7 @@ export class SystemService {
     if (!plan) throw new NotFoundException('套餐不存在或已下架');
     const effectiveAt = new Date(); const expiresAt = new Date(effectiveAt);
     if (plan.billingCycle === 'year') expiresAt.setFullYear(expiresAt.getFullYear() + 1); else expiresAt.setMonth(expiresAt.getMonth() + 1);
-    Object.assign(tenant, { plan: plan.code, maxProducts: plan.maxProducts, maxMembers: plan.maxMembers, maxSites: plan.maxSites, features: plan.features || {}, permissions: plan.permissions || [], permissionsCustomized: false, expiresAt, status: 'active' });
+    Object.assign(tenant, { plan: plan.code, maxProducts: plan.maxProducts, maxMembers: plan.maxMembers, maxSites: plan.maxSites, maxWarehouses: plan.maxWarehouses, features: plan.features || {}, permissions: plan.permissions || [], permissionsCustomized: false, expiresAt, status: 'active' });
     const order = this.orders.create({ orderNo: `SUB${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`, tenantId, planId: plan.id, planCode: plan.code, planName: plan.name, amount: Number(plan.price), currency: plan.currency, status: 'confirmed', paymentStatus: 'not_required', effectiveAt, expiresAt });
     await this.tenants.save(tenant); await this.orders.save(order); return order;
   }

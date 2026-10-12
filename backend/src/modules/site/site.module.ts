@@ -12,6 +12,7 @@ import { SiteService } from './site.service';
 import { ProductCategory } from '../product-category/product-category.entity';
 import { Customer } from '../customer/customer.entity';
 import { AuthModule } from '../auth/auth.module';
+import { Warehouse } from '../inventory/inventory.entity';
 
-@Module({ imports: [AuthModule, TypeOrmModule.forFeature([Tenant, Site, SiteDomain, SiteVersion, Product, Testimonial, AppConfig, ProductCategory, Customer])], controllers: [SiteAdminController, SitePublicController], providers: [SiteService], exports: [SiteService] })
+@Module({ imports: [AuthModule, TypeOrmModule.forFeature([Tenant, Site, SiteDomain, SiteVersion, Product, Testimonial, AppConfig, ProductCategory, Customer, Warehouse])], controllers: [SiteAdminController, SitePublicController], providers: [SiteService], exports: [SiteService] })
 export class SiteModule {}

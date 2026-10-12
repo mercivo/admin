@@ -26,6 +26,7 @@ import { PlanPermissionsGuard } from './common/guards/plan-permissions.guard';
 import { Tenant } from './modules/site/tenant.entity';
 import { CloudStorageModule } from './common/storage/cloud-storage.module';
 import { join } from 'path';
+import { InventoryModule } from './modules/inventory/inventory.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { join } from 'path';
     SiteModule,
     SystemModule,
     CustomerModule,
+    InventoryModule,
     CloudStorageModule,
     TypeOrmModule.forFeature([Tenant]),
   ],

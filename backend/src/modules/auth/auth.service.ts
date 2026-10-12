@@ -11,6 +11,7 @@ import { hashPassword, verifyPassword } from './password.util';
 import { TRIAL_PERMISSIONS } from '../system/permission-catalog';
 import { Plan } from '../system/plan.entity';
 import { CaptchaStore } from './captcha-store';
+import { Warehouse } from '../inventory/inventory.entity';
 
 @Injectable()
 export class AuthService {
@@ -41,10 +42,11 @@ export class AuthService {
     const passwordHash = await hashPassword(dto.password);
     const suffix = dto.phone.replace(/\D/g, '').slice(-8);
     const trialPlan = await this.plans.findOne({ where: { code: 'trial', enabled: true } });
-    const trial = trialPlan || { code: 'trial', maxProducts: 20, maxMembers: 1, maxSites: 1, features: {}, permissions: TRIAL_PERMISSIONS };
+    const trial = trialPlan || { code: 'trial', maxProducts: 20, maxMembers: 1, maxSites: 1, maxWarehouses: 1, features: {}, permissions: TRIAL_PERMISSIONS };
     const result = await this.dataSource.transaction(async (manager) => {
-      const tenant = await manager.save(Tenant, manager.create(Tenant, { slug: `tenant-${suffix}-${Date.now().toString(36)}`, name: dto.tenantName.trim(), status: 'active', plan: trial.code, maxProducts: trial.maxProducts, maxMembers: trial.maxMembers, maxSites: trial.maxSites, features: trial.features || {}, permissions: trial.permissions || [], permissionsCustomized: false, expiresAt: new Date(Date.now() + 14 * 86400000) }));
+      const tenant = await manager.save(Tenant, manager.create(Tenant, { slug: `tenant-${suffix}-${Date.now().toString(36)}`, name: dto.tenantName.trim(), status: 'active', plan: trial.code, maxProducts: trial.maxProducts, maxMembers: trial.maxMembers, maxSites: trial.maxSites, maxWarehouses: trial.maxWarehouses, features: trial.features || {}, permissions: trial.permissions || [], permissionsCustomized: false, expiresAt: new Date(Date.now() + 14 * 86400000) }));
       const site = await manager.save(Site, manager.create(Site, { tenantId: tenant.id, slug: `site-${suffix}-${Date.now().toString(36)}`, name: `${dto.tenantName} 独立站`, status: 'draft', defaultLanguage: 'zh', defaultCurrency: 'CNY', publishedVersionId: null }));
+      await manager.save(Warehouse, manager.create(Warehouse, { tenantId: tenant.id, siteId: site.id, code: 'DEFAULT', name: '默认仓库', contact: '', phone: '', address: '', status: 'active', isDefault: true }));
       const user = await manager.save(User, manager.create(User, { tenantId: tenant.id, siteId: site.id, phone: dto.phone, username: null, passwordHash, role: 'admin', status: 'active', lastLoginAt: null }));
       return { tenant, site, user };
     });

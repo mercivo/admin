@@ -36,6 +36,22 @@ export const PERMISSION_CATALOG: PermissionCatalogItem[] = [
   button('客户管理', 'customer.delete', '删除客户', 'menu.customers'),
   button('客户管理', 'customer.level.manage', '管理客户等级', 'menu.customers'),
 
+  primary('group.inventory', '库存管理'),
+  secondary('库存管理', 'menu.inventory.stocks', '库存查询', 'group.inventory'),
+  page('库存查询', 'page.inventory.stocks', '库存查询页面', 'menu.inventory.stocks'),
+  button('库存查询', 'inventory.ledger.view', '查看库存流水', 'menu.inventory.stocks'),
+  secondary('库存管理', 'menu.inventory.counts', '库存盘点', 'group.inventory'),
+  page('库存盘点', 'page.inventory.counts', '库存盘点页面', 'menu.inventory.counts'),
+  button('库存盘点', 'inventory.count.create', '创建和录入盘点', 'menu.inventory.counts'),
+  button('库存盘点', 'inventory.count.complete', '开始、完成和取消盘点', 'menu.inventory.counts'),
+  secondary('库存管理', 'menu.inventory.transfers', '库存调拨', 'group.inventory'),
+  page('库存调拨', 'page.inventory.transfers', '库存调拨页面', 'menu.inventory.transfers'),
+  button('库存调拨', 'inventory.transfer.create', '创建并发出调拨', 'menu.inventory.transfers'),
+  button('库存调拨', 'inventory.transfer.receive', '调拨收货', 'menu.inventory.transfers'),
+  secondary('库存管理', 'menu.inventory.warehouses', '仓库管理', 'group.inventory'),
+  page('仓库管理', 'page.inventory.warehouses', '仓库管理页面', 'menu.inventory.warehouses'),
+  button('仓库管理', 'inventory.warehouse.manage', '管理仓库', 'menu.inventory.warehouses'),
+
   primary('group.site', '独立站'),
   secondary('独立站', 'menu.site', '站点设计', 'group.site'),
   page('站点设计', 'page.site.editor', '站点设计页面', 'menu.site'),
@@ -71,5 +87,10 @@ export function withPermissionParents(permissions: string[]) {
   return ALL_PERMISSIONS.filter(key => selected.has(key) && known.has(key));
 }
 
-const TRIAL_UNAVAILABLE_PERMISSIONS = new Set(['site.publish', 'site.domain']);
+const TRIAL_UNAVAILABLE_PERMISSIONS = new Set([
+  'site.publish', 'site.domain',
+  'inventory.count.create', 'inventory.count.complete',
+  'inventory.transfer.create', 'inventory.transfer.receive',
+  'inventory.warehouse.manage',
+]);
 export const TRIAL_PERMISSIONS = ALL_PERMISSIONS.filter(key => !TRIAL_UNAVAILABLE_PERMISSIONS.has(key));

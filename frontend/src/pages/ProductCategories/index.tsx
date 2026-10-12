@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Input, Select, Switch as AntSwitch } from 'antd';
 import { Search, Plus, ChevronRight, Edit, Trash2, Tags, AlertCircle } from 'lucide-react';
-import { AppModal, TableActions, Toast } from '../../components/shared';
+import { AppModal, ModalForm, ModalFormField, ModalFormGrid, TableActionButton, TableActions, Toast } from '../../components/shared';
 import { productCategoryApi } from '../../services/api/index';
 
 type ProductCategoryChild = { code: string; label: string; sort: number; status: string; remark: string };
@@ -20,14 +20,11 @@ const CategoryFormModal: React.FC<{
 
   return (
     <AppModal open centered title={title} okText="确认" cancelText="取消" onCancel={onClose} onOk={() => { if (form.label.trim()) onSave({ ...form, label: form.label.trim() }); }} width={520}>
-        <div className="space-y-4 pt-3">
-          <div><label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-muted-foreground">名称</label><Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="分类名称" variant="filled" size="middle" /></div>
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">排序</label><Input value={form.sort} onChange={e => setForm({ ...form, sort: e.target.value })} placeholder="数字" variant="filled" size="middle" /></div>
-            <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">状态</label><Select value={form.status} onChange={v => setForm({ ...form, status: v })} style={{ width: '100%' }} size="middle" variant="filled" options={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '禁用' }]} /></div>
-          </div>
-          <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">备注</label><Input value={form.remark} onChange={e => setForm({ ...form, remark: e.target.value })} placeholder="可选备注" variant="filled" size="middle" /></div>
-        </div>
+        <ModalForm>
+          <ModalFormField label="名称" required><Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="分类名称" variant="filled" size="middle" /></ModalFormField>
+          <ModalFormGrid><ModalFormField label="排序"><Input value={form.sort} onChange={e => setForm({ ...form, sort: e.target.value })} placeholder="数字越小越靠前" variant="filled" size="middle" /></ModalFormField><ModalFormField label="状态"><Select value={form.status} onChange={v => setForm({ ...form, status: v })} className="w-full" size="middle" variant="filled" options={[{ value: 'enabled', label: '启用' }, { value: 'disabled', label: '禁用' }]} /></ModalFormField></ModalFormGrid>
+          <ModalFormField label="备注"><Input value={form.remark} onChange={e => setForm({ ...form, remark: e.target.value })} placeholder="可选备注" variant="filled" size="middle" /></ModalFormField>
+        </ModalForm>
     </AppModal>
   );
 };
@@ -156,15 +153,13 @@ const ProductCategoriesPage: React.FC = () => {
             </div>
           </td>
           <td className="px-6 py-3.5"><span className="text-sm text-muted-foreground">{entry.remark || '-'}</span></td>
-          <td className={`app-table-action-column-manual px-6 py-3.5 ${level === 1 ? 'bg-secondary/10' : 'bg-white'} group-hover:bg-[#faf9ff]`}>
+          <td className={`app-table-action-column-manual px-3 py-3.5 ${level === 1 ? 'bg-secondary/10' : 'bg-white'} group-hover:bg-[#faf9ff]`}>
             <TableActions>
               {level === 0 && (
-                <button onClick={() => setShowAddLevel2({ parentCode: entry.code, parentLabel: entry.label })} className="flex items-center gap-1 px-2 py-1.5 hover:bg-primary/10 rounded-lg text-xs text-primary font-medium transition-colors whitespace-nowrap">
-                  <Plus className="w-3.5 h-3.5" />子项
-                </button>
+                <TableActionButton onClick={() => setShowAddLevel2({ parentCode: entry.code, parentLabel: entry.label })} title="新增子项" tone="primary"><Plus size={15} /></TableActionButton>
               )}
-              <button onClick={() => setEditingEntry({ level, code: entry.code, data: { label: entry.label, sort: String(entry.sort), remark: entry.remark, status: entry.status } })} className="p-2 hover:bg-primary/10 rounded-lg text-muted-foreground hover:text-primary transition-colors"><Edit className="w-4 h-4" /></button>
-              <button onClick={() => handleDelete(entry.code, entry.label, level)} className="p-2 hover:bg-red-50 rounded-lg text-muted-foreground hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+              <TableActionButton onClick={() => setEditingEntry({ level, code: entry.code, data: { label: entry.label, sort: String(entry.sort), remark: entry.remark, status: entry.status } })} title="编辑" tone="primary"><Edit size={15} /></TableActionButton>
+              <TableActionButton onClick={() => handleDelete(entry.code, entry.label, level)} title="删除" tone="danger"><Trash2 size={15} /></TableActionButton>
             </TableActions>
           </td>
         </tr>
@@ -193,7 +188,7 @@ const ProductCategoriesPage: React.FC = () => {
         ) : (
           <div className="flex-1 overflow-auto">
             <table className="w-full">
-              <thead><tr className="sticky top-0 z-10 border-b border-border bg-secondary/40"><th className="w-28 px-6 py-3.5 text-left text-sm font-semibold text-muted-foreground">排序</th><th className="px-6 py-3.5 text-left text-sm font-semibold text-muted-foreground">名称</th><th className="w-36 px-6 py-3.5 text-left text-sm font-semibold text-muted-foreground">状态</th><th className="px-6 py-3.5 text-left text-sm font-semibold text-muted-foreground">备注</th><th className="app-table-action-column-manual top-0 z-20 w-44 bg-[#f8f7ff] px-6 py-3.5 text-sm font-semibold text-muted-foreground">操作</th></tr></thead>
+              <thead><tr className="sticky top-0 z-10 border-b border-border bg-secondary/40"><th className="w-28 px-6 py-3.5 text-left text-sm font-semibold text-muted-foreground">排序</th><th className="px-6 py-3.5 text-left text-sm font-semibold text-muted-foreground">名称</th><th className="w-36 px-6 py-3.5 text-left text-sm font-semibold text-muted-foreground">状态</th><th className="px-6 py-3.5 text-left text-sm font-semibold text-muted-foreground">备注</th><th className="app-table-action-column-manual top-0 z-20 w-32 bg-[#f8f7ff] px-3 py-3.5 text-sm font-semibold text-muted-foreground">操作</th></tr></thead>
               <tbody>{filteredCategories.map(entry => <EntryRow key={entry.code} entry={entry} level={0} />)}</tbody>
             </table>
           </div>

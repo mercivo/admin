@@ -2,6 +2,7 @@ import React from 'react';
 import { ConfigProvider, Switch } from 'antd';
 import type { ThemeConfig } from 'antd';
 import { AppModal } from '../../components/shared/AppModal';
+import { ModalForm } from '../../components/shared/ModalForm';
 import './controls.css';
 
 const createEditorTheme = (primaryColor: string): ThemeConfig => ({
@@ -34,4 +35,4 @@ export const SiteEditorDesignProvider = ({ children, primaryColor = '#7C6EF5' }:
 
 export const EditorSwitch = ({ value, onChange }: { value: boolean; onChange: (value: boolean) => void }) => <Switch size="small" checked={value} onChange={onChange} />;
 
-export const EditorModal = ({ title, children, footer, onClose, width = 520 }: { title: string; children: React.ReactNode; footer: React.ReactNode; onClose: () => void; width?: number }) => <AppModal open title={title} onCancel={onClose} footer={footer} width={width}>{children}</AppModal>;
+export const EditorModal = ({ title, children, footer, onClose, width = 520 }: { title: string; children: React.ReactNode; footer: React.ReactNode; onClose: () => void; width?: number }) => <AppModal open title={title} onCancel={onClose} footer={footer} width={width}><ModalForm>{children}</ModalForm></AppModal>;

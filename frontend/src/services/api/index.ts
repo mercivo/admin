@@ -14,9 +14,9 @@ export interface TeamMember { id: string; name: string; email: string | null; ph
 export interface WorkspaceSettings {
   account: { enterpriseName: string; phone: string; email: string; timezone: 'Asia/Shanghai'; role: string; joinedAt: string };
   site: { id: string; slug: string; name: string; description: string; defaultLanguage: string; defaultCurrency: string; domain: string; domainStatus: string; status: string };
-  billing: { plan: string; status: string; expiresAt: string | null; limits: { products: number; members: number }; sitePublishing: boolean; features: Record<string, boolean>; permissions: string[] };
+  billing: { plan: string; status: string; expiresAt: string | null; limits: { products: number; members: number; sites: number; warehouses: number }; usage: { products: number; members: number; sites: number; warehouses: number }; sitePublishing: boolean; features: Record<string, boolean>; permissions: string[] };
 }
-export interface PlanItem { id: string; code: string; name: string; price: number; currency: string; billingCycle: 'month' | 'year'; description?: string; maxProducts: number; maxMembers: number; maxSites: number; features: Record<string, boolean>; permissions: string[]; enabled: boolean; sortOrder: number; }
+export interface PlanItem { id: string; code: string; name: string; price: number; currency: string; billingCycle: 'month' | 'year'; description?: string; maxProducts: number; maxMembers: number; maxSites: number; maxWarehouses: number; features: Record<string, boolean>; permissions: string[]; enabled: boolean; sortOrder: number; }
 export interface SubscriptionOrder { id: string; orderNo: string; planName: string; amount: number; currency: string; status: string; paymentStatus: string; effectiveAt: string; expiresAt: string | null; createdAt: string; }
 export interface PermissionItem { group: string; key: string; label: string; type: 'menu' | 'page' | 'button'; level: 'primary' | 'secondary' | 'page' | 'button'; parentKey: string | null; }
 export interface ManagedSite { id: string; tenantId: string; slug: string; name: string; status: 'draft' | 'published'; defaultLanguage: string; defaultCurrency: string; supportedLanguages?: string[]; publishedVersionId?: string; }
@@ -26,6 +26,15 @@ export interface Customer { id: string; name: string; company: string; phone: st
 export type CustomerInput = Pick<Customer, 'name' | 'email' | 'phone' | 'country' | 'level' | 'status' | 'notes'>;
 export interface CustomerLevel { id: string; code: string; name: string; note: string; discountRate: number | null; }
 export interface GuestPricingPolicy { mode: 'base' | 'hidden'; }
+export interface Warehouse { id: string; name: string; contact: string; phone: string; address: string; status: 'active' | 'disabled'; isDefault: boolean; isLocked: boolean; activeCountId: string | null; activeCountDocumentNo: string | null; createdAt: string; }
+export interface InventoryStock { id: string; warehouseId: string; warehouseName: string; productId: string; productName: string; productSku: string; variantKey: string; variantLabel: string; onHand: number; reserved: number; available: number; inTransit: number; warningStock: number; status: 'normal' | 'warning' | 'out'; updatedAt: string; }
+export interface InventoryLedgerEntry { id: string; warehouseId: string; warehouseName: string; productId: string; productName: string; productSku: string; variantKey: string; variantLabel: string; type: 'opening' | 'count_adjust' | 'transfer_out' | 'transfer_in'; quantityChange: number; balanceAfter: number; referenceType: string; referenceId: string; referenceNo: string; actorUserId: string; remark: string; createdAt: string; }
+export type WarehouseInput = Pick<Warehouse, 'name' | 'contact' | 'phone' | 'address' | 'status'>;
+export interface StockCountLine { id: string; productId: string; variantKey: string; systemQuantity: number; countedQuantity: number | null; difference: number; }
+export interface StockCount { id: string; documentNo: string; warehouseId: string; warehouseName: string; status: 'draft' | 'counting' | 'completed' | 'cancelled'; remark: string; lines: StockCountLine[]; createdAt: string; startedAt?: string; completedAt?: string; }
+export interface StockTransferLine { id: string; productId: string; variantKey: string; quantity: number; }
+export interface StockTransfer { id: string; documentNo: string; sourceWarehouseId: string; sourceWarehouseName: string; destinationWarehouseId: string; destinationWarehouseName: string; status: 'shipped' | 'received' | 'cancelled'; remark: string; lines: StockTransferLine[]; createdAt: string; shippedAt?: string; receivedAt?: string; }
+export interface Paged<T> { items: T[]; total: number; page: number; pageSize: number; }
 
 // ---- Dashboard API ----
 export const dashboardApi = {
@@ -97,4 +106,25 @@ export const customerApi = {
   removeLevel: (id: string) => api.delete(`/customers/levels/${id}`),
   pricingPolicy: () => api.get<any, GuestPricingPolicy>('/customers/pricing-policy'),
   updatePricingPolicy: (mode: GuestPricingPolicy['mode']) => api.put<any, GuestPricingPolicy>('/customers/pricing-policy', { mode }),
+};
+
+export const inventoryApi = {
+  stocks: (params?: Record<string, string | number | undefined>) => api.get<any, Paged<InventoryStock> & { summary: { onHand: number; available: number; inTransit: number; warningItems: number } }>('/inventory/stocks', { params }),
+  ledger: (params?: Record<string, string | number | undefined>) => api.get<any, Paged<InventoryLedgerEntry> & { summary: { inbound: number; outbound: number } }>('/inventory/ledger', { params }),
+  warehouses: () => api.get<any, Warehouse[]>('/inventory/warehouses'),
+  createWarehouse: (data: WarehouseInput) => api.post<any, Warehouse>('/inventory/warehouses', data),
+  updateWarehouse: (id: string, data: WarehouseInput) => api.put<any, Warehouse>(`/inventory/warehouses/${id}`, data),
+  setDefaultWarehouse: (id: string) => api.patch<any, Warehouse>(`/inventory/warehouses/${id}/default`),
+  removeWarehouse: (id: string) => api.delete(`/inventory/warehouses/${id}`),
+  counts: () => api.get<any, StockCount[]>('/inventory/counts'),
+  createCount: (data: { warehouseId: string; remark?: string }) => api.post<any, StockCount>('/inventory/counts', data),
+  updateCount: (id: string, data: { remark?: string; lines: Array<{ productId: string; variantKey: string; countedQuantity?: number }> }) => api.put<any, StockCount>(`/inventory/counts/${id}`, data),
+  startCount: (id: string) => api.post<any, StockCount>(`/inventory/counts/${id}/start`),
+  completeCount: (id: string) => api.post<any, StockCount>(`/inventory/counts/${id}/complete`),
+  cancelCount: (id: string) => api.post<any, StockCount>(`/inventory/counts/${id}/cancel`),
+  removeCount: (id: string) => api.delete(`/inventory/counts/${id}`),
+  transfers: () => api.get<any, StockTransfer[]>('/inventory/transfers'),
+  createTransfer: (data: { sourceWarehouseId: string; destinationWarehouseId: string; remark?: string; lines: Array<{ productId: string; variantKey: string; quantity: number }> }) => api.post<any, StockTransfer>('/inventory/transfers', data),
+  receiveTransfer: (id: string) => api.post<any, StockTransfer>(`/inventory/transfers/${id}/receive`),
+  removeTransfer: (id: string) => api.delete(`/inventory/transfers/${id}`),
 };

@@ -35,6 +35,16 @@ const RULES: Array<{ method?: string; pattern: RegExp; permission: string }> = [
   { method: 'PUT', pattern: /^\/api\/v1\/admin\/sites\/[^/]+$/, permission: 'site.edit' },
   { method: 'GET', pattern: /^\/api\/v1\/product-categories/, permission: 'page.product-categories' },
   { pattern: /^\/api\/v1\/product-categories/, permission: 'product-category.manage' },
+  { method: 'GET', pattern: /^\/api\/v1\/inventory\/stocks/, permission: 'group.inventory' },
+  { method: 'GET', pattern: /^\/api\/v1\/inventory\/ledger/, permission: 'inventory.ledger.view' },
+  { method: 'GET', pattern: /^\/api\/v1\/inventory\/warehouses/, permission: 'group.inventory' },
+  { pattern: /^\/api\/v1\/inventory\/warehouses/, permission: 'inventory.warehouse.manage' },
+  { method: 'GET', pattern: /^\/api\/v1\/inventory\/counts/, permission: 'page.inventory.counts' },
+  { method: 'POST', pattern: /^\/api\/v1\/inventory\/counts\/[^/]+\/(start|complete|cancel)$/, permission: 'inventory.count.complete' },
+  { pattern: /^\/api\/v1\/inventory\/counts/, permission: 'inventory.count.create' },
+  { method: 'GET', pattern: /^\/api\/v1\/inventory\/transfers/, permission: 'page.inventory.transfers' },
+  { method: 'POST', pattern: /^\/api\/v1\/inventory\/transfers\/[^/]+\/receive$/, permission: 'inventory.transfer.receive' },
+  { pattern: /^\/api\/v1\/inventory\/transfers/, permission: 'inventory.transfer.create' },
 ];
 
 @Injectable()

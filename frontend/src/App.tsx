@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet, Navigate, useLocation, useParams } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 import antdZhCN from 'antd/locale/zh_CN';
 import AdminLayout from './components/layout/AdminLayout';
@@ -13,6 +13,7 @@ const SiteEditorPage = lazy(() => import('./pages/SiteEditor'));
 const CustomerLevelsPage = lazy(() => import('./pages/CustomerLevels'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
 const ProductCategoriesPage = lazy(() => import('./pages/ProductCategories'));
+const InventoryPage = lazy(() => import('./pages/Inventory'));
 const LoginPage = lazy(() => import('./pages/Login'));
 const SystemAdminPage = lazy(() => import('./pages/SystemAdmin'));
 
@@ -42,6 +43,12 @@ const SettingsRoute = () => {
   if (tab === 'site' || tab === 'seo') return <Navigate to="/site-editor" replace />;
   const permission = tab === 'team' ? 'page.settings.team' : 'page.settings.account';
   return <RequirePermission permission={permission}><SettingsPage /></RequirePermission>;
+};
+const InventoryRoute = () => {
+  const { module } = useParams<{ module: string }>();
+  const permissions: Record<string, string> = { stocks: 'page.inventory.stocks', counts: 'page.inventory.counts', transfers: 'page.inventory.transfers', warehouses: 'page.inventory.warehouses' };
+  const permission = permissions[module || ''];
+  return permission ? <RequirePermission permission={permission}><InventoryPage /></RequirePermission> : <Navigate to="/inventory/stocks" replace/>;
 };
 
 const App: React.FC = () => {
@@ -87,6 +94,7 @@ const App: React.FC = () => {
             <Route path="customer" element={<RequirePermission permission="page.customers"><CustomerLevelsPage /></RequirePermission>} />
             <Route path="settings" element={<SettingsRoute />} />
             <Route path="product-categories" element={<RequirePermission permission="page.product-categories"><ProductCategoriesPage /></RequirePermission>} />
+            <Route path="inventory/:module" element={<InventoryRoute />} />
           </Route>
           {/* Frontend pages without sidebar */}
           <Route path="site-editor" element={<RequirePermission permission="page.site.editor"><SiteEditorPage /></RequirePermission>} />

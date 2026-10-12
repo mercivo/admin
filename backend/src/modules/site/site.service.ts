@@ -16,6 +16,7 @@ import { ProductCategory } from '../product-category/product-category.entity';
 import { Customer } from '../customer/customer.entity';
 import { JwtService } from '@nestjs/jwt';
 import { UnauthorizedException } from '@nestjs/common';
+import { Warehouse } from '../inventory/inventory.entity';
 
 @Injectable()
 export class SiteService {
@@ -29,6 +30,7 @@ export class SiteService {
     @InjectRepository(AppConfig) private readonly configRepo: Repository<AppConfig>,
     @InjectRepository(ProductCategory) private readonly productCategoryRepo: Repository<ProductCategory>,
     @InjectRepository(Customer) private readonly customerRepo: Repository<Customer>,
+    @InjectRepository(Warehouse) private readonly warehouseRepo: Repository<Warehouse>,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
   ) {}
@@ -39,7 +41,9 @@ export class SiteService {
     const tenant = await this.tenantRepo.findOne({ where: { id: dto.tenantId } });
     if (!tenant) throw new ForbiddenException('商户不存在或已停用');
     if (await this.siteRepo.count({ where: { tenantId: dto.tenantId } }) >= 1) throw new BadRequestException('每个商户仅支持一个独立站');
-    return this.siteRepo.save(this.siteRepo.create(dto));
+    const site = await this.siteRepo.save(this.siteRepo.create(dto));
+    await this.warehouseRepo.save(this.warehouseRepo.create({ tenantId: dto.tenantId, siteId: site.id, code: 'DEFAULT', name: '默认仓库', contact: '', phone: '', address: '', status: 'active', isDefault: true }));
+    return site;
   }
   async updateSite(id: string, dto: UpdateSiteDto, tenantId: string) {
     const site = await this.getSite(id, tenantId);

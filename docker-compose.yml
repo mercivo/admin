@@ -93,9 +93,9 @@ services:
       DB_USERNAME: root
       REDIS_HOST: mercivo-redis
       REDIS_PORT: 6379
-      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/gcs-key.json
+      GOOGLE_APPLICATION_CREDENTIALS: /run/gcloud/application_default_credentials.json
     volumes:
-      - ./secrets:/run/secrets:ro
+      - ${GCLOUD_CONFIG_DIR}:/run/gcloud:ro
     depends_on:
       migrate:
         condition: service_completed_successfully

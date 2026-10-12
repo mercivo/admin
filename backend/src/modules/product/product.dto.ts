@@ -31,15 +31,16 @@ export class CreateProductDto {
 
   @IsOptional()
   @IsArray()
-  variants?: Array<{ specification: string; option: string; stock: number; surcharge: number }>;
+  variants?: Array<{ id?: string; specification: string; option: string; stock: number; surcharge: number }>;
 
   @IsOptional()
   @IsArray()
   tags?: string[];
 
+  @IsOptional()
   @IsInt()
   @Min(0)
-  stock: number;
+  stock?: number;
 
   @IsInt()
   @Min(0)
@@ -140,7 +141,7 @@ export class UpdateProductDto {
 
   @IsOptional()
   @IsArray()
-  variants?: Array<{ specification: string; option: string; stock: number; surcharge: number }>;
+  variants?: Array<{ id?: string; specification: string; option: string; stock: number; surcharge: number }>;
 
   @IsOptional()
   @IsArray()

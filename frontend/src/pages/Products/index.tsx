@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Button, Empty, Input, Select, Table, Tree } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Button, Empty, Input, Pagination, Select, Table, Tree } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   Plus,
@@ -7,25 +7,18 @@ import {
   Edit,
   Eye,
   Trash2,
-  MoreHorizontal,
   List,
   BarChart2,
-  ChevronLeft,
-  ChevronRight,
   ShoppingCart,
   Tag,
   Package,
   Globe,
   AlertTriangle,
-  Copy,
   Download,
-  TrendingUp,
-  Share2,
-  Archive,
   Ban,
 } from 'lucide-react';
-import { AppModal, createActionColumn, ProductImage, StatusBadge, TableActions, Toast } from '../../components/shared';
-import { productApi, productCategoryApi } from '../../services/api/index';
+import { AppModal, createActionColumn, ProductImage, QuotaUsage, StatusBadge, TableActionButton, TableActions, Toast } from '../../components/shared';
+import { productApi, productCategoryApi, workspaceApi } from '../../services/api/index';
 import { useNavigate } from 'react-router-dom';
 import type { Product, ProductCategory } from '../../types';
 import { can } from '../../utils/permissions';
@@ -38,60 +31,30 @@ const downloadCsv = (filename: string, rows: Array<Array<string | number>>) => {
 
 // ─────────────── Product Preview Modal ───────────────
 
-const ProductPreviewModal: React.FC<{ product: Product; onClose: () => void; onEdit: () => void }> = ({ product, onClose, onEdit }) => (
-  <AppModal open title={<div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary"><Eye className="h-4 w-4" /></div><div><div>{product.nameZh}</div><p className="text-xs font-normal text-muted-foreground">{product.nameEn}</p></div></div>} onCancel={onClose} width={680} styles={{ body: { maxHeight: '68vh', overflowY: 'auto', padding: 0 } }} footer={<><Button onClick={onClose}>关闭</Button><Button onClick={onEdit} type="primary" icon={<Edit className="h-4 w-4" />}>编辑商品</Button></>}>
-      <div>
-        {/* Hero Image */}
-        <div className="relative">
-          <ProductImage image={product.img} width={800} height={350} alt={product.nameZh || product.nameEn} className="h-56 w-full object-cover" />
-          <div className="absolute top-3 right-3 flex gap-2">
-            {product.hot && <span className="px-2.5 py-1 bg-red-500 text-white text-xs rounded-full font-bold shadow">热销</span>}
-            <StatusBadge status={product.status} />
-          </div>
+const ProductPreviewModal: React.FC<{ product: Product; categoryName: string; onClose: () => void; onEdit: () => void }> = ({ product, categoryName, onClose, onEdit }) => (
+  <AppModal open title={<div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary"><Eye className="h-4 w-4" /></div><div><div>{product.nameZh}</div><p className="text-xs font-normal text-muted-foreground">{product.nameEn}</p></div></div>} onCancel={onClose} width={780} footer={<><Button onClick={onClose}>关闭</Button><Button onClick={onEdit} type="primary" icon={<Edit className="h-4 w-4" />}>编辑商品</Button></>}>
+    <div className="space-y-5">
+      <div className="grid gap-5 md:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="relative overflow-hidden rounded-2xl border border-border bg-secondary">
+          <ProductImage image={product.img} width={560} height={560} alt={product.nameZh || product.nameEn} className="aspect-square h-full min-h-64 w-full object-cover" />
+          <div className="absolute right-3 top-3 flex gap-2">{product.hot && <span className="rounded-full bg-red-500 px-2.5 py-1 text-xs font-bold text-white shadow">热销</span>}<StatusBadge status={product.status}/></div>
         </div>
-
-        <div className="p-6 space-y-5">
-          {/* Key Info Grid */}
-          <div className="grid grid-cols-4 gap-3">
+        <div className="flex min-w-0 flex-col">
+          <div className="mb-4"><span className="rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">{categoryName}</span><h3 className="mt-3 text-xl font-bold text-foreground">{product.nameZh || '未命名商品'}</h3>{product.nameEn && <p className="mt-1 text-sm text-muted-foreground">{product.nameEn}</p>}</div>
+          <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-border">
             {[
-              { icon: Tag, label: '商品编码', value: product.sku },
-              { icon: ShoppingCart, label: '价格区间', value: product.price },
-              { icon: Package, label: '库存', value: product.stock.toLocaleString() },
+              { icon: Tag, label: '商品编码', value: product.sku || '—' },
+              { icon: ShoppingCart, label: '价格区间', value: product.price || '—' },
+              { icon: Package, label: '总库存', value: product.stock.toLocaleString() },
               { icon: Globe, label: '最小起订量', value: product.moq.toLocaleString() },
-            ].map((f, i) => {
-              const Icon = f.icon;
-              return (
-                <div key={i} className="bg-secondary rounded-xl p-3.5 text-center">
-                  <Icon className="w-4 h-4 text-primary mx-auto mb-1.5" />
-                  <div className="text-xs text-muted-foreground">{f.label}</div>
-                  <div className="text-sm font-bold text-foreground mt-0.5">{f.value}</div>
-                </div>
-              );
-            })}
+            ].map(({ icon: Icon, label, value }, index) => <div key={label} className={`p-3.5 ${index % 2 === 0 ? 'border-r' : ''} ${index < 2 ? 'border-b' : ''} border-border`}><div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Icon className="h-3.5 w-3.5 text-primary"/>{label}</div><div className="mt-1.5 truncate text-sm font-bold text-foreground" title={String(value)}>{value}</div></div>)}
           </div>
-
-          {/* Additional Info */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="border border-border rounded-xl p-4">
-              <h4 className="text-xs font-semibold text-muted-foreground mb-3">SEO 信息</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">SEO 标题</span><span className="text-foreground font-medium">{product.nameEn} - Mercivo</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">SEO 描述</span><span className="text-foreground font-medium truncate max-w-40">High quality {product.nameEn.toLowerCase()}...</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">焦点关键词</span><span className="text-foreground font-medium">{product.nameEn.toLowerCase()}</span></div>
-              </div>
-            </div>
-            <div className="border border-border rounded-xl p-4">
-              <h4 className="text-xs font-semibold text-muted-foreground mb-3">销售数据</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">本月询盘</span><span className="text-foreground font-medium">-</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">转化率</span><span className="text-emerald-600 font-medium">-</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">浏览量</span><span className="text-foreground font-medium">-</span></div>
-              </div>
-            </div>
-          </div>
+          {(product.tags?.length || product.badge) && <div className="mt-4"><div className="mb-2 text-xs font-semibold text-muted-foreground">商品标签</div><div className="flex flex-wrap gap-2">{product.badge && <span className="rounded-lg bg-amber-50 px-2.5 py-1 text-xs text-amber-700">{product.badge}</span>}{product.tags?.map(tag => <span key={tag} className="rounded-lg bg-secondary px-2.5 py-1 text-xs text-foreground">{tag}</span>)}</div></div>}
         </div>
       </div>
-
+      <section><div className="mb-2 flex items-center justify-between"><h4 className="text-sm font-semibold text-foreground">规格与库存</h4><span className="text-xs text-muted-foreground">{product.variants?.length || 0} 个规格</span></div>{(product.variants?.length || 0) > 0 ? <div className="overflow-hidden rounded-xl border border-border"><table className="w-full table-fixed text-sm"><thead className="bg-secondary/70 text-xs text-muted-foreground"><tr><th className="px-4 py-2.5 text-left">规格</th><th className="px-4 py-2.5 text-left">选项</th><th className="px-4 py-2.5 text-center">库存</th><th className="px-4 py-2.5 text-right">规格价</th></tr></thead><tbody>{product.variants!.map((variant, index) => <tr key={variant.id || `${variant.specification}-${variant.option}-${index}`} className="border-t border-border"><td className="px-4 py-3 font-medium text-foreground">{variant.specification || '—'}</td><td className="px-4 py-3 text-muted-foreground">{variant.option || '—'}</td><td className="px-4 py-3 text-center font-medium">{variant.stock.toLocaleString()}</td><td className="px-4 py-3 text-right font-medium text-primary">{(Number(product.basePrice || 0) + Number(variant.surcharge || 0)).toFixed(2)}</td></tr>)}</tbody></table></div> : <div className="rounded-xl border border-dashed border-border px-4 py-7 text-center text-sm text-muted-foreground">该商品暂无规格，库存按基础商品管理</div>}</section>
+      {product.description && <section><h4 className="mb-2 text-sm font-semibold text-foreground">商品描述</h4><div className="whitespace-pre-wrap rounded-xl border border-border bg-secondary/20 p-4 text-sm leading-6 text-foreground">{product.description.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()}</div></section>}
+    </div>
   </AppModal>
 );
 
@@ -145,58 +108,6 @@ const BatchConfirmModal: React.FC<{
   );
 };
 
-// ─────────────── More Actions Dropdown ───────────────
-
-const MoreActionsDropdown: React.FC<{
-  product: Product;
-  onClose: () => void;
-  onPreview: () => void;
-  onDelete: () => void;
-}> = ({ product, onClose, onPreview, onDelete }) => {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
-
-  const actions = [
-    { icon: Eye, label: '预览', onClick: onPreview },
-    { icon: Edit, label: '编辑', onClick: () => { } },
-    { icon: Copy, label: '复制', onClick: () => { } },
-    { icon: Share2, label: '分享链接', onClick: () => { } },
-    { icon: TrendingUp, label: '查看数据', onClick: onPreview },
-    { icon: Archive, label: '归档', onClick: () => { } },
-    { icon: Trash2, label: '删除', onClick: onDelete, danger: true },
-  ];
-
-  return (
-    <div ref={ref} className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-xl border border-border z-30 py-1.5 overflow-hidden">
-      {actions.map((a, i) => {
-        const Icon = a.icon;
-        return (
-          <button
-            key={i}
-            onClick={() => { a.onClick(); onClose(); }}
-            className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors text-left ${a.danger
-              ? 'text-red-600 hover:bg-red-50'
-              : 'text-foreground hover:bg-secondary'
-              }`}
-          >
-            <Icon className="w-4 h-4 flex-shrink-0" />
-            {a.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-};
-
 // ─────────────── Products Page ───────────────
 
 const ProductsPage: React.FC = () => {
@@ -208,17 +119,19 @@ const ProductsPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [category, setCategory] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [gridPage, setGridPage] = useState(1);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [productLimit, setProductLimit] = useState<number | null>(null);
 
   // Modal states
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
   const [batchAction, setBatchAction] = useState<'offline' | 'export' | null>(null);
-  const [openDropdown, setOpenDropdown] = useState<Product['id'] | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   useEffect(() => {
     productApi.list().then(setProducts).catch(() => { }).finally(() => setLoading(false));
+    workspaceApi.getSettings().then(workspace => setProductLimit(workspace.billing.limits.products)).catch(() => setProductLimit(null));
     productCategoryApi.list().then((productCategories: ProductCategory[]) => {
       setCategories(productCategories.filter(parent => parent.status === 'enabled').map(parent => ({
         ...parent,
@@ -257,6 +170,13 @@ const ProductsPage: React.FC = () => {
         p.nameEn.toLowerCase().includes(search.toLowerCase()) ||
         p.sku.includes(search))
   );
+  const gridPageSize = 8;
+  const gridPageCount = Math.max(1, Math.ceil(filtered.length / gridPageSize));
+  const currentGridPage = Math.min(gridPage, gridPageCount);
+  const gridProducts = filtered.slice((currentGridPage - 1) * gridPageSize, currentGridPage * gridPageSize);
+  const productQuotaReached = productLimit !== null && products.length >= productLimit;
+
+  useEffect(() => { setGridPage(1); }, [search, category, statusFilter]);
 
   const columns: ColumnsType<Product> = [
     {
@@ -270,12 +190,11 @@ const ProductsPage: React.FC = () => {
     { title: '最小起订量', dataIndex: 'moq', render: value => <span className="text-sm text-muted-foreground">{value}</span> },
     { title: '状态', dataIndex: 'status', render: value => <StatusBadge status={value} /> },
     createActionColumn<Product>({
-      width: 150,
+      actions: 3,
       render: (_, product) => <TableActions>
-        {can('product.edit') && <button onClick={() => navigate(`/products/${product.id}/edit`)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary" title="编辑"><Edit className="h-3.5 w-3.5" /></button>}
-        <button onClick={() => setPreviewProduct(product)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary" title="预览"><Eye className="h-3.5 w-3.5" /></button>
-        {can('product.delete') && <button onClick={() => setDeleteProduct(product)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600" title="删除"><Trash2 className="h-3.5 w-3.5" /></button>}
-        <div className="relative"><button onClick={() => setOpenDropdown(openDropdown === product.id ? null : product.id)} className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-secondary" title="更多"><MoreHorizontal className="h-3.5 w-3.5" /></button>{openDropdown === product.id && <MoreActionsDropdown product={product} onClose={() => setOpenDropdown(null)} onPreview={() => setPreviewProduct(product)} onDelete={() => setDeleteProduct(product)} />}</div>
+        {can('product.edit') && <TableActionButton onClick={() => navigate(`/products/${product.id}/edit`)} title="编辑" tone="primary"><Edit size={15} /></TableActionButton>}
+        <TableActionButton onClick={() => setPreviewProduct(product)} title="预览" tone="primary"><Eye size={15} /></TableActionButton>
+        {can('product.delete') && <TableActionButton onClick={() => setDeleteProduct(product)} title="删除" tone="danger"><Trash2 size={15} /></TableActionButton>}
       </TableActions>,
     }),
   ];
@@ -326,12 +245,17 @@ const ProductsPage: React.FC = () => {
             共 {products.length} 件商品 · {products.filter(p => p.status === 'published').length} 件已发布
           </p>
         </div>
+        <div className="flex items-center gap-3">
+        {productLimit !== null && <QuotaUsage label="商品配额" used={products.length} limit={productLimit} onExhaustedClick={()=>navigate('/settings?tab=billing')}/>}
         {can('product.create') && <button
+          disabled={productQuotaReached}
+          title={productQuotaReached ? '商品额度已用完，请升级套餐或联系管理员' : '新建商品'}
           onClick={() => navigate('/products/new')}
-          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 shadow-sm"
+          className="flex h-[42px] items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Plus className="w-4 h-4" />新建商品
         </button>}
+        </div>
       </div>
 
       <div className="grid min-h-[calc(100vh-12rem)] grid-cols-1 items-stretch gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
@@ -427,7 +351,7 @@ const ProductsPage: React.FC = () => {
         ) : (
           <div className="grid grid-cols-3 gap-4 p-5">
             {filtered.length === 0 && <div className="col-span-3 flex min-h-72 items-center justify-center bg-white"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无商品数据" /></div>}
-            {filtered.map(product => (
+            {gridProducts.map(product => (
               <div
                 key={product.id}
                 className="group border border-border rounded-2xl overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all cursor-pointer"
@@ -468,16 +392,8 @@ const ProductsPage: React.FC = () => {
           </div>
         )}
 
-          {viewMode === 'grid' && filtered.length > 0 && <div className="flex items-center justify-end px-5 py-3.5 border-t border-border">
-            <div className="flex items-center gap-1">
-            <button className="p-1.5 hover:bg-secondary rounded text-muted-foreground"><ChevronLeft className="w-4 h-4" /></button>
-            {[1, 2, 3].map(p => (
-              <button key={p} className={`w-8 h-8 text-xs rounded-lg font-semibold ${p === 1 ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-secondary'}`}>{p}</button>
-            ))}
-            <span className="text-muted-foreground px-1">...</span>
-            <button className="w-8 h-8 text-xs rounded-lg font-semibold text-muted-foreground hover:bg-secondary">8</button>
-            <button className="p-1.5 hover:bg-secondary rounded text-muted-foreground"><ChevronRight className="w-4 h-4" /></button>
-            </div>
+          {viewMode === 'grid' && filtered.length > 0 && <div className="flex items-center justify-end border-t border-border px-5 py-3.5">
+            <Pagination current={currentGridPage} pageSize={gridPageSize} total={filtered.length} showSizeChanger={false} onChange={setGridPage}/>
           </div>}
         </section>
       </div>
@@ -486,6 +402,7 @@ const ProductsPage: React.FC = () => {
       {previewProduct && (
         <ProductPreviewModal
           product={previewProduct}
+          categoryName={categoryLabel(previewProduct.category)}
           onClose={() => setPreviewProduct(null)}
           onEdit={() => { setPreviewProduct(null); navigate(`/products/${previewProduct.id}/edit`); }}
         />

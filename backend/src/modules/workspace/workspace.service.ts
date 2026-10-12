@@ -12,6 +12,8 @@ import { SiteDomain } from '../site/site-domain.entity';
 import { hashPassword } from '../auth/password.util';
 import { AuthUser } from '../../common/types/auth-user';
 import { PERMISSION_CATALOG, withPermissionParents } from '../system/permission-catalog';
+import { Product } from '../product/product.entity';
+import { Warehouse } from '../inventory/inventory.entity';
 
 @Injectable()
 export class WorkspaceService {
@@ -22,6 +24,8 @@ export class WorkspaceService {
     @InjectRepository(Tenant) private readonly tenantRepo: Repository<Tenant>,
     @InjectRepository(Site) private readonly siteRepo: Repository<Site>,
     @InjectRepository(SiteDomain) private readonly domainRepo: Repository<SiteDomain>,
+    @InjectRepository(Product) private readonly productRepo: Repository<Product>,
+    @InjectRepository(Warehouse) private readonly warehouseRepo: Repository<Warehouse>,
   ) {}
 
   private async optionalConfig<T extends Record<string, unknown>>(key: string, siteId: string, fallback: T): Promise<T> {
@@ -30,19 +34,32 @@ export class WorkspaceService {
   }
 
   async getSettings(userId: string, tenantId: string, siteId: string) {
-    const [user, tenant, site, domain, account, siteMeta] = await Promise.all([
+    const [user, tenant, site, domain, account, siteMeta, products, members, sites, warehouses] = await Promise.all([
       this.userRepo.findOne({ where: { id: userId, tenantId } }),
       this.tenantRepo.findOne({ where: { id: tenantId } }),
       this.siteRepo.findOne({ where: { id: siteId, tenantId } }),
       this.domainRepo.findOne({ where: { siteId, isPrimary: true, status: 'active' } }),
       this.optionalConfig('account', siteId, { email: '', timezone: 'Asia/Shanghai', twoFactorEnabled: false }),
       this.optionalConfig('site-meta', siteId, { description: '' }),
+      this.productRepo.count({ where: { tenantId } }),
+      this.userRepo.count({ where: { tenantId } }),
+      this.siteRepo.count({ where: { tenantId } }),
+      this.warehouseRepo.count({ where: { tenantId } }),
     ]);
     if (!user || !tenant || !site) throw new NotFoundException('账号或站点不存在');
     return {
       account: { enterpriseName: tenant.name, phone: user.phone || '', email: account.email || '', timezone: 'Asia/Shanghai', role: user.role, joinedAt: user.createdAt },
       site: { id: site.id, slug: site.slug, name: site.name, description: siteMeta.description || '', defaultLanguage: site.defaultLanguage, defaultCurrency: site.defaultCurrency, domain: domain?.hostname || '', domainStatus: domain?.sslStatus || 'unconfigured', status: site.status },
-      billing: { plan: tenant.plan, status: tenant.status, expiresAt: tenant.expiresAt, limits: { products: tenant.maxProducts, members: tenant.maxMembers }, sitePublishing: (tenant.permissions || []).includes('site.publish'), features: tenant.features || {}, permissions: tenant.permissions || [] },
+      billing: {
+        plan: tenant.plan,
+        status: tenant.status,
+        expiresAt: tenant.expiresAt,
+        limits: { products: tenant.maxProducts, members: tenant.maxMembers, sites: tenant.maxSites, warehouses: tenant.maxWarehouses },
+        usage: { products, members, sites, warehouses },
+        sitePublishing: (tenant.permissions || []).includes('site.publish'),
+        features: tenant.features || {},
+        permissions: tenant.permissions || [],
+      },
     };
   }
 

@@ -4,7 +4,7 @@ describe('permission catalog hierarchy', () => {
   it('uses primary menus, secondary menus, then page/button leaves', () => {
     const byKey = new Map(PERMISSION_CATALOG.map(item => [item.key, item]));
     expect(new Set(PERMISSION_CATALOG.filter(item => item.level === 'primary').map(item => item.key)))
-      .toEqual(new Set(['menu.dashboard', 'group.products', 'group.sales', 'group.site', 'group.system']));
+      .toEqual(new Set(['menu.dashboard', 'group.products', 'group.inventory', 'group.sales', 'group.site', 'group.system']));
 
     for (const item of PERMISSION_CATALOG) {
       if (item.level === 'primary') expect(item.parentKey).toBeNull();
@@ -22,5 +22,10 @@ describe('permission catalog hierarchy', () => {
 
   it('contains unique permission keys', () => {
     expect(new Set(ALL_PERMISSIONS).size).toBe(ALL_PERMISSIONS.length);
+  });
+
+  it('keeps primary permissions in the same order as the merchant menu', () => {
+    expect(PERMISSION_CATALOG.filter(item => item.level === 'primary').map(item => item.key))
+      .toEqual(['menu.dashboard', 'group.products', 'group.sales', 'group.inventory', 'group.site', 'group.system']);
   });
 });

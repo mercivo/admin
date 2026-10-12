@@ -85,6 +85,66 @@ html,
   gap: 0.25rem;
   min-height: 28px;
 }
+.app-table-action-button {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+.app-table-action-button:hover { background: var(--secondary); color: var(--foreground); }
+.app-table-action-button-primary:hover { background: rgba(124, 110, 245, 0.1); color: var(--primary); }
+.app-table-action-button-success:hover { background: #ecfdf5; color: #059669; }
+.app-table-action-button-warning:hover { background: #fffbeb; color: #d97706; }
+.app-table-action-button-danger:hover { background: #fef2f2; color: #dc2626; }
+.app-table-action-button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.app-table-action-button:disabled { cursor: not-allowed; opacity: 0.4; }
+
+.app-confirm-icon { display: grid; width: 3rem; height: 3rem; place-items: center; border-radius: 999px; background: rgba(124, 110, 245, 0.12); color: var(--primary); font-size: 1.25rem; font-weight: 800; animation: app-confirm-pop 180ms ease-out; }
+.app-confirm-icon.is-danger { background: #fee2e2; color: #ef4444; }
+.app-confirm-content-title { color: var(--foreground); font-size: 1rem; font-weight: 700; line-height: 1.5; }
+.app-confirm-message { max-width: 22rem; color: var(--muted-foreground); font-size: 0.875rem; line-height: 1.7; }
+@keyframes app-confirm-pop { from { opacity: 0; transform: scale(0.72); } to { opacity: 1; transform: scale(1); } }
+.app-confirm-modal .ant-modal-content { animation: app-confirm-surface 180ms ease-out; }
+@keyframes app-confirm-surface { from { opacity: 0; transform: translateY(8px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+/* Shared table surfaces inside application modals. */
+.app-modal .app-data-table {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.app-modal .app-data-table .ant-table-thead > tr > th { background: var(--secondary); }
+.app-modal .app-data-table .ant-table-pagination { margin: 12px 16px; }
+.app-editable-table {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.app-editable-table table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.app-editable-table thead tr { border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--secondary) 70%, transparent); }
+.app-editable-table th {
+  padding: 10px 16px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  text-align: left;
+}
+.app-editable-table tbody tr { border-bottom: 1px solid var(--border); transition: background-color 150ms ease; }
+.app-editable-table tbody tr:last-child { border-bottom: 0; }
+.app-editable-table tbody tr:hover { background: color-mix(in srgb, var(--secondary) 40%, transparent); }
+.app-editable-table td { padding: 10px 16px; vertical-align: middle; }
+.app-editable-table .ant-input,
+.app-editable-table .ant-input-number,
+.app-editable-table .ant-select-selector { background: transparent !important; }
 
 /* Shared application modal */
 .app-modal .ant-modal-title,
@@ -106,13 +166,13 @@ html,
   font-weight: 400;
   line-height: 1.5;
 }
-.app-modal .category-style-form .ant-form-item {
+.app-modal .app-modal-form .ant-form-item {
   margin-bottom: 16px;
 }
-.app-modal .category-style-form .ant-form-item-label {
+.app-modal .app-modal-form .ant-form-item-label {
   padding-bottom: 6px;
 }
-.app-modal .category-style-form .ant-form-item-label > label {
+.app-modal .app-modal-form .ant-form-item-label > label {
   height: auto;
   color: var(--muted-foreground);
   font-size: 12px;
@@ -120,8 +180,43 @@ html,
   letter-spacing: 0.025em;
   line-height: 18px;
 }
-.app-modal .category-style-form .ant-form-item.mb-0 {
+.app-modal .app-modal-form .ant-form-item.mb-0 {
   margin-bottom: 0;
+}
+.app-modal-form {
+  display: grid;
+  gap: 16px;
+  padding-top: 4px;
+}
+.app-modal-form-grid {
+  display: grid;
+  gap: 16px;
+}
+.app-modal .app-modal-form > .ant-form-item,
+.app-modal .app-modal-form-grid > .ant-form-item { margin-bottom: 0; }
+.app-modal-form-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.app-modal-form-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.app-modal-form-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.app-modal-form-field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+.app-modal-form-label {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  line-height: 18px;
+}
+.app-modal-form-required {
+  margin-right: 4px;
+  color: #ef4444;
+}
+@media (max-width: 640px) {
+  .app-modal-form-grid-2,
+  .app-modal-form-grid-3,
+  .app-modal-form-grid-4 { grid-template-columns: minmax(0, 1fr); }
 }
 .app-modal .ant-modal-content {
   display: flex;
@@ -163,15 +258,10 @@ html,
   margin-inline-start: 0;
 }
 .app-confirm-modal .ant-modal-confirm-title {
-  display: flex;
-  min-height: 48px;
-  align-items: center;
+  display: block;
   font-size: inherit;
   font-weight: inherit;
   line-height: inherit;
-  margin: -24px -24px 16px;
-  padding: 8px 56px 8px 24px;
-  border-bottom: 1px solid var(--border);
 }
 .app-confirm-modal .ant-modal-confirm-body-wrapper {
   display: flex;
@@ -180,9 +270,20 @@ html,
   flex-direction: column;
 }
 .app-confirm-modal .ant-modal-confirm-body {
+  display: flex;
   min-height: 0;
   padding: 24px;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
   overflow-y: auto;
+  text-align: center;
+}
+.app-confirm-modal .ant-modal-confirm-paragraph {
+  display: grid;
+  width: 100%;
+  max-width: 100%;
+  gap: 8px;
 }
 .app-confirm-modal .ant-modal-confirm-btns {
   margin: 0;

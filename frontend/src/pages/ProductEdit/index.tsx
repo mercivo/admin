@@ -12,14 +12,14 @@ import {
   CircleHelp,
   Info,
 } from 'lucide-react';
-import { AppModal, EmptyState, RichTextEditor, StatusBadge } from '../../components/shared';
+import { AppEditableTable, AppModal, QuotaUsage, RichTextEditor, StatusBadge, TableActionButton } from '../../components/shared';
 import Toast, { ToastType } from '../../components/shared/Toast';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { customerApi, productApi, productCategoryApi, workspaceApi } from '../../services/api/index';
 import type { CustomerLevel, GuestPricingPolicy } from '../../services/api/index';
 import type { Product, ProductCategory } from '../../types';
 
-type ProductVariant = { specification: string; option: string; stock: number; surcharge: number };
+type ProductVariant = { id?: string; specification: string; option: string; stock: number; surcharge: number };
 
 const TABS = [
   { id: 'basic', label: '基本信息' },
@@ -39,7 +39,7 @@ const ProductEditPage: React.FC = () => {
   const [form, setForm] = useState<Partial<Product>>({
     nameZh: '', nameEn: '', description: '', sku: '', price: '0.00', basePrice: 0,
     stock: 0, moq: 0, category: '', img: '', hot: false, badge: '', likeCount: 0,
-    status: 'draft', tags: [], seoTitle: '', seoDescription: '',
+    status: 'draft', tags: [],
     levelPrices: {},
   });
   const [deleteVariantIndex, setDeleteVariantIndex] = useState<number | null>(null);
@@ -49,6 +49,7 @@ const ProductEditPage: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [customerLevels, setCustomerLevels] = useState<CustomerLevel[]>([]);
   const [guestPricingMode, setGuestPricingMode] = useState<GuestPricingPolicy['mode']>('base');
+  const [productQuota, setProductQuota] = useState<{ used: number; limit: number } | null>(null);
 
   const priceRange = () => {
     const basePrice = Math.max(0, Number(form.basePrice) || 0);
@@ -67,6 +68,7 @@ const ProductEditPage: React.FC = () => {
   useEffect(() => {
     workspaceApi.getSettings().then(settings => {
       setCurrency(settings.site.defaultCurrency || 'CNY');
+      setProductQuota({ used: settings.billing.usage.products, limit: settings.billing.limits.products });
     }).catch(() => undefined);
     productCategoryApi.list().then((categories: ProductCategory[]) => {
       const options = categories.flatMap(parent => [
@@ -94,6 +96,10 @@ const ProductEditPage: React.FC = () => {
   const showToast = (message: string, type: ToastType) => setToast({ message, type });
 
   const handleSave = () => {
+    if (!id && productQuota && productQuota.used >= productQuota.limit) {
+      showToast('商品额度已用完，请升级套餐或联系管理员', 'error');
+      return;
+    }
     if (publishToSite) {
       setSaveConfirmOpen(true);
     } else {
@@ -113,9 +119,9 @@ const ProductEditPage: React.FC = () => {
       status: publishToSite ? 'published' as const : 'draft' as const,
       nameZh: form.nameZh || '未命名商品', nameEn: form.nameEn || form.nameZh || '未命名商品',
       sku: form.sku || `PRODUCT-${Date.now()}`, basePrice: Number(form.basePrice) || 0, variants, tags: form.tags || [],
-      stock: variants.reduce((sum, item) => sum + (Number(item.stock) || 0), 0), moq: Number(form.moq) || 0,
+      moq: Number(form.moq) || 0,
       category: form.category, img: form.img || '', hot: form.badge === 'hot' || form.badge === 'bestseller', badge: form.badge || '', likeCount: Math.max(0, Number(form.likeCount) || 0),
-      description: form.description || '', seoTitle: form.seoTitle || '', seoDescription: form.seoDescription || '',
+      description: form.description || '',
       levelPrices: form.levelPrices || {},
     };
     try {
@@ -188,8 +194,9 @@ const ProductEditPage: React.FC = () => {
           <h1 className="text-xl font-bold text-foreground">{id ? '编辑商品' : '新建商品'}</h1>
           <StatusBadge status={publishToSite ? 'published' : 'draft'} />
         </div>
-        <div className="flex gap-2">
-          <button disabled={!id} onClick={() => id && navigate(`/products/${id}`)} className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-lg text-xs text-muted-foreground hover:bg-secondary disabled:opacity-50">
+        <div className="flex items-center gap-2">
+          {!id && productQuota && <QuotaUsage label="商品配额" used={productQuota.used} limit={productQuota.limit} onExhaustedClick={()=>navigate('/settings?tab=billing')}/>}
+          <button disabled={!id} onClick={() => id && navigate(`/products/${id}`)} className="flex h-[42px] items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-muted-foreground hover:bg-secondary disabled:opacity-50">
             <ExternalLink className="w-3.5 h-3.5" />预览前台
           </button>
         </div>
@@ -259,35 +266,8 @@ const ProductEditPage: React.FC = () => {
                       <label className="text-sm font-normal text-foreground">规格表（尺寸 × 颜色）</label>
                       <button onClick={handleAddVariant} className="flex items-center gap-1 text-xs text-primary hover:underline"><Plus className="w-3 h-3" />添加规格行</button>
                     </div>
-                    <div className="border border-border rounded-xl overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-secondary/40 border-b border-border">
-                            {['规格', '选项', '库存', `额外加价（${currency}）`, ''].map(h => (
-                              <th key={h} className="px-4 py-2.5 text-left text-xs font-normal text-muted-foreground">{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {variants.length > 0 ? variants.map((variant, i) => (
-                            <tr key={i} className="border-b border-border last:border-0 hover:bg-secondary/20">
-                              <td className="px-4 py-2.5"><Input value={variant.specification} placeholder="如：尺寸" onChange={e => setVariants(items => items.map((item, index) => index === i ? { ...item, specification: e.target.value } : item))} variant="borderless" size="small" /></td>
-                              <td className="px-4 py-2.5"><Input value={variant.option} placeholder="如：L" onChange={e => setVariants(items => items.map((item, index) => index === i ? { ...item, option: e.target.value } : item))} variant="borderless" size="small" /></td>
-                              <td className="px-4 py-2.5"><InputNumber value={variant.stock} min={0} precision={0} onChange={value => setVariants(items => items.map((item, index) => index === i ? { ...item, stock: Number(value) || 0 } : item))} variant="borderless" size="small" /></td>
-                              <td className="px-4 py-2.5"><InputNumber value={variant.surcharge} min={0} precision={2} onChange={value => setVariants(items => items.map((item, index) => index === i ? { ...item, surcharge: Number(value) || 0 } : item))} variant="borderless" size="small" /></td>
-                              <td className="px-4 py-2.5"><button onClick={() => setDeleteVariantIndex(i)} className="text-muted-foreground hover:text-red-500 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button></td>
-                            </tr>
-                          )) : (
-                            <tr>
-                              <td colSpan={5}>
-                                <EmptyState description="暂无规格数据，请添加规格行" />
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                    <p className="mt-2 text-xs text-muted-foreground">最终规格价格 = 基础单价 + 额外加价；价格区间和总库存自动计算，不可手动修改。</p>
+                    <AppEditableTable rowKey={(_, index) => index} dataSource={variants} emptyText="暂无规格数据，请添加规格行" columns={[{ title: '规格' }, { title: '选项' }, { title: '库存', width: 120 }, { title: `额外加价（${currency}）`, width: 180 }, { title: '', width: 56, className: 'text-center' }]} renderRow={(variant, i) => [<Input value={variant.specification} placeholder="如：尺寸" onChange={e => setVariants(items => items.map((item, index) => index === i ? { ...item, specification: e.target.value } : item))} variant="borderless" size="small" />, <Input value={variant.option} placeholder="如：L" onChange={e => setVariants(items => items.map((item, index) => index === i ? { ...item, option: e.target.value } : item))} variant="borderless" size="small" />, <InputNumber value={variant.stock} disabled min={0} precision={0} variant="borderless" size="small" />, <InputNumber value={variant.surcharge} min={0} precision={2} onChange={value => setVariants(items => items.map((item, index) => index === i ? { ...item, surcharge: Number(value) || 0 } : item))} variant="borderless" size="small" />, <TableActionButton title="删除规格" tone="danger" onClick={() => setDeleteVariantIndex(i)}><Trash2 size={15}/></TableActionButton>]}/>
+                    <p className="mt-2 text-xs text-muted-foreground">最终规格价格 = 基础单价 + 额外加价；规格库存由库存管理模块汇总，不可在商品页直接修改。</p>
                   </div>
                 </div>
               )}
@@ -343,7 +323,7 @@ const ProductEditPage: React.FC = () => {
                 </div>
               </label>
             </div>
-            <button disabled={saving} onClick={handleSave} className="w-full py-2.5 bg-primary text-white rounded-xl text-sm font-normal hover:bg-primary/90 shadow-sm disabled:opacity-60">
+            <button disabled={saving || (!id && !!productQuota && productQuota.used >= productQuota.limit)} title={!id && productQuota && productQuota.used >= productQuota.limit ? '商品额度已用完，请升级套餐或联系管理员' : ''} onClick={handleSave} className="w-full py-2.5 bg-primary text-white rounded-xl text-sm font-normal hover:bg-primary/90 shadow-sm disabled:cursor-not-allowed disabled:opacity-60">
               {saving ? '保存中...' : publishToSite ? '保存并发布' : '保存草稿'}
             </button>
             <button onClick={() => navigate('/products')} className="w-full py-2.5 border border-border text-muted-foreground rounded-xl text-sm font-normal hover:bg-secondary transition-colors">

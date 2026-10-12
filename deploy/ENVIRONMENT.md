@@ -7,6 +7,7 @@
 | 变量 | 含义 | 是否敏感 |
 | --- | --- | --- |
 | `ENV_FILE` | Compose 传给 API/migrate 容器的 env 文件路径，固定为 `.env.local` | 否 |
+| `GCLOUD_CONFIG_DIR` | 本机 gcloud 配置目录的绝对路径，Compose 只读挂载 ADC 凭据 | 是 |
 | `DB_HOST_PORT` | 本机访问 MySQL 的映射端口；容器内仍使用 `3306` | 否 |
 | `REDIS_HOST_PORT` | 本机访问 Redis 的映射端口；容器内仍使用 `6379` | 否 |
 | `API_PORT` | API 映射到本机的端口 | 否 |
@@ -33,7 +34,7 @@
 | `GCS_PUBLIC_BASE_URL` | 返回给客户端的公开图片域名 | 否 |
 | `GCS_OBJECT_PREFIX` | 对象环境目录；本地为 `local`，线上为 `production` | 否 |
 
-本地 GCS 凭据不写进 `.env.local`。Compose 只读挂载 `secrets/gcs-key.json` 到容器内的 `/run/secrets/gcs-key.json`；该目录已被 Git 忽略。
+本地 GCS 使用 `gcloud auth application-default login` 生成的 Application Default Credentials，不创建服务账号 JSON 长期密钥。Compose 通过 `GCLOUD_CONFIG_DIR` 将 gcloud 配置目录只读挂载到容器内，API 仅读取 `/run/gcloud/application_default_credentials.json`。
 
 项目只使用 `mercivo-images-753805870951` 一个运行时存储桶：本地对象写入 `local/`，Cloud Run 对象写入 `production/`。旧的 `GCS_PRIVATE_BUCKET` 配置不再被代码读取，不应在新环境中配置。
 

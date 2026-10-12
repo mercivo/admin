@@ -16,6 +16,10 @@ import {
   Tags,
   ContactRound,
   CreditCard,
+  Boxes,
+  ClipboardCheck,
+  ArrowLeftRight,
+  Warehouse,
 } from 'lucide-react';
 
 // ─────────────── Types ───────────────
@@ -34,6 +38,10 @@ const PATH_PAGE_MAP: Record<string, string> = {
   '/customer': 'customer',
   '/settings': 'settings',
   '/product-categories': 'product-categories',
+  '/inventory/stocks': 'inventory-stocks',
+  '/inventory/counts': 'inventory-counts',
+  '/inventory/transfers': 'inventory-transfers',
+  '/inventory/warehouses': 'inventory-warehouses',
 };
 
 const PAGE_ROUTES: Record<string, string> = {
@@ -45,6 +53,10 @@ const PAGE_ROUTES: Record<string, string> = {
   'team-management': '/settings?tab=team',
   billing: '/settings?tab=billing',
   'product-categories': '/product-categories',
+  'inventory-stocks': '/inventory/stocks',
+  'inventory-counts': '/inventory/counts',
+  'inventory-transfers': '/inventory/transfers',
+  'inventory-warehouses': '/inventory/warehouses',
 };
 
 function getPageId(pathname: string, search = ''): string {
@@ -76,6 +88,15 @@ const MENU_GROUPS = [
     ],
   },
   {
+    label: '库存管理',
+    items: [
+      { id: 'inventory-stocks', icon: Boxes, label: '库存查询' },
+      { id: 'inventory-counts', icon: ClipboardCheck, label: '库存盘点' },
+      { id: 'inventory-transfers', icon: ArrowLeftRight, label: '库存调拨' },
+      { id: 'inventory-warehouses', icon: Warehouse, label: '仓库管理' },
+    ],
+  },
+  {
     label: '系统管理',
     items: [
       { id: 'settings', icon: Settings, label: '账号设置' },
@@ -86,9 +107,9 @@ const MENU_GROUPS = [
 
 const DASHBOARD_ITEM = { id: 'dashboard', icon: LayoutDashboard, label: '经营概览' } as const;
 
-const MENU_PERMISSIONS: Record<string, string> = { dashboard: 'menu.dashboard', products: 'menu.products', 'product-categories': 'menu.product-categories', customer: 'menu.customers', settings: 'menu.settings', 'team-management': 'menu.team' };
-const PAGE_PERMISSIONS: Record<string, string[]> = { dashboard: ['page.dashboard'], products: ['page.products'], 'product-categories': ['page.product-categories'], customer: ['page.customers'], settings: ['page.settings.account'], 'team-management': ['page.settings.team'] };
-const GROUP_PERMISSIONS: Record<string, string[]> = { '商品管理': ['group.products'], '销售管理': ['group.sales'], '系统管理': ['group.system'] };
+const MENU_PERMISSIONS: Record<string, string> = { dashboard: 'menu.dashboard', products: 'menu.products', 'product-categories': 'menu.product-categories', 'inventory-stocks': 'menu.inventory.stocks', 'inventory-counts': 'menu.inventory.counts', 'inventory-transfers': 'menu.inventory.transfers', 'inventory-warehouses': 'menu.inventory.warehouses', customer: 'menu.customers', settings: 'menu.settings', 'team-management': 'menu.team' };
+const PAGE_PERMISSIONS: Record<string, string[]> = { dashboard: ['page.dashboard'], products: ['page.products'], 'product-categories': ['page.product-categories'], 'inventory-stocks': ['page.inventory.stocks'], 'inventory-counts': ['page.inventory.counts'], 'inventory-transfers': ['page.inventory.transfers'], 'inventory-warehouses': ['page.inventory.warehouses'], customer: ['page.customers'], settings: ['page.settings.account'], 'team-management': ['page.settings.team'] };
+const GROUP_PERMISSIONS: Record<string, string[]> = { '商品管理': ['group.products'], '库存管理': ['group.inventory'], '销售管理': ['group.sales'], '系统管理': ['group.system'] };
 const canOpenGroup = (label: string) => GROUP_PERMISSIONS[label].some(can);
 const canOpenMenuItem = (id: string) => can(MENU_PERMISSIONS[id]) && PAGE_PERMISSIONS[id].some(can);
 

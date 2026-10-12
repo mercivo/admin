@@ -6,7 +6,7 @@ export interface Product {
   price: string;
   basePrice?: number;
   levelPrices?: Record<string, number>;
-  variants?: Array<{ specification: string; option: string; stock: number; surcharge: number }>;
+  variants?: Array<{ id?: string; specification: string; option: string; stock: number; surcharge: number }>;
   tags?: string[];
   stock: number;
   moq: number;
@@ -17,8 +17,6 @@ export interface Product {
   badge?: '' | 'new' | 'hot' | 'bestseller' | 'recommended';
   likeCount?: number;
   description?: string;
-  seoTitle?: string;
-  seoDescription?: string;
   createdAt?: string;
   updatedAt?: string;
 }

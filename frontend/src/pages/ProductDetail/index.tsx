@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Input, Select } from 'antd';
 import { ShoppingCart, Star, CheckCircle, Truck, Shield, ArrowLeft, Globe, MessageCircle } from 'lucide-react';
-import { AppModal, ProductImage } from '../../components/shared';
+import { AppModal, ModalForm, ModalFormField, ModalFormGrid, ProductImage } from '../../components/shared';
 import Toast, { ToastType } from '../../components/shared/Toast';
 import { productApi } from '../../services/api/index';
 import type { Product } from '../../types';
@@ -271,8 +271,8 @@ const ProductDetailPage: React.FC = () => {
 
       {/* Inquiry Modal */}
       {inquiryOpen && (
-        <AppModal open title={<span className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-primary" />{inquiryType === 'inquiry' ? 'Send Inquiry' : 'Request Sample'}</span>} onCancel={() => setInquiryOpen(false)} onOk={handleSendInquiry} okText={inquiryType === 'inquiry' ? 'Send Inquiry' : 'Request Sample'} cancelText="Cancel" width={520} styles={{ body: { maxHeight: '68vh', overflowY: 'auto' } }}>
-            <div className="space-y-4">
+        <AppModal open title={<span className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-primary" />{inquiryType === 'inquiry' ? 'Send Inquiry' : 'Request Sample'}</span>} onCancel={() => setInquiryOpen(false)} onOk={handleSendInquiry} okText={inquiryType === 'inquiry' ? 'Send Inquiry' : 'Request Sample'} cancelText="Cancel" width={520}>
+            <ModalForm>
               <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
                 <img src="https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=80&h=80&fit=crop&auto=format" alt="" className="w-16 h-16 rounded-xl object-cover" />
                 <div>
@@ -280,22 +280,18 @@ const ProductDetailPage: React.FC = () => {
                   <p className="text-sm text-gray-500">$0.80 – $1.20 / pcs</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Name *</label>
+              <ModalFormGrid>
+                <ModalFormField label="Name" required>
                   <Input value={inquiryForm.name} onChange={e => setInquiryForm({ ...inquiryForm, name: e.target.value })} placeholder="Your name" variant="filled" size="middle" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Email *</label>
+                </ModalFormField>
+                <ModalFormField label="Email" required>
                   <Input value={inquiryForm.email} onChange={e => setInquiryForm({ ...inquiryForm, email: e.target.value })} placeholder="you@company.com" variant="filled" size="middle" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Company</label>
+                </ModalFormField>
+              </ModalFormGrid>
+              <ModalFormField label="Company">
                 <Input value={inquiryForm.company} onChange={e => setInquiryForm({ ...inquiryForm, company: e.target.value })} placeholder="Company name" variant="filled" size="middle" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Bag Type</label>
+              </ModalFormField>
+              <ModalFormField label="Bag Type">
                 <Select
                   value={inquiryForm.bagType || undefined}
                   onChange={v => setInquiryForm({ ...inquiryForm, bagType: v })}
@@ -308,18 +304,11 @@ const ProductDetailPage: React.FC = () => {
                     { value: 'draw', label: 'Drawstring Bag' },
                   ]}
                 />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Requirements</label>
+              </ModalFormField>
+              <ModalFormField label="Requirements">
                 <Input.TextArea value={inquiryForm.requirements} onChange={e => setInquiryForm({ ...inquiryForm, requirements: e.target.value })} placeholder="Quantity, size, printing details..." variant="filled" rows={3} />
-              </div>
-              {inquiryType === 'sample' && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
-                  <Truck className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-700">Sample production takes 3-5 days. Shipping cost will be quoted separately.</p>
-                </div>
-              )}
-            </div>
+              </ModalFormField>
+            </ModalForm>
         </AppModal>
       )}
 

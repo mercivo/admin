@@ -30,6 +30,7 @@ describe('SiteService single site model', () => {
     emptyRepo as any,
     emptyRepo as any,
     emptyRepo as any,
+    emptyRepo as any,
     {} as any,
     config as any,
   );

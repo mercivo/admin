@@ -6,7 +6,6 @@ import { SavePlanDto, UpdateTenantControlDto } from './system.dto';
 describe('system control DTOs', () => {
   it('accepts a normalized plan permission payload', async () => {
     const dto = plainToInstance(SavePlanDto, {
-      code: 'trial',
       name: '试用版',
       price: 0,
       currency: 'CNY',
@@ -15,6 +14,7 @@ describe('system control DTOs', () => {
       maxProducts: 20,
       maxMembers: 1,
       maxSites: 1,
+      maxWarehouses: 1,
       features: {},
       permissions: ['group.products', 'menu.products', 'page.products'],
       enabled: true,
@@ -31,6 +31,7 @@ describe('system control DTOs', () => {
       maxProducts: '20',
       maxMembers: '1',
       maxSites: '1',
+      maxWarehouses: '1',
       permissions: ['group.products', 'menu.products'],
       permissionsCustomized: true,
     });
@@ -38,6 +39,7 @@ describe('system control DTOs', () => {
     expect(dto.maxProducts).toBe(20);
     expect(dto.maxMembers).toBe(1);
     expect(dto.maxSites).toBe(1);
+    expect(dto.maxWarehouses).toBe(1);
     expect(await validate(dto, { whitelist: true, forbidNonWhitelisted: true })).toEqual([]);
   });
 });

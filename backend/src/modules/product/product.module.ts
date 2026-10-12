@@ -6,9 +6,10 @@ import { ProductController } from './product.controller';
 import { Tenant } from '../site/tenant.entity';
 import { ProductCategory } from '../product-category/product-category.entity';
 import { ProductStorageService } from './product-storage.service';
+import { InventoryBalance, InventoryLedgerEntry, Warehouse } from '../inventory/inventory.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Product, Tenant, ProductCategory])],
+  imports: [TypeOrmModule.forFeature([Product, Tenant, ProductCategory, Warehouse, InventoryBalance, InventoryLedgerEntry])],
   controllers: [ProductController],
   providers: [ProductService, ProductStorageService],
   exports: [ProductService],

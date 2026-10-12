@@ -11,7 +11,7 @@ import {
   AlertCircle,
   Search,
 } from 'lucide-react';
-import { AppModal, PermissionTreePicker, Toast } from '../../components/shared';
+import { AppModal, ModalForm, ModalFormField, ModalFormGrid, PermissionTreePicker, QuotaUsage, Toast } from '../../components/shared';
 import { siteApi, workspaceApi } from '../../services/api/index';
 import type { PermissionItem, PlanItem, SiteDomain, SubscriptionOrder, TeamMember, WorkspaceSettings } from '../../services/api/index';
 import { currentPermissions } from '../../utils/permissions';
@@ -37,16 +37,15 @@ const InviteModal: React.FC<{ catalog: PermissionItem[]; onClose: () => void; on
   const [role, setRole] = useState('editor');
   const [permissions, setPermissions] = useState<string[]>([]);
   return (
-    <AppModal open title="添加团队成员" width={880} onCancel={onClose} onOk={() => onInvite({ name: name.trim(), email: email.trim(), password, role, permissions })} okText="确认添加" cancelText="取消" okButtonProps={{ disabled: !name.trim() || !email.trim() || password.length < 6 }} styles={{ body: { maxHeight: '68vh', overflowY: 'auto' } }}>
-        <div className="space-y-4">
-          <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">成员姓名</label><Input value={name} onChange={e => setName(e.target.value)} placeholder="请输入成员姓名" variant="filled" /></div>
-          <div>
-            <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">邮箱地址</label>
+    <AppModal open title="添加团队成员" width={880} onCancel={onClose} onOk={() => onInvite({ name: name.trim(), email: email.trim(), password, role, permissions })} okText="确认添加" cancelText="取消" okButtonProps={{ disabled: !name.trim() || !email.trim() || password.length < 6 }}>
+        <ModalForm>
+          <ModalFormGrid>
+          <ModalFormField label="成员姓名" required><Input value={name} onChange={e => setName(e.target.value)} placeholder="请输入成员姓名" variant="filled" /></ModalFormField>
+          <ModalFormField label="邮箱地址" required>
             <Input value={email} onChange={e => setEmail(e.target.value)} placeholder="请输入邮箱..." prefix={<Mail className="w-4 h-4 text-muted-foreground" />} variant="filled" size="middle" />
-          </div>
-          <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">初始登录密码</label><Input.Password value={password} onChange={e => setPassword(e.target.value)} placeholder="至少 6 位，成员首次登录使用" variant="filled" /></div>
-          <div>
-            <label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">角色</label>
+          </ModalFormField>
+          <ModalFormField label="初始登录密码" required><Input.Password value={password} onChange={e => setPassword(e.target.value)} placeholder="至少 6 位，成员首次登录使用" variant="filled" /></ModalFormField>
+          <ModalFormField label="角色" required>
             <div className="grid grid-cols-3 gap-2">
               {['editor', 'viewer'].map(r => (
                 <button key={r} onClick={() => setRole(r)} className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${role === r ? 'bg-primary/10 border-primary text-primary' : 'border-border text-muted-foreground hover:bg-secondary'}`}>
@@ -54,9 +53,10 @@ const InviteModal: React.FC<{ catalog: PermissionItem[]; onClose: () => void; on
                 </button>
               ))}
             </div>
-          </div>
-          <PermissionTreePicker catalog={catalog} value={permissions} onChange={setPermissions} />
-        </div>
+          </ModalFormField>
+          </ModalFormGrid>
+          <ModalFormField label="功能权限"><PermissionTreePicker catalog={catalog} value={permissions} onChange={setPermissions} title="" /></ModalFormField>
+        </ModalForm>
     </AppModal>
   );
 };
@@ -159,7 +159,9 @@ const SettingsPage: React.FC = () => {
     try {
       const newMember = await workspaceApi.createMember(data);
       setMembers(prev => [...prev, newMember]);
+      setWorkspace(current => current ? { ...current, billing: { ...current.billing, usage: { ...current.billing.usage, members: current.billing.usage.members + 1 } } } : current);
     } catch { setToast({ message: '邀请失败，请检查邮箱是否已存在', type: 'error' }); return; }
+    workspaceApi.getSettings().then(setWorkspace).catch(() => undefined);
     setShowInvite(false);
     setToast({ message: `成员 ${data.email} 已添加`, type: 'success' });
   };
@@ -168,7 +170,9 @@ const SettingsPage: React.FC = () => {
     if (!deleteMember) return;
     try { await workspaceApi.deleteMember(deleteMember.id); }
     catch { setToast({ message: '移除成员失败', type: 'error' }); return; }
+    workspaceApi.getSettings().then(setWorkspace).catch(() => undefined);
     setMembers(prev => prev.filter(m => m.id !== deleteMember.id));
+    setWorkspace(current => current ? { ...current, billing: { ...current.billing, usage: { ...current.billing.usage, members: Math.max(0, current.billing.usage.members - 1) } } } : current);
     setToast({ message: `已移除 "${deleteMember.name}"`, type: 'success' });
     setDeleteMember(null);
   };
@@ -304,8 +308,8 @@ const SettingsPage: React.FC = () => {
         {activeTab === 'team' && (
           <div className="space-y-5">
             <div className="flex items-center justify-between">
-              <div><h3 className="font-bold text-foreground">团队成员</h3><p className="text-xs text-muted-foreground mt-0.5">已使用 {members.length}/{workspace?.billing.limits.members ?? '-'} 个成员名额，含商户管理员</p></div>
-              <button disabled={!canManageMembers || !workspace || members.length >= workspace.billing.limits.members} title={!canManageMembers ? '仅商户管理员可以添加成员' : workspace && members.length >= workspace.billing.limits.members ? '成员名额已用完，请升级套餐或联系系统管理员' : ''} onClick={() => setShowInvite(true)} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 shadow-sm disabled:cursor-not-allowed disabled:opacity-40"><Mail className="w-4 h-4" />添加成员</button>
+              <div><h3 className="font-bold text-foreground">团队成员</h3><p className="text-xs text-muted-foreground mt-0.5">成员额度按整个租户计算，包含商户管理员</p></div>
+              <div className="flex items-center gap-3">{workspace && <QuotaUsage label="成员配额" used={workspace.billing.usage.members} limit={workspace.billing.limits.members} onExhaustedClick={()=>{setActiveTab('billing');setSearchParams({tab:'billing'});}}/>}<button disabled={!canManageMembers || !workspace || workspace.billing.usage.members >= workspace.billing.limits.members} title={!canManageMembers ? '仅商户管理员可以添加成员' : workspace && workspace.billing.usage.members >= workspace.billing.limits.members ? '成员名额已用完，请升级套餐或联系系统管理员' : ''} onClick={() => setShowInvite(true)} className="flex h-[42px] items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"><Mail className="w-4 h-4" />添加成员</button></div>
             </div>
             <div className="space-y-2">
               {members.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无团队成员" className="py-10" />}
@@ -336,15 +340,15 @@ const SettingsPage: React.FC = () => {
         {activeTab === 'billing' && (
           <div className="space-y-6">
             <div><h3 className="text-lg font-bold text-foreground">当前套餐：{plans.find(item => item.code === workspace?.billing.plan)?.name || workspace?.billing.plan?.toUpperCase() || '-'}</h3><p className="mt-1 text-sm text-muted-foreground">套餐状态：{workspace?.billing.status === 'active' ? '正常' : '已停用'}{workspace?.billing.expiresAt ? ` · 到期时间 ${new Date(workspace.billing.expiresAt).toLocaleDateString()}` : ''}</p></div>
-            <div className="grid grid-cols-2 gap-4"><div className="rounded-xl border border-border p-4"><div className="text-xs text-muted-foreground">商品配额</div><div className="mt-1 text-2xl font-bold text-foreground">{workspace?.billing.limits.products ?? '-'}</div></div><div className="rounded-xl border border-border p-4"><div className="text-xs text-muted-foreground">成员额度</div><div className="mt-1 text-2xl font-bold text-foreground">{workspace?.billing.limits.members ?? '-'}</div></div></div>
-            <div><h3 className="mb-3 font-bold text-foreground">可订购套餐</h3><div className="grid grid-cols-1 gap-4 xl:grid-cols-3">{plans.map(plan => <div key={plan.id} className={`rounded-2xl border p-5 ${workspace?.billing.plan === plan.code ? 'border-primary bg-primary/5' : 'border-border'}`}><div className="flex items-start justify-between"><div><div className="font-bold text-foreground">{plan.name}</div><div className="mt-1 text-xs text-muted-foreground">{plan.description || '适用于外贸 ERP 与品牌独立站'}</div></div>{workspace?.billing.plan === plan.code && <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-bold text-primary">当前</span>}</div><div className="mt-4"><span className="text-2xl font-bold text-foreground">¥{Number(plan.price).toLocaleString()}</span><span className="text-xs text-muted-foreground">/{plan.billingCycle === 'year' ? '年' : '月'}</span></div><div className="mt-4 space-y-1 text-xs text-muted-foreground"><div>{plan.maxProducts} 件商品</div><div>{plan.maxSites} 个独立站</div><div>{plan.maxMembers} 位团队成员</div></div><button disabled={workspace?.billing.plan === plan.code} onClick={() => subscribe(plan)} className="mt-5 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white disabled:bg-secondary disabled:text-muted-foreground">{workspace?.billing.plan === plan.code ? '当前套餐' : '立即订购'}</button></div>)}</div></div>
+            {workspace && <div className="grid grid-cols-2 gap-4 xl:grid-cols-4"><QuotaUsage label="商品配额" used={workspace.billing.usage.products} limit={workspace.billing.limits.products} className="min-w-0"/><QuotaUsage label="成员配额" used={workspace.billing.usage.members} limit={workspace.billing.limits.members} className="min-w-0"/><QuotaUsage label="站点配额" used={workspace.billing.usage.sites} limit={workspace.billing.limits.sites} className="min-w-0"/><QuotaUsage label="仓库配额" used={workspace.billing.usage.warehouses} limit={workspace.billing.limits.warehouses} className="min-w-0"/></div>}
+            <div><h3 className="mb-3 font-bold text-foreground">可订购套餐</h3><div className="grid grid-cols-1 gap-4 xl:grid-cols-3">{plans.map(plan => <div key={plan.id} className={`rounded-2xl border p-5 ${workspace?.billing.plan === plan.code ? 'border-primary bg-primary/5' : 'border-border'}`}><div className="flex items-start justify-between"><div><div className="font-bold text-foreground">{plan.name}</div><div className="mt-1 text-xs text-muted-foreground">{plan.description || '适用于外贸 ERP 与品牌独立站'}</div></div>{workspace?.billing.plan === plan.code && <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-bold text-primary">当前</span>}</div><div className="mt-4"><span className="text-2xl font-bold text-foreground">¥{Number(plan.price).toLocaleString()}</span><span className="text-xs text-muted-foreground">/{plan.billingCycle === 'year' ? '年' : '月'}</span></div><div className="mt-4 space-y-1 text-xs text-muted-foreground"><div>{plan.maxProducts} 件商品</div><div>{plan.maxSites} 个独立站</div><div>{plan.maxMembers} 位团队成员</div><div>{plan.maxWarehouses} 个仓库</div></div><button disabled={workspace?.billing.plan === plan.code} onClick={() => subscribe(plan)} className="mt-5 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white disabled:bg-secondary disabled:text-muted-foreground">{workspace?.billing.plan === plan.code ? '当前套餐' : '立即订购'}</button></div>)}</div></div>
             <div><h3 className="mb-3 font-bold text-foreground">订购记录</h3><Table size="small" rowKey="id" dataSource={orders} pagination={false} locale={{ emptyText: '暂无订购记录' }} columns={[{ title: '订单号', dataIndex: 'orderNo' }, { title: '套餐', dataIndex: 'planName' }, { title: '金额', render: (_, row) => `¥${Number(row.amount).toLocaleString()}` }, { title: '支付', render: () => '暂不需支付' }, { title: '生效时间', dataIndex: 'effectiveAt', render: value => new Date(value).toLocaleString('zh-CN') }]} /></div>
           </div>
         )}
       </div>
 
       {showInvite && <InviteModal catalog={permissionCatalog} onClose={() => setShowInvite(false)} onInvite={handleInvite} />}
-      <AppModal open={!!editingMember} title={`配置成员权限${editingMember ? ` · ${editingMember.name}` : ''}`} width={880} okText="保存权限" cancelText="取消" onCancel={() => setEditingMember(null)} onOk={async () => { if (!editingMember) return; try { const updated = await workspaceApi.updateMember(editingMember.id, { permissions: editingMember.permissions || [] }); setMembers(items => items.map(item => item.id === updated.id ? updated : item)); setEditingMember(null); setToast({ message: '成员权限已更新', type: 'success' }); } catch { setToast({ message: '成员权限更新失败', type: 'error' }); } }}>{editingMember && <div className="space-y-3 pt-3"><div className="rounded-xl bg-secondary/40 p-3 text-xs text-muted-foreground">成员权限不能超出当前商户由套餐或系统管理员授予的权限范围。</div><PermissionTreePicker catalog={permissionCatalog} value={editingMember.permissions || []} onChange={permissions => setEditingMember({ ...editingMember, permissions })} /></div>}</AppModal>
+      <AppModal open={!!editingMember} title={`配置成员权限${editingMember ? ` · ${editingMember.name}` : ''}`} width={880} okText="保存权限" cancelText="取消" onCancel={() => setEditingMember(null)} onOk={async () => { if (!editingMember) return; try { const updated = await workspaceApi.updateMember(editingMember.id, { permissions: editingMember.permissions || [] }); setMembers(items => items.map(item => item.id === updated.id ? updated : item)); setEditingMember(null); setToast({ message: '成员权限已更新', type: 'success' }); } catch { setToast({ message: '成员权限更新失败', type: 'error' }); } }}>{editingMember && <ModalForm><ModalFormField label="功能权限"><PermissionTreePicker catalog={permissionCatalog} value={editingMember.permissions || []} onChange={permissions => setEditingMember({ ...editingMember, permissions })} title="" /></ModalFormField></ModalForm>}</AppModal>
       {deleteMember && <DeleteMemberModal name={deleteMember.name} onClose={() => setDeleteMember(null)} onConfirm={handleDeleteMember} />}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
