@@ -24,6 +24,13 @@ describe('CloudStorageService', () => {
     await expect(service.upload({} as Express.Multer.File, 'images')).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
+  it('uses the configured public base URL for uploaded objects', async () => {
+    const config = { get: jest.fn((key: string) => ({ GCS_BUCKET: 'mercivo-assets', GCS_PUBLIC_BASE_URL: 'https://storage.googleapis.com/mercivo-assets/', GCS_OBJECT_PREFIX: 'production' } as Record<string, string>)[key]) };
+    const service = new CloudStorageService(config as never);
+    const result = await service.upload({ originalname: 'product.png', mimetype: 'image/png', buffer: Buffer.from('image') } as Express.Multer.File, 'tenants/t1/sites/s1/images');
+    expect(result.url).toBe(`https://storage.googleapis.com/mercivo-assets/${result.objectName}`);
+  });
+
   it('deletes uploaded objects from the configured image bucket', async () => {
     const config = { get: jest.fn((key: string) => ({ GCS_BUCKET: 'mercivo-assets' } as Record<string, string>)[key]) };
     const service = new CloudStorageService(config as never);

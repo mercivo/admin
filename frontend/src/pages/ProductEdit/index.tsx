@@ -11,7 +11,7 @@ import {
   CircleHelp,
   Info,
 } from 'lucide-react';
-import { AppEditableTable, AppModal, QuotaUsage, RichTextEditor, StatusBadge, TableActionButton } from '../../components/shared';
+import { AppEditableTable, AppModal, ProductImage, QuotaUsage, RichTextEditor, StatusBadge, TableActionButton } from '../../components/shared';
 import Toast, { ToastType } from '../../components/shared/Toast';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { customerApi, productApi, productCategoryApi, workspaceApi } from '../../services/api/index';
@@ -254,7 +254,7 @@ const ProductEditPage: React.FC = () => {
                   <div>
                     <label className="block text-sm font-normal text-foreground mb-2">商品图片（拖拽排序）</label>
                     <div className="grid grid-cols-4 gap-3">
-                      {form.img && <div className="relative overflow-hidden rounded-xl ring-2 ring-primary"><img src={form.img} alt="商品主图" className="aspect-square w-full object-cover" /><div className="absolute left-1 top-1 rounded bg-primary px-1.5 py-0.5 text-xs font-normal text-white">主图</div><button type="button" aria-label="删除商品图片" onClick={() => setForm(current => ({ ...current, img: '' }))} className="absolute right-1 top-1 rounded bg-black/60 p-1 text-white"><Trash2 className="h-4 w-4" /></button></div>}
+                      {form.img && <div className="relative overflow-hidden rounded-xl ring-2 ring-primary"><ProductImage image={form.img} width={480} height={480} alt="商品主图" className="aspect-square w-full object-cover" /><div className="absolute left-1 top-1 rounded bg-primary px-1.5 py-0.5 text-xs font-normal text-white">主图</div><button type="button" aria-label="删除商品图片" onClick={() => setForm(current => ({ ...current, img: '' }))} className="absolute right-1 top-1 rounded bg-black/60 p-1 text-white"><Trash2 className="h-4 w-4" /></button></div>}
                       <label className="border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center aspect-square cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors">
                         <input data-testid="product-image-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploading} className="hidden" onChange={event => { void uploadImage(event.target.files?.[0]); event.target.value = ''; }} />
                         <Upload className="w-5 h-5 text-muted-foreground mb-1" />

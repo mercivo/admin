@@ -31,12 +31,14 @@
 | `TRUST_PROXY_HOPS` | API 信任的反向代理跳数 | 否 |
 | `GCS_PROJECT_ID` | GCS 所属 Google Cloud 项目 | 否 |
 | `GCS_BUCKET` | 统一的公开图片桶；不同环境通过对象前缀隔离 | 否 |
-| `GCS_PUBLIC_BASE_URL` | 返回给客户端的公开图片域名 | 否 |
+| `GCS_PUBLIC_BASE_URL` | 返回给客户端的公开图片基地址；当前生产使用 `https://storage.googleapis.com/mercivo-images-753805870951` | 否 |
 | `GCS_OBJECT_PREFIX` | 对象环境目录；本地为 `local`，线上为 `production` | 否 |
 
 本地 GCS 使用 `gcloud auth application-default login` 生成的 Application Default Credentials，不创建服务账号 JSON 长期密钥。Compose 通过 `GCLOUD_CONFIG_DIR` 将 gcloud 配置目录只读挂载到容器内，API 仅读取 `/run/gcloud/application_default_credentials.json`。
 
 项目只使用 `mercivo-images-753805870951` 一个运行时存储桶：本地对象写入 `local/`，Cloud Run 对象写入 `production/`。旧的 `GCS_PRIVATE_BUCKET` 配置不再被代码读取，不应在新环境中配置。
+
+在独立图片域名完成 DNS、TLS 和源站映射前，不得将 `GCS_PUBLIC_BASE_URL` 指向该域名。管理端和前台会把历史 `https://image.aihubflux.com/` 地址兼容转换到当前公开 GCS 地址，避免修改生产业务数据。
 
 ## Cloud Run
 

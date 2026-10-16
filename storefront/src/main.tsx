@@ -54,9 +54,13 @@ if (/^\/products\/[^/]+\/?$/.test(storefrontPathname)) {
   storefrontPathname = '/';
 }
 const api = async <T,>(path: string, init?: RequestInit): Promise<T> => { let res: Response; try { res = await fetch(path, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers || {}) } }); } catch { throw new PublicApiError('NETWORK_ERROR', 'Network request failed'); } const body = await res.json().catch(() => ({})); if (!res.ok) throw new PublicApiError(body.errorCode || (res.status >= 500 ? 'SERVICE_UNAVAILABLE' : 'UNKNOWN_ERROR'), Array.isArray(body.message) ? body.message.join('; ') : body.message || 'Request failed'); return body.data as T; };
-const imageUrl = (id: string) => /^(?:https?:|data:|blob:|\/)/i.test(id)
-  ? id
-  : `https://images.unsplash.com/${id}?w=900&h=700&fit=crop&auto=format`;
+const legacyImageOrigin = 'https://image.aihubflux.com/';
+const gcsImageOrigin = 'https://storage.googleapis.com/mercivo-images-753805870951/';
+const imageUrl = (id: string) => id.startsWith(legacyImageOrigin)
+  ? `${gcsImageOrigin}${id.slice(legacyImageOrigin.length)}`
+  : /^(?:https?:|data:|blob:|\/)/i.test(id)
+    ? id
+    : `https://images.unsplash.com/${id}?w=900&h=700&fit=crop&auto=format`;
 const formatPrice = (price: string, currency = 'CNY', configuredSymbol?: string) => {
   if (!price) return '-';
   if (/^[¥$€£]/.test(price) || /[A-Z]{3}/.test(price)) return price;

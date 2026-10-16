@@ -1,9 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { ImageOff } from 'lucide-react';
 
+const LEGACY_IMAGE_ORIGIN = 'https://image.aihubflux.com/';
+const GCS_IMAGE_ORIGIN = 'https://storage.googleapis.com/mercivo-images-753805870951/';
+
 export const productImageUrl = (image: string | null | undefined, width: number, height: number) => {
   const value = image?.trim();
   if (!value) return '';
+  if (value.startsWith(LEGACY_IMAGE_ORIGIN)) return `${GCS_IMAGE_ORIGIN}${value.slice(LEGACY_IMAGE_ORIGIN.length)}`;
   return /^(?:https?:|data:|blob:|\/)/i.test(value)
     ? value
     : `https://images.unsplash.com/${value}?w=${width}&h=${height}&fit=crop&auto=format`;
