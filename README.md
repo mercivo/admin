@@ -18,7 +18,13 @@ make local-ps
 
 Admin 与 Storefront 浏览器请求同源 `/api/*`，各自容器再代理至 `api:8080`，不要在前端写入 API 容器地址。停止环境使用 `make local-down`；清空本地数据库和 Redis 数据须显式运行 `make local-reset`。
 
-线上部署说明见 [`deploy/cloudrun/README.md`](deploy/cloudrun/README.md)。
+生产环境只使用 Google Cloud Run 的 Git 驱动流水线：
+
+- AI/操作员强制规则：[`deploy/AI_DEPLOYMENT_RULES.md`](deploy/AI_DEPLOYMENT_RULES.md)
+- 登录、增量发布、SQL、验证与回滚手册：[`deploy/cloudrun/OPERATIONS.md`](deploy/cloudrun/OPERATIONS.md)
+- 版本发布包：[`deploy/releases/`](deploy/releases/)
+
+日常发布只需将已验收的提交 push 到 `main`；`mercivo-main` 会自动执行测试、迁移和三个 Cloud Run 服务的串行发布。
 
 ## 项目背景
 您需要构建一个外贸ERP+独立站一体化平台的SEO管理子系统。商家可在后台可视化配置站点全局SEO、页面TDK、多语言hreflang、结构化数据、站点地图等，前台自动生成搜索引擎友好的HTML。本任务将生成前后端完整代码，后端提供API，前端实现设计稿中的所有界面。

@@ -40,7 +40,7 @@ Cloud Run 当前用量位于免费额内，本月资源原价 US$0.16，抵扣�
 
 ## Artifact Registry
 
-- 保留生产使用的 `asia-east1/cloud-run-source-deploy` 仓库。
+- 保留生产使用的 `asia-east1/mercivo` 仓库。`cloud-run-source-deploy` 是旧的逐服务触发器产物，确认无回滚引用后可按镜像保留策略清理。
 - `europe-west1/cloud-run-source-deploy` 仅包含 47.6 MB 旧镜像，项目部署配置无该区域引用，已于 2026-10-12 删除。
 - 2026 年 9 月 Artifact Registry 实际费用约 **US$0.01**；按当前规模预算仍可按 **US$0.01–0.05/月** 估算。
 

@@ -1,0 +1,16 @@
+version: TEMPLATE
+releaseType: iteration
+releaseDate: YYYY-MM-DD
+owner: TEMPLATE
+sourceBranch: main
+database:
+  schemaMigration: false
+  dataCorrection: false
+  backwardCompatible: true
+redis:
+  changed: false
+storage:
+  changed: false
+rollback:
+  applicationRevisionSafe: true
+  databaseRestoreRequired: false

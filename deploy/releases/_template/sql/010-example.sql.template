@@ -1,0 +1,27 @@
+-- version: vMAJOR.MINOR.PATCH
+-- purpose: Describe one narrowly scoped historical-data correction.
+-- scope: Name tables, tenant/site constraints, and expected affected rows.
+-- idempotency: Explain the predicate that excludes already-corrected rows.
+-- rollback: Name compensating SQL or the recorded backup/PITR decision.
+-- verification: Describe the expected post-query result.
+
+-- Pre-query: run and compare with the expected count before changing data.
+SELECT COUNT(*) AS candidate_rows
+FROM `target_table`
+WHERE `tenant_id` = 'REPLACE_WITH_REVIEWED_TENANT_ID'
+  AND `target_column` = 'old_value';
+
+START TRANSACTION;
+
+UPDATE `target_table`
+SET `target_column` = 'new_value'
+WHERE `tenant_id` = 'REPLACE_WITH_REVIEWED_TENANT_ID'
+  AND `target_column` = 'old_value';
+
+-- Verification must return zero rows before COMMIT.
+SELECT COUNT(*) AS remaining_rows
+FROM `target_table`
+WHERE `tenant_id` = 'REPLACE_WITH_REVIEWED_TENANT_ID'
+  AND `target_column` = 'old_value';
+
+COMMIT;

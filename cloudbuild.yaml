@@ -17,9 +17,8 @@ substitutions:
 steps:
   - id: test-api
     name: node:20-alpine
-    dir: backend
     entrypoint: sh
-    args: ['-c', 'npm ci --legacy-peer-deps && npm test -- --runInBand && npm run build']
+    args: ['-c', 'node scripts/validate-release.mjs --current && cd backend && npm ci --legacy-peer-deps && npm test -- --runInBand && npm run build']
 
   - id: build-api
     name: gcr.io/cloud-builders/docker

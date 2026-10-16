@@ -1,6 +1,6 @@
 COMPOSE := docker compose --env-file .env.local
 
-.PHONY: local-init local-config local-build local-up local-down local-logs local-ps local-reset
+.PHONY: local-init local-config local-build local-up local-down local-logs local-ps local-reset release-validate
 
 local-init:
 	@test -f .env.local || cp .env.local.example .env.local
@@ -27,3 +27,7 @@ local-ps: local-init
 # Explicit destructive helper: removes local containers and database/Redis volumes.
 local-reset: local-init
 	$(COMPOSE) down --volumes --remove-orphans
+
+# Usage: make release-validate VERSION=v1.0.0 (defaults to deploy/releases/CURRENT)
+release-validate:
+	node scripts/validate-release.mjs "$(if $(VERSION),$(VERSION),--current)"
