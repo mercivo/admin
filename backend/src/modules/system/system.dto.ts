@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class UpdateTenantControlDto {
@@ -6,7 +6,6 @@ export class UpdateTenantControlDto {
   @IsOptional() @IsString() plan?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(1000000) maxProducts?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(10000) maxMembers?: number;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(1000) maxSites?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(10000) maxWarehouses?: number;
   @IsOptional() @IsObject() features?: Record<string, boolean>;
   @IsOptional() @IsArray() @IsString({ each: true }) permissions?: string[];
@@ -22,7 +21,6 @@ export class SavePlanDto {
   @IsOptional() @IsString() description?: string;
   @Type(() => Number) @IsInt() @Min(1) maxProducts: number;
   @Type(() => Number) @IsInt() @Min(1) maxMembers: number;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) maxSites?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) maxWarehouses?: number;
   @IsOptional() @IsObject() features?: Record<string, boolean>;
   @IsArray() @IsString({ each: true }) permissions: string[];
@@ -31,3 +29,10 @@ export class SavePlanDto {
 }
 
 export class SubscribePlanDto { @IsString() planId: string; }
+
+export class CreateTenantDto {
+  @IsString() @MinLength(2) @MaxLength(80) name: string;
+  @Matches(/^\+?[1-9]\d{7,14}$/, { message: '请输入有效手机号' }) phone: string;
+  @IsString() plan: string;
+  @IsOptional() @IsDateString() expiresAt?: string;
+}

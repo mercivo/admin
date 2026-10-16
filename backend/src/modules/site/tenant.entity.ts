@@ -9,7 +9,6 @@ export class Tenant {
   @Column({ length: 30, default: 'trial' }) plan: string;
   @Column({ name: 'max_products', type: 'int', default: 100 }) maxProducts: number;
   @Column({ name: 'max_members', type: 'int', default: 1 }) maxMembers: number;
-  @Column({ name: 'max_sites', type: 'int', default: 0 }) maxSites: number;
   @Column({ name: 'max_warehouses', type: 'int', default: 1 }) maxWarehouses: number;
   @Column({ type: 'json', nullable: true }) features: Record<string, boolean> | null;
   @Column({ type: 'json', nullable: true }) permissions: string[] | null;

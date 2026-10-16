@@ -8,7 +8,7 @@ export class User {
   @Column({ type: 'varchar', length: 50, nullable: true, unique: true }) phone: string | null;
   @Column({ type: 'varchar', length: 80, nullable: true, unique: true }) username: string | null;
   @Column({ name: 'password_hash', length: 255 }) passwordHash: string;
-  @Column({ length: 30, default: 'admin' }) role: 'system_admin' | 'admin' | 'editor' | 'viewer';
+  @Column({ length: 30, default: 'admin' }) role: 'system_admin' | 'admin' | 'member';
   @Column({ type: 'json', nullable: true }) permissions: string[] | null;
   @Column({ length: 20, default: 'active' }) status: 'active' | 'disabled';
   @Column({ name: 'last_login_at', type: 'datetime', nullable: true }) lastLoginAt: Date | null;

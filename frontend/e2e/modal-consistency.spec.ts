@@ -63,21 +63,22 @@ test('shared modal wrappers enforce the common shell and allow business widths',
 });
 
 test('product preview, delete and batch dialogs render through the unified shell', async ({ page }) => {
-  await page.addInitScript(() => {
+  const permissions = ['group.products', 'menu.products', 'page.products', 'product.edit', 'product.delete'];
+  await page.addInitScript(value => {
     localStorage.setItem('mercivo_access_token', 'modal-e2e-token');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
-    localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: ['page.products', 'product.edit', 'product.delete'] }));
-  });
+    localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: value }));
+  }, permissions);
   const product = {
-    id: 'product-1', nameZh: '统一弹窗验收商品', nameEn: 'Modal acceptance product', sku: 'MODAL-001',
+    id: 'product-1', nameZh: '统一弹窗验收商品', sku: 'MODAL-001',
     price: 'CNY 10.00', basePrice: 10, stock: 100, moq: 10, status: 'published', category: 'bags', img: '',
     hot: false, badge: '', likeCount: 0, description: '用于弹窗验收', tags: [], variants: [], levelPrices: {},
   };
   await page.route('**/api/v1/**', route => {
     const url = route.request().url();
-    if (url.includes('/auth/me')) return route.fulfill({ json: { data: { permissions: ['page.products', 'product.edit', 'product.delete'] } } });
+    if (url.includes('/auth/me')) return route.fulfill({ json: { data: { permissions } } });
     if (url.includes('/product-categories')) return route.fulfill({ json: { data: [{ code: 'bags', label: '箱包', sort: 1, status: 'enabled', remark: '', children: [] }] } });
-    if (url.includes('/product')) return route.fulfill({ json: { data: [product] } });
+    if (url.includes('/product')) return route.fulfill({ json: { data: { items: [product], total: 1, page: 1, pageSize: 20, summary: { categoryCounts: { bags: 1 }, totalProducts: 1 } } } });
     return route.fulfill({ json: { data: {} } });
   });
   await page.goto('http://localhost:8088/products');
@@ -86,7 +87,7 @@ test('product preview, delete and batch dialogs render through the unified shell
   const preview = page.getByRole('dialog', { name: /\u7edf\u4e00弹窗验收商品/ });
   const previewShell = page.locator('.ant-modal.app-modal');
   await expect(previewShell).toBeVisible();
-  await expect(previewShell).toHaveCSS('width', '680px');
+  await expect(previewShell).toHaveCSS('width', '780px');
   await expect(previewShell.locator('.ant-modal-content')).toHaveCSS('max-height', '648px');
   await expect(previewShell.locator('.ant-modal-content')).toHaveCSS('padding', '0px');
   await expect(previewShell.locator('.ant-modal-body')).toHaveCSS('overflow-y', 'auto');
@@ -105,42 +106,88 @@ test('product preview, delete and batch dialogs render through the unified shell
   await expect(deletionShell.locator('.ant-modal-footer')).toHaveCSS('padding', '16px 24px');
   await deletion.getByRole('button', { name: /\u53d6\s*消/ }).click();
 
-  await page.locator('tbody input[type="checkbox"]').first().check();
-  await page.getByRole('button', { name: '批量下架' }).click();
-  const batch = page.getByRole('dialog', { name: '批量下架商品' });
+  await page.locator('tr[data-row-key="product-1"] .ant-checkbox-input').evaluate((element: HTMLInputElement) => element.click());
+  await expect(page.getByText('已选 1 项', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '取消同步' }).click();
+  const batch = page.getByRole('dialog', { name: '批量取消同步' });
   await expect(page.locator('.ant-modal.app-modal')).toBeVisible();
   await expect(batch.locator('.ant-modal-footer')).toHaveCSS('gap', '8px');
 });
 
-test('storefront customer and contact dialogs use the same shared shell', async ({ page }) => {
+test('storefront contact dialog reuses the desktop canvas contact modal', async ({ page }) => {
   await page.route('**/api/v1/public/site**', route => route.fulfill({ json: { data: {
     siteId: 'site-modal', versionId: 'version-modal', version: 1,
-    site: { name: '弹窗验收站点', slug: 'modal-site', defaultLanguage: 'zh', supportedLanguages: ['zh'], defaultCurrency: 'CNY', guestPriceMode: 'base' },
+    site: { name: '弹窗验收站点', slug: 'modal-site', defaultLanguage: 'en_US', supportedLanguages: ['en_US'], defaultCurrency: 'CNY', guestPriceMode: 'base' },
     customer: null,
     config: { themeColor: '#7C6EF5', siteInfo: {
       contactModalTitle: '联系我们', contactModalSubtitle: '获取产品与报价信息',
-      contactDetails: { email: 'sales@example.com', phone: '+86 138 0000 0000', whatsapp: '', address: '上海', hours: '工作日 09:00–18:00' },
+      contactLabels: { email: '业务邮箱', phone: '联系电话', whatsapp: '即时沟通', address: '联系地址', hours: '工作时间' },
+      contactDetails: { email: 'sales@example.com', phone: '+86 138 0000 0000', whatsapp: '', address: '上海', hours: '工作日 09:00-18:00' },
+      contactItems: [{ id: 'email-item', label: '业务邮箱', content: 'sales@example.com' }, { id: 'address-item', label: '联系地址', content: '上海' }, { id: 'empty-item', label: '备用联系', content: '' }],
       socialLinks: [],
     } },
+    i18n: { messages: { en_US: { 'editor:siteInfo:contactModalTitle': 'Contact us', 'editor:siteInfo:contact:email-item:label': 'Business email', 'editor:siteInfo:contact:email-item:content': 'global@example.com', 'editor:siteInfo:contact:address-item:label': 'Office address', 'editor:siteInfo:contact:address-item:content': 'Shanghai office' } } },
     products: [], categories: [], testimonials: [],
   } } }));
   await page.goto('http://localhost:8080/?site=modal-site');
 
-  await page.getByRole('button', { name: '客户识别' }).click();
-  const login = page.getByRole('dialog', { name: /客户识别/ });
-  await expect(page.locator('.ant-modal.storefront-modal')).toHaveCSS('width', '430px');
-  await expect(page.locator('.ant-modal.storefront-modal .ant-modal-content')).toHaveCSS('max-height', '648px');
-  await expect(page.locator('.ant-modal.storefront-modal .ant-modal-content')).toHaveCSS('padding', '0px');
-  await expect(page.locator('.ant-modal.storefront-modal .ant-modal-body')).toHaveCSS('overflow-y', 'auto');
-  await expect(page.locator('.ant-modal.storefront-modal .ant-modal-header')).toHaveCSS('border-bottom-style', 'solid');
-  await expect(page.locator('.ant-modal.storefront-modal .ant-modal-header')).toHaveCSS('align-items', 'center');
-  await expect(login.locator('.ant-modal-footer')).toHaveCSS('display', 'flex');
-  await expect(login.locator('.ant-modal-footer')).toHaveCSS('justify-content', 'flex-end');
-  await login.getByRole('button', { name: /Close|关闭/ }).click();
-
-  await page.getByRole('button', { name: '查看联系方式' }).click();
-  const contact = page.getByRole('dialog', { name: /联系我们/ });
-  await expect(page.locator('.ant-modal.storefront-modal')).toHaveCSS('width', '460px');
-  await expect(contact.getByText('sales@example.com')).toBeVisible();
+  await page.getByRole('button', { name: '获取报价' }).click();
+  const contact = page.getByRole('dialog', { name: /Contact us/ });
+  await expect(page.locator('.ant-modal.app-modal')).toHaveCSS('width', '520px');
+  await expect(page.locator('.ant-modal.app-modal .ant-modal-content')).toHaveCSS('max-height', '648px');
+  await expect(page.locator('.ant-modal.app-modal .ant-modal-content')).toHaveCSS('padding', '0px');
+  await expect(page.locator('.ant-modal.app-modal .ant-modal-body')).toHaveCSS('overflow-y', 'auto');
+  await expect(page.locator('.ant-modal.app-modal .ant-modal-header')).toHaveCSS('border-bottom-style', 'solid');
+  await expect(contact.locator('.editor-contact-preview')).toBeVisible();
+  await expect(contact.getByText('Business email', { exact: true })).toBeVisible();
+  await expect(contact.getByText('global@example.com', { exact: true })).toBeVisible();
+  await expect(contact.getByText('Office address', { exact: true })).toBeVisible();
+  await expect(contact.getByText('Shanghai office', { exact: true })).toBeVisible();
+  await expect(contact.getByText('-', { exact: true })).toBeVisible();
   await expect(contact.locator('.ant-modal-footer')).toHaveCount(0);
+});
+
+test('storefront footer renders every social link in a new window and configured copyright', async ({ page }) => {
+  await page.route('**/api/v1/public/site**', route => route.fulfill({ json: { data: {
+    siteId: 'site-footer', versionId: 'version-footer', version: 1,
+    site: { name: '页脚验收站点', slug: 'footer-site', defaultLanguage: 'zh_CN', supportedLanguages: ['zh_CN'], defaultCurrency: 'CNY', guestPriceMode: 'base' },
+    customer: null,
+    config: {
+      themeColor: '#7C6EF5',
+      siteInfo: { contactItems: [{ id: 'email', label: '业务邮箱', content: 'very-long-sales-address@example.com' }, { id: 'phone', label: '联系电话', content: '13800000000' }], contactDetails: {} },
+      pages: { home: { sections: [{
+        id: 'footer-1', type: 'footer', visible: true, title: '测试企业', subtitle: '企业说明',
+        copyrightText: '© 2026 测试企业. All rights reserved.',
+        navItems: [{ id: 'nav-1', label: '内容较长的产品中心导航', targetId: 'products-1' }, { id: 'nav-2', label: '联系我们', targetId: 'form-1' }],
+        socialLinks: [
+          { id: 'linkedin', label: '领英', url: 'https://linkedin.example' },
+          { id: 'facebook', label: 'Facebook', url: 'https://facebook.example' },
+          { id: 'empty-name', label: '', url: 'https://empty-name.example' },
+        ],
+      }] } },
+    },
+    i18n: { messages: { zh_CN: {} } }, products: [], categories: [], testimonials: [],
+  } } }));
+  await page.goto('http://localhost:8080/?site=footer-site');
+
+  const footer = page.locator('[data-section-type="footer"]');
+  const socials = footer.locator('a[target="_blank"]');
+  await expect(socials).toHaveCount(2);
+  await expect(socials.nth(0)).toHaveAttribute('href', 'https://linkedin.example');
+  await expect(socials.nth(1)).toHaveAttribute('href', 'https://facebook.example');
+  await expect(socials.nth(0)).toHaveAttribute('target', '_blank');
+  await expect(socials.nth(1)).toHaveAttribute('rel', /noreferrer/);
+  await expect(footer.locator('a[href="https://empty-name.example"]')).toHaveCount(0);
+  await expect(footer.getByText('© 2026 测试企业. All rights reserved.', { exact: true })).toBeVisible();
+
+  const details = footer.locator('footer > div > div').nth(1);
+  const navigationHeading = await details.getByText('快速导航', { exact: true }).boundingBox();
+  const contactHeading = await details.getByText('联系我们', { exact: true }).first().boundingBox();
+  const navigationText = await details.getByText('内容较长的产品中心导航', { exact: true }).boundingBox();
+  const contactText = await details.getByText('业务邮箱：very-long-sales-address@example.com', { exact: true }).boundingBox();
+  expect(navigationHeading!.y).toBe(contactHeading!.y);
+  expect(navigationText!.y).toBe(contactText!.y);
+  expect(navigationText!.x).toBe(navigationHeading!.x);
+  expect(contactText!.x).toBe(contactHeading!.x);
+  expect((await details.getByText('联系我们', { exact: true }).last().boundingBox())!.y).toBe((await details.getByText('联系电话：13800000000', { exact: true }).boundingBox())!.y);
 });

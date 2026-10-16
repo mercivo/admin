@@ -92,13 +92,13 @@ const ProductDetailPage: React.FC = () => {
         {/* Left: Images */}
         <div>
           <div className="aspect-square bg-gray-50 rounded-2xl overflow-hidden mb-3">
-            <ProductImage image={images[mainImage]} width={600} height={600} alt={product?.nameZh || product?.nameEn || '商品主图'} className="h-full w-full object-cover" />
+            <ProductImage image={images[mainImage]} width={600} height={600} alt={product?.nameZh || '商品主图'} className="h-full w-full object-cover" />
           </div>
           <div className="grid grid-cols-4 gap-3">
             {images.map((img, i) => (
               <button key={i} onClick={() => setMainImage(i)}
                 className={`aspect-square rounded-xl overflow-hidden border-2 transition-colors ${i === mainImage ? 'border-primary' : 'border-transparent hover:border-gray-300'}`}>
-                <ProductImage image={img} width={120} height={120} alt={`${product?.nameZh || product?.nameEn || '商品'}图片 ${i + 1}`} className="h-full w-full object-cover" />
+                <ProductImage image={img} width={120} height={120} alt={`${product?.nameZh || '商品'}图片 ${i + 1}`} className="h-full w-full object-cover" />
               </button>
             ))}
           </div>
@@ -111,7 +111,7 @@ const ProductDetailPage: React.FC = () => {
             <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full">Eco-Friendly</span>
           </div>
 
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">{product?.nameEn || 'Loading...'}</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">{product?.nameZh || '加载中…'}</h1>
           <div className="text-gray-500 mt-3 leading-relaxed">
             {product?.description ? <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: product.description }} /> : 'Premium eco-friendly product, fully customizable with your brand logo and design.'}
           </div>
@@ -243,10 +243,10 @@ const ProductDetailPage: React.FC = () => {
           <h2 className="text-xl font-bold text-gray-900 mb-6">Related Products</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
             {[
-              { img: 'photo-1553062407-98eeb64c6a62', name: 'Cotton Tote Bag', price: '$1.20–2.00' },
-              { img: 'photo-1584917865442-de89df76afd3', name: 'Drawstring Bag', price: '$0.50–0.80' },
-              { img: 'photo-1491637639811-60e2756cc1c7', name: 'Canvas Tote Bag', price: '$1.50–2.50' },
-              { img: 'photo-1593642632559-0c6d3fc62b89', name: 'Non-woven Bag', price: '$0.30–0.60' },
+              { img: 'photo-1553062407-98eeb64c6a62', name: 'Cotton Tote Bag', price: '$1.20-2.00' },
+              { img: 'photo-1584917865442-de89df76afd3', name: 'Drawstring Bag', price: '$0.50-0.80' },
+              { img: 'photo-1491637639811-60e2756cc1c7', name: 'Canvas Tote Bag', price: '$1.50-2.50' },
+              { img: 'photo-1593642632559-0c6d3fc62b89', name: 'Non-woven Bag', price: '$0.30-0.60' },
             ].map((p, i) => (
               <div key={i} className="group bg-white border border-gray-100 rounded-2xl overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer">
                 <div className="overflow-hidden bg-gray-50 h-36">
@@ -277,7 +277,7 @@ const ProductDetailPage: React.FC = () => {
                 <img src="https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=80&h=80&fit=crop&auto=format" alt="" className="w-16 h-16 rounded-xl object-cover" />
                 <div>
                   <h4 className="font-bold text-gray-900">Eco Shopping Bag</h4>
-                  <p className="text-sm text-gray-500">$0.80 – $1.20 / pcs</p>
+                  <p className="text-sm text-gray-500">$0.80 - $1.20 / pcs</p>
                 </div>
               </div>
               <ModalFormGrid>

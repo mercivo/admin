@@ -189,9 +189,15 @@
 }
 
 /* Keep the product category tree's switcher, label and count on one baseline. */
+.product-category-sidebar {
+  contain: size;
+}
+
 .product-category-tree .ant-tree-treenode {
   align-items: center;
   width: 100%;
+  min-width: 0;
+  overflow: hidden;
   padding-block: 0;
 }
 
@@ -215,6 +221,7 @@
   display: block;
   width: 100%;
   min-width: 0;
+  overflow: hidden;
 }
 
 .ant-btn {

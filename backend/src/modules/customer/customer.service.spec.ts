@@ -5,13 +5,15 @@ describe('CustomerService', () => {
   let service: CustomerService;
   let customers: Record<string, jest.Mock>;
   let levels: Record<string, jest.Mock>;
+  let queryBuilder: Record<string, jest.Mock>;
 
   beforeEach(() => {
+    queryBuilder = { where: jest.fn().mockReturnThis(), andWhere: jest.fn().mockReturnThis(), orderBy: jest.fn().mockReturnThis(), skip: jest.fn().mockReturnThis(), take: jest.fn().mockReturnThis(), select: jest.fn().mockReturnThis(), addSelect: jest.fn().mockReturnThis(), groupBy: jest.fn().mockReturnThis(), getRawMany: jest.fn().mockResolvedValue([]), getManyAndCount: jest.fn().mockResolvedValue([[], 0]) };
     customers = {
       find: jest.fn().mockResolvedValue([]),
       findOne: jest.fn(),
       exists: jest.fn().mockResolvedValue(false),
-      createQueryBuilder: jest.fn(),
+      createQueryBuilder: jest.fn(() => queryBuilder),
       create: jest.fn(value => value),
       save: jest.fn(value => Promise.resolve({ id: 'customer-1', ...value })),
       remove: jest.fn().mockResolvedValue(undefined),
@@ -25,12 +27,19 @@ describe('CustomerService', () => {
       save: jest.fn(value => Promise.resolve({ id: 'level-1', ...value })),
       remove: jest.fn().mockResolvedValue(undefined),
     };
-    service = new CustomerService(customers as never, levels as never, { findOne: jest.fn(), save: jest.fn() } as never);
+    service = new CustomerService(customers as never, levels as never, { findOne: jest.fn(), save: jest.fn() } as never, { findOne: jest.fn(), save: jest.fn() } as never);
   });
 
   it('lists customers only for the active site', async () => {
     await service.list('site-1');
-    expect(customers.find).toHaveBeenCalledWith({ where: { siteId: 'site-1' }, order: { updatedAt: 'DESC' } });
+    expect(customers.createQueryBuilder).toHaveBeenCalledWith('customer');
+    expect(queryBuilder.where).toHaveBeenCalledWith('customer.site_id = :siteId', { siteId: 'site-1' });
+  });
+
+  it('returns customer level totals independent from list filters', async () => {
+    queryBuilder.getRawMany.mockResolvedValue([{ level: 'vip', count: '3' }, { level: '', count: '2' }]);
+    const result = await service.list('site-1', { keyword: '张', level: 'vip' });
+    expect(result.summary).toEqual({ levelCounts: { vip: 3, '': 2 }, totalCustomers: 5 });
   });
 
   it('creates a tenant and site scoped customer with a valid level', async () => {

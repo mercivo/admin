@@ -12,9 +12,6 @@ export class Product {
   @Column({ name: 'name_zh', length: 255 })
   nameZh: string;
 
-  @Column({ name: 'name_en', length: 255 })
-  nameEn: string;
-
   @Column({ name: 'sku', length: 100 })
   sku: string;
 
@@ -30,8 +27,11 @@ export class Product {
   @Column({ name: 'level_prices', type: 'json', nullable: true })
   levelPrices: Record<string, number> | null;
 
+  @Column({ name: 'currency_prices', type: 'json', nullable: true })
+  currencyPrices: Record<string, { basePrice: number; levelPrices: Record<string, number> }> | null;
+
   @Column({ type: 'json', nullable: true })
-  variants: Array<{ id: string; specification: string; option: string; stock: number; surcharge: number }> | null;
+  variants: Array<{ id: string; specification: string; option: string; stock: number; surcharge: number; surcharges?: Record<string, number> }> | null;
 
   @Column({ type: 'json', nullable: true })
   tags: string[] | null;
@@ -42,8 +42,8 @@ export class Product {
   @Column({ name: 'moq', type: 'int' })
   moq: number;
 
-  @Column({ name: 'status', length: 20, default: 'draft' })
-  status: 'published' | 'draft';
+  @Column({ name: 'status', length: 20, default: 'pending' })
+  status: 'published' | 'pending';
 
   @Column({ name: 'category', length: 100 })
   category: string;

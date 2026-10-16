@@ -42,7 +42,7 @@ function proxy(request, response, targetPath = request.url) {
   upstream.on('error', error => {
     console.error(`Storefront proxy failed: ${error.code || 'UNKNOWN'} ${error.message}`);
     response.writeHead(502, { 'content-type': 'application/json; charset=utf-8' });
-    response.end(JSON.stringify({ statusCode: 502, message: '服务暂时不可用，请稍后重试。' }));
+    response.end(JSON.stringify({ code: 502, errorCode: 'SERVICE_UNAVAILABLE', data: null, message: 'Service temporarily unavailable' }));
   });
   request.pipe(upstream);
 }
@@ -55,9 +55,10 @@ function requestRoute(host, requestUrl) {
   return { site: requestUrl.searchParams.get('site') || pathSite, basePath: pathSite ? `/${encodeURIComponent(pathSite)}` : '', pathname: pathname || '/' };
 }
 
-async function siteData(host, site) {
+async function siteData(host, site, language) {
   const url = new URL('/api/v1/public/site', apiOrigin);
   if (site) url.searchParams.set('site', site);
+  if (language) url.searchParams.set('lang', language);
   const result = await fetch(url, { headers: { host: new URL(apiOrigin).host, 'x-forwarded-host': host } });
   if (!result.ok) return null;
   const payload = await result.json();
@@ -69,19 +70,29 @@ function renderHtml(data, requestUrl, host, route) {
   const pathProductId = route.pathname.match(/^\/products\/([^/]+)$/)?.[1];
   const product = pathProductId ? data.products?.find(item => item.id === pathProductId) : null;
   const seo = data.seo || {};
+  const locale = data.locale || data.site.defaultLanguage;
+  const messages = data.i18n?.messages?.[locale] || {};
+  const sourceMessages = data.i18n?.messages?.[data.site.defaultLanguage] || data.i18n?.messages?.[data.i18n?.sourceLocale || 'zh_CN'] || {};
+  const t = (key, fallback) => messages[key] || sourceMessages[key] || fallback;
+  const sections = data.config?.pages?.home?.sections || [];
+  const titleSection = sections.find(item => item.type === 'header') || sections.find(item => item.type === 'footer');
+  const siteName = titleSection?.id ? t(`editor:home:${titleSection.id}:title`, titleSection.title || data.site.name) : data.site.name;
   const origin = `https://${host.split(':')[0]}`;
-  const canonical = product ? `${origin}${route.basePath}/products/${encodeURIComponent(product.id)}` : (seo.canonicalUrl || `${origin}${route.basePath}/`);
-  const title = product ? (product.seoTitle || `${product.nameEn || product.nameZh}｜${data.site.name}`) : (seo.title || `${data.site.name}｜官方网站`);
-  const description = product ? (product.seoDescription || product.description || '') : (seo.description || `浏览${data.site.name}的产品与服务。`);
+  const languageQuery = `?lang=${encodeURIComponent(locale)}`;
+  const canonicalBase = product ? `${origin}${route.basePath}/products/${encodeURIComponent(product.id)}` : (seo.canonicalUrl || `${origin}${route.basePath}/`);
+  const canonical = `${canonicalBase}${canonicalBase.includes('?') ? '&' : '?'}lang=${encodeURIComponent(locale)}`;
+  const productName = product ? t(`product:${product.id}:name`, product.nameZh) : '';
+  const title = product ? (t(`product:${product.id}:seoTitle`, product.seoTitle || '') || `${productName}｜${siteName}`) : (t('seo:title', seo.title || '') || siteName);
+  const description = product ? (t(`product:${product.id}:seoDescription`, product.seoDescription || '') || t(`product:${product.id}:description`, product.description || '')) : t('seo:description', seo.description || '');
   const image = product?.seoImage || product?.img || seo.shareImage || data.products?.[0]?.img || '';
   const languages = data.site.supportedLanguages || [data.site.defaultLanguage];
-  const alternates = languages.map(language => `<link rel="alternate" hreflang="${escapeHtml(language)}" href="${canonical}?lang=${escapeHtml(language)}">`).join('');
+  const alternates = languages.map(language => `<link rel="alternate" hreflang="${escapeHtml(language.replace('_', '-'))}" href="${escapeHtml(canonicalBase)}${canonicalBase.includes('?') ? '&' : '?'}lang=${escapeHtml(language)}">`).join('');
   const schema = product
-    ? { '@context': 'https://schema.org', '@type': 'Product', name: product.nameEn || product.nameZh, description, image: image ? [image] : undefined, sku: product.sku, brand: { '@type': 'Brand', name: data.site.name }, offers: product.priceVisible ? { '@type': 'Offer', priceCurrency: data.site.defaultCurrency, price: String(product.price).split('–')[0], availability: 'https://schema.org/InStock', url: canonical } : undefined }
-    : { '@context': 'https://schema.org', '@type': 'Organization', name: data.site.name, url: canonical, description, logo: image || undefined };
+    ? { '@context': 'https://schema.org', '@type': 'Product', name: productName, description, image: image ? [image] : undefined, sku: product.sku, brand: { '@type': 'Brand', name: siteName }, offers: product.priceVisible ? { '@type': 'Offer', priceCurrency: data.site.defaultCurrency, price: String(product.price).split('～')[0], availability: 'https://schema.org/InStock', url: canonical } : undefined }
+    : { '@context': 'https://schema.org', '@type': 'Organization', name: siteName, url: canonical, description, logo: image || undefined };
   const head = `<title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="${escapeHtml(seo.robots || 'index,follow,max-image-preview:large')}"><link rel="canonical" href="${escapeHtml(canonical)}">${alternates}<meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(canonical)}"><meta property="og:type" content="${product ? 'product' : 'website'}">${image ? `<meta property="og:image" content="${escapeHtml(image)}">` : ''}<script type="application/ld+json">${JSON.stringify(schema).replace(/</g, '\\u003c')}</script>`;
-  const products = (product ? [product] : data.products || []).slice(0, 24).map(item => `<article><h2>${escapeHtml(item.nameEn || item.nameZh)}</h2><p>${escapeHtml(item.description || '')}</p><a href="${route.basePath}/products/${encodeURIComponent(item.id)}">查看产品</a></article>`).join('');
-  const body = `<main data-server-seo><h1>${escapeHtml(product ? (product.nameEn || product.nameZh) : data.site.name)}</h1><p>${escapeHtml(description)}</p>${products}</main>`;
+  const products = (product ? [product] : data.products || []).slice(0, 24).map(item => { const name = t(`product:${item.id}:name`, item.nameZh); return `<article><h2>${escapeHtml(name)}</h2><p>${escapeHtml(t(`product:${item.id}:description`, item.description || ''))}</p><a aria-label="${escapeHtml(t('system:products.viewDetail', 'View {name} details').replace('{name}', name))}" href="${route.basePath}/products/${encodeURIComponent(item.id)}${languageQuery}">${escapeHtml(name)}</a></article>`; }).join('');
+  const body = `<main data-server-seo><h1>${escapeHtml(product ? productName : siteName)}</h1><p>${escapeHtml(description)}</p>${products}</main>`;
   return indexTemplate.replace('</head>', `${head}</head>`).replace('<div id="root"></div>', `<div id="root">${body}</div>`);
 }
 
@@ -102,7 +113,7 @@ const server = http.createServer(async (request, response) => {
     } catch {}
   }
   try {
-    const data = await siteData(request.headers.host || 'localhost', route.site);
+    const data = await siteData(request.headers.host || 'localhost', route.site, url.searchParams.get('lang'));
     response.writeHead(data ? 200 : 404, { ...securityHeaders, 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=60, stale-while-revalidate=300' });
     response.end(renderHtml(data, url, request.headers.host || 'localhost', route));
   } catch (error) {

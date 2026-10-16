@@ -5,7 +5,7 @@ import type { MenuProps } from 'antd';
 
 export type SelectOption = { value: string; label: string };
 
-export const AntSelect = ({ value, options, onChange, className = '', label = '请选择', disabled = false }: { value: string; options: SelectOption[]; onChange: (value: string) => void; className?: string; label?: string; disabled?: boolean }) => {
+export const AntSelect = ({ value, options, onChange, className = '', label, disabled = false }: { value: string; options: SelectOption[]; onChange: (value: string) => void; className?: string; label?: string; disabled?: boolean }) => {
   const selected = options.find(option => option.value === value);
   const items: MenuProps['items'] = options.map(option => ({
     key: option.value,
@@ -20,7 +20,7 @@ export const AntSelect = ({ value, options, onChange, className = '', label = '�
       overlayClassName={`storefront-dropdown ${className.includes('language-select') ? 'language-dropdown-overlay' : 'category-dropdown-overlay'}`}
       getPopupContainer={() => document.body}
     >
-      <button type="button" className={`dropdown-trigger ${className}`} aria-label={label} aria-haspopup="menu" disabled={disabled} onClick={event => event.preventDefault()}><span>{selected?.label || value}</span><DownOutlined /></button>
+      <button type="button" className={`dropdown-trigger ${className}`} aria-label={label || selected?.label || value} aria-haspopup="menu" disabled={disabled} onClick={event => event.preventDefault()}><span>{selected?.label || value}</span><DownOutlined /></button>
     </Dropdown>
   </ConfigProvider>;
 };

@@ -2,14 +2,12 @@ import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query, Req, R
 import type { Response } from 'express';
 import { SiteService } from './site.service';
 import { CreateDomainDto, CreateSiteDto, PublishSiteDto, RollbackSiteDto, UpdateSiteDto } from './site.dto';
-import { PublicCustomerLoginDto } from '../customer/customer.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { Throttle } from '@nestjs/throttler';
 import { AuthUser } from '../../common/types/auth-user';
 
 @Controller('admin/sites')
-@Roles('admin', 'editor')
+@Roles('admin', 'member')
 export class SiteAdminController {
   constructor(private readonly service: SiteService) {}
   @Get('tenants') tenants(@Req() req: { user: AuthUser }) { return this.service.listTenants(req.user.tenantId); }
@@ -21,7 +19,7 @@ export class SiteAdminController {
   @Post('domains/:id/verify') verifyDomain(@Param('id') id: string, @Req() req: { user: AuthUser }) { return this.service.verifyDomain(id, req.user.tenantId); }
   @Delete('domains/:id') removeDomain(@Param('id') id: string, @Req() req: { user: AuthUser }) { return this.service.removeDomain(id, req.user.tenantId); }
   @Get(':id/versions') versions(@Param('id') id: string, @Req() req: { user: AuthUser }) { return this.service.listVersions(id, req.user.tenantId); }
-  @Post(':id/publish') publish(@Param('id') id: string, @Body() dto: PublishSiteDto, @Req() req: { user: AuthUser }) { return this.service.publish(id, dto.publishedBy, req.user.tenantId); }
+  @Post(':id/publish') publish(@Param('id') id: string, @Body() dto: PublishSiteDto, @Req() req: { user: AuthUser }) { return this.service.publish(id, req.user.account, dto.releaseNote, req.user.tenantId); }
   @Post(':id/rollback') rollback(@Param('id') id: string, @Body() dto: RollbackSiteDto, @Req() req: { user: AuthUser }) { return this.service.rollback(id, dto.versionId, req.user.tenantId); }
 }
 
@@ -29,10 +27,8 @@ export class SiteAdminController {
 @Public()
 export class SitePublicController {
   constructor(private readonly service: SiteService) {}
-  @Get('site') getSite(@Headers('x-forwarded-host') forwardedHost: string, @Headers('host') host: string, @Headers('authorization') authorization: string, @Query('site') site?: string) { return this.service.resolvePublished(forwardedHost || host || 'localhost', site, authorization); }
+  @Get('site') getSite(@Headers('x-forwarded-host') forwardedHost: string, @Headers('host') host: string, @Query('site') site?: string, @Query('lang') lang?: string) { return this.service.resolvePublished(forwardedHost || host || 'localhost', site, lang); }
   @Get('domains/authorize') async authorizeDomain(@Query('domain') domain: string, @Res() response: Response) { response.status(await this.service.authorizeDomain(domain || '') ? 200 : 404).send(); }
   @Get('sitemap.xml') async sitemap(@Headers('x-forwarded-host') forwardedHost: string, @Headers('host') host: string, @Query('site') site: string | undefined, @Res() response: Response) { response.type('application/xml').send(await this.service.sitemap(forwardedHost || host || 'localhost', site)); }
   @Get('robots.txt') async robots(@Headers('x-forwarded-host') forwardedHost: string, @Headers('host') host: string, @Query('site') site: string | undefined, @Res() response: Response) { response.type('text/plain').send(await this.service.robots(forwardedHost || host || 'localhost', site)); }
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @Post('customer/login') customerLogin(@Headers('x-forwarded-host') forwardedHost: string, @Headers('host') host: string, @Query('site') site: string | undefined, @Body() dto: PublicCustomerLoginDto) { return this.service.loginPublicCustomer(forwardedHost || host || 'localhost', site, dto.phone); }
 }

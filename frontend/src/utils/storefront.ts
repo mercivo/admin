@@ -11,6 +11,7 @@ export async function openPublishedStorefront() {
     if (workspace.site.domain && workspace.site.domainStatus === 'active') {
       const protocol = workspace.site.domain === 'localhost' || workspace.site.domain.endsWith('.localhost') ? 'http:' : 'https:';
       target = new URL(`${protocol}//${workspace.site.domain}`);
+      if (protocol === 'http:') target.port = new URL(previewBaseUrl, window.location.origin).port;
     } else {
       target = new URL(previewBaseUrl, window.location.origin);
       target.searchParams.set('site', workspace.site.slug);

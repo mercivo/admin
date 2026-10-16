@@ -69,28 +69,23 @@ export const PermissionTreePicker: React.FC<PermissionTreePickerProps> = ({ cata
         const primaryState = stateOf(primary.key);
         const directLeaves = (childrenByParent.get(primary.key) || []).filter(item => item.level === 'page' || item.level === 'button');
         return <section key={primary.key} className="rounded-xl border border-border bg-white p-4">
-          <Checkbox className="items-center" checked={primaryState.checked} indeterminate={primaryState.indeterminate} onChange={event => toggle(primary, event.target.checked)}>
-            <span className="inline-flex items-center gap-2 text-sm font-normal"><span>{primary.label}</span><PermissionLevelTag level="primary"/></span>
-          </Checkbox>
+          <div className="flex items-center gap-2">
+            <Checkbox aria-label={`选择${primary.label}`} checked={primaryState.checked} indeterminate={primaryState.indeterminate} onChange={event => toggle(primary, event.target.checked)}/>
+            <span data-testid="permission-label" className="inline-flex items-center gap-2 text-sm font-normal"><span>{primary.label}</span><PermissionLevelTag level="primary"/></span>
+          </div>
           {directLeaves.length > 0 && <div className="mt-3 grid gap-2 pl-6 sm:grid-cols-2 xl:grid-cols-3">
             {directLeaves.map(leaf => <div key={leaf.key} className="rounded-lg border border-border/70 bg-secondary/20 px-2.5 py-2">
-              <Checkbox className="items-center" checked={selection.has(leaf.key)} onChange={event => toggle(leaf, event.target.checked)}>
-                <span className="inline-flex items-center gap-2 text-sm font-normal"><span>{leaf.label}</span><PermissionLevelTag level={leaf.level}/></span>
-              </Checkbox>
+              <div className="flex items-center gap-2"><Checkbox aria-label={`选择${leaf.label}`} checked={selection.has(leaf.key)} onChange={event => toggle(leaf, event.target.checked)}/><span data-testid="permission-label" className="inline-flex items-center gap-2 text-sm font-normal"><span>{leaf.label}</span><PermissionLevelTag level={leaf.level}/></span></div>
             </div>)}
           </div>}
           <div className="mt-3 space-y-4 border-l-2 border-primary/10 pl-5">
             {(childrenByParent.get(primary.key) || []).filter(item => item.level === 'secondary').map(secondary => {
               const secondaryState = stateOf(secondary.key);
               return <div key={secondary.key}>
-                <Checkbox className="items-center" checked={secondaryState.checked} indeterminate={secondaryState.indeterminate} onChange={event => toggle(secondary, event.target.checked)}>
-                  <span className="inline-flex items-center gap-2 text-sm font-normal"><span>{secondary.label}</span><PermissionLevelTag level="secondary"/></span>
-                </Checkbox>
+                <div className="flex items-center gap-2"><Checkbox aria-label={`选择${secondary.label}`} checked={secondaryState.checked} indeterminate={secondaryState.indeterminate} onChange={event => toggle(secondary, event.target.checked)}/><span data-testid="permission-label" className="inline-flex items-center gap-2 text-sm font-normal"><span>{secondary.label}</span><PermissionLevelTag level="secondary"/></span></div>
                 <div className="mt-2 grid gap-2 pl-6 sm:grid-cols-2 xl:grid-cols-3">
                   {(childrenByParent.get(secondary.key) || []).map(leaf => <div key={leaf.key} className="rounded-lg border border-border/70 bg-secondary/20 px-2.5 py-2">
-                    <Checkbox className="items-center" checked={selection.has(leaf.key)} onChange={event => toggle(leaf, event.target.checked)}>
-                      <span className="inline-flex items-center gap-2 text-sm font-normal"><span>{leaf.label}</span><PermissionLevelTag level={leaf.level}/></span>
-                    </Checkbox>
+                    <div className="flex items-center gap-2"><Checkbox aria-label={`选择${leaf.label}`} checked={selection.has(leaf.key)} onChange={event => toggle(leaf, event.target.checked)}/><span data-testid="permission-label" className="inline-flex items-center gap-2 text-sm font-normal"><span>{leaf.label}</span><PermissionLevelTag level={leaf.level}/></span></div>
                   </div>)}
                 </div>
               </div>;

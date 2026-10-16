@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Post, Req } from '@nestjs/common';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthService } from './auth.service';
-import { LoginDto, RegisterDto, SwitchSiteDto } from './auth.dto';
+import { ChangePasswordDto, LoginDto, RegisterDto, SwitchSiteDto } from './auth.dto';
 import { Throttle } from '@nestjs/throttler';
 import { AuthUser } from '../../common/types/auth-user';
 
@@ -13,4 +13,5 @@ export class AuthController {
   @Public() @Throttle({ default: { limit: 5, ttl: 60000 } }) @Post('register') register(@Body() dto: RegisterDto) { return this.auth.register(dto); }
   @Get('me') me(@Req() request: { user: unknown }) { return request.user; }
   @Post('switch-site') switchSite(@Body() dto: SwitchSiteDto, @Req() request: { user: AuthUser }) { return this.auth.switchSite(request.user.userId, request.user.tenantId, dto.siteId); }
+  @Post('change-password') changePassword(@Body() dto: ChangePasswordDto, @Req() request: { user: AuthUser }) { return this.auth.changePassword(request.user.userId, dto); }
 }

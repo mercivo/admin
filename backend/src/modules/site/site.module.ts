@@ -5,14 +5,12 @@ import { Site } from './site.entity';
 import { SiteDomain } from './site-domain.entity';
 import { SiteVersion } from './site-version.entity';
 import { Product } from '../product/product.entity';
-import { Testimonial } from '../storefront/testimonial.entity';
 import { AppConfig } from '../workspace/app-config.entity';
 import { SiteAdminController, SitePublicController } from './site.controller';
 import { SiteService } from './site.service';
 import { ProductCategory } from '../product-category/product-category.entity';
-import { Customer } from '../customer/customer.entity';
-import { AuthModule } from '../auth/auth.module';
 import { Warehouse } from '../inventory/inventory.entity';
+import { TranslationModule } from '../translation/translation.module';
 
-@Module({ imports: [AuthModule, TypeOrmModule.forFeature([Tenant, Site, SiteDomain, SiteVersion, Product, Testimonial, AppConfig, ProductCategory, Customer, Warehouse])], controllers: [SiteAdminController, SitePublicController], providers: [SiteService], exports: [SiteService] })
+@Module({ imports: [TranslationModule, TypeOrmModule.forFeature([Tenant, Site, SiteDomain, SiteVersion, Product, AppConfig, ProductCategory, Warehouse])], controllers: [SiteAdminController, SitePublicController], providers: [SiteService], exports: [SiteService] })
 export class SiteModule {}

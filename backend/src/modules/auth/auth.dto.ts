@@ -17,3 +17,8 @@ export class SwitchSiteDto {
   @IsUUID()
   siteId: string;
 }
+
+export class ChangePasswordDto {
+  @IsString() @MinLength(8) @MaxLength(72) currentPassword: string;
+  @IsString() @MinLength(8) @MaxLength(72) newPassword: string;
+}

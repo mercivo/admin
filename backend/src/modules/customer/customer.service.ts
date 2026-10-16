@@ -5,11 +5,26 @@ import { Repository } from 'typeorm';
 import { Customer, CustomerLevelRule } from './customer.entity';
 import { CreateCustomerDto, CreateCustomerLevelDto, UpdateCustomerDto, UpdateCustomerLevelDto } from './customer.dto';
 import { Site } from '../site/site.entity';
+import { pageLimit, pageOffset, pageResult } from '../../common/dto/page-query.dto';
+import { CustomerQueryDto } from './customer-query.dto';
+import { AppConfig } from '../workspace/app-config.entity';
 
 @Injectable()
 export class CustomerService {
-  constructor(@InjectRepository(Customer) private readonly customers: Repository<Customer>, @InjectRepository(CustomerLevelRule) private readonly rules: Repository<CustomerLevelRule>, @InjectRepository(Site) private readonly sites: Repository<Site>) {}
-  list(siteId: string) { return this.customers.find({ where: { siteId }, order: { updatedAt: 'DESC' } }); }
+  constructor(@InjectRepository(Customer) private readonly customers: Repository<Customer>, @InjectRepository(CustomerLevelRule) private readonly rules: Repository<CustomerLevelRule>, @InjectRepository(Site) private readonly sites: Repository<Site>, @InjectRepository(AppConfig) private readonly configs: Repository<AppConfig>) {}
+  async list(siteId: string, query: CustomerQueryDto = new CustomerQueryDto()) {
+    const builder = this.customers.createQueryBuilder('customer').where('customer.site_id = :siteId', { siteId });
+    if (query.keyword?.trim()) builder.andWhere('(customer.name LIKE :keyword OR customer.company LIKE :keyword OR customer.phone LIKE :keyword OR customer.email LIKE :keyword)', { keyword: `%${query.keyword.trim()}%` });
+    if (query.status) builder.andWhere('customer.status = :status', { status: query.status });
+    if (query.level) builder.andWhere('customer.level = :level', { level: query.level });
+    const [[items, total], levelRows] = await Promise.all([
+      builder.orderBy('customer.updated_at', 'DESC').skip(pageOffset(query)).take(pageLimit(query)).getManyAndCount(),
+      this.customers.createQueryBuilder('levelCustomer').select('levelCustomer.level', 'level').addSelect('COUNT(levelCustomer.id)', 'count').where('levelCustomer.site_id = :siteId', { siteId }).groupBy('levelCustomer.level').getRawMany<{ level: string; count: string }>(),
+    ]);
+    const levelCounts = Object.fromEntries(levelRows.map(row => [row.level || '', Number(row.count)]));
+    return { ...pageResult(items, total, query), summary: { levelCounts, totalCustomers: Object.values(levelCounts).reduce((sum, count) => sum + count, 0) } };
+  }
+  options(siteId: string) { return this.customers.find({ where: { siteId, status: 'active' }, order: { name: 'ASC' } }); }
   async create(dto: CreateCustomerDto, tenantId: string, siteId: string) {
     await this.ensureLevel(dto.level, siteId);
     const name = dto.name.trim();
@@ -60,13 +75,17 @@ export class CustomerService {
   async getGuestPricing(siteId: string) {
     const site = await this.sites.findOne({ where: { id: siteId } });
     if (!site) throw new NotFoundException('站点不存在');
-    return { mode: site.guestPriceMode || 'base' };
+    const config = await this.configs.findOne({ where: { key: `${siteId}:system` } });
+    const storefront = (config?.value as any)?.storefront || {};
+    return { mode: storefront.guestPriceMode || site.guestPriceMode || 'base' };
   }
-  async updateGuestPricing(siteId: string, mode: 'base' | 'hidden') {
+  async updateGuestPricing(siteId: string, mode: 'base' | 'hidden' | 'percentage') {
     const site = await this.sites.findOne({ where: { id: siteId } });
     if (!site) throw new NotFoundException('站点不存在');
-    site.guestPriceMode = mode;
-    await this.sites.save(site);
+    site.guestPriceMode = mode === 'percentage' ? 'base' : mode;
+    const config = await this.configs.findOne({ where: { key: `${siteId}:system` } });
+    const value = (config?.value as any) || {};
+    await Promise.all([this.sites.save(site), this.configs.save({ key: `${siteId}:system`, value: { ...value, inventoryWarning: value.inventoryWarning || { enabled: true, threshold: 10 }, storefront: { guestAccessEnabled: value.storefront?.guestAccessEnabled !== false, guestPriceMode: mode, guestPricePercentage: Number(value.storefront?.guestPricePercentage) || 100 } } })]);
     return { mode };
   }
   private async ensureLevel(code: string | undefined, siteId: string) {

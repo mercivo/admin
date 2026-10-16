@@ -8,7 +8,8 @@ export class TeamMember {
   @Column({ name: 'site_id', length: 36, default: '' }) siteId: string;
   @Column({ length: 255 }) name: string;
   @Column({ type: 'varchar', length: 255, nullable: true, unique: true }) email: string | null;
-  @Column({ length: 20, default: 'viewer' }) role: 'admin' | 'editor' | 'viewer';
+  @Column({ type: 'varchar', length: 50, nullable: true }) phone: string | null;
+  @Column({ length: 20, default: 'member' }) role: 'admin' | 'member';
   @Column({ type: 'json', nullable: true }) permissions: string[] | null;
   @Column({ length: 10 }) avatar: string;
   @Column({ length: 100, default: 'bg-gray-500 text-white' }) color: string;

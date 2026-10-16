@@ -84,11 +84,11 @@ API 环境变量：
 ```text
 GCS_PROJECT_ID=mercivo-admin
 GCS_BUCKET=mercivo-images-753805870951
-GCS_PUBLIC_BASE_URL=https://image.aihubflux.com
+GCS_PUBLIC_BASE_URL=
 GCS_OBJECT_PREFIX=production
 ```
 
-`image.aihubflux.com` 由 Cloudflare Worker `mercivo-image-cdn` 代理公开图片桶并缓存一年，避免 Google External HTTPS Load Balancer 的固定费用。
+`GCS_PUBLIC_BASE_URL` 留空时使用 GCS 原始公开地址。仅在自定义图片域名已验证可正常响应 `GET` 请求后再配置该变量。
 
 启用 API：
 

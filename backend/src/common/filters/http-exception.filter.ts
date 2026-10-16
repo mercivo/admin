@@ -1,6 +1,7 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { friendlyStatusMessage, localizeApiMessage, localizeValidationMessages, resolveApiLocale } from '../i18n/api-locale';
+import { publicErrorCodeFor } from '../errors/public-error-code';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -31,8 +32,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
       : Array.isArray(message)
         ? localizeValidationMessages(message, locale)
         : localizeApiMessage(message, locale);
+    const rawMessages = Array.isArray(message) ? message : [message];
+    const errorCode = publicErrorCodeFor(request.url, status, rawMessages);
     response.status(status).json({
       code: status,
+      ...(errorCode ? { errorCode } : {}),
       data: null,
       message: localizedMessage,
       timestamp: new Date().toISOString(),

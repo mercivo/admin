@@ -22,6 +22,6 @@ export const QuotaUsage: React.FC<QuotaUsageProps> = ({ label, used, limit, clas
     {exhausted ? <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-red-600">已用完{onExhaustedClick && <><span className="text-red-300">·</span>去升级<ArrowUpRight size={13}/></>}</span> : <div className="ml-auto h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"><div className={`h-full rounded-full transition-[width] ${tone}`} style={{ width: `${percent}%` }}/></div>}
   </>;
 
-  if (exhausted && onExhaustedClick) return <button type="button" onClick={onExhaustedClick} title="额度已用完，前往套餐账单升级" className={`flex h-[42px] min-w-56 items-center gap-3 whitespace-nowrap rounded-xl border border-red-200 bg-red-50 px-3 text-left transition hover:border-red-300 hover:bg-red-100 ${className}`}>{content}</button>;
-  return <div className={`flex h-[42px] min-w-52 items-center gap-3 whitespace-nowrap rounded-xl border ${exhausted ? 'border-red-200 bg-red-50' : 'border-border bg-white'} px-3 ${className}`}>{content}</div>;
+  if (exhausted && onExhaustedClick) return <button type="button" onClick={onExhaustedClick} title="额度已用完，前往套餐账单升级" className={`flex h-9 min-w-56 items-center gap-3 whitespace-nowrap rounded-xl border border-red-200 bg-red-50 px-3 text-left transition hover:border-red-300 hover:bg-red-100 ${className}`}>{content}</button>;
+  return <div className={`flex h-9 min-w-52 items-center gap-3 whitespace-nowrap rounded-xl border ${exhausted ? 'border-red-200 bg-red-50' : 'border-border bg-white'} px-3 ${className}`}>{content}</div>;
 };

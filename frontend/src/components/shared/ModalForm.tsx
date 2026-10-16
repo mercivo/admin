@@ -13,9 +13,9 @@ export const ModalFormGrid: React.FC<{ children: React.ReactNode; columns?: 1 | 
   <div className={join('app-modal-form-grid', `app-modal-form-grid-${columns}`, className)}>{children}</div>
 );
 
-export const ModalFormField: React.FC<{ label: React.ReactNode; required?: boolean; children: React.ReactNode; className?: string }> = ({ label, required, children, className }) => (
-  <label className={join('app-modal-form-field', className)}>
-    <span className="app-modal-form-label">{required && <span className="app-modal-form-required">*</span>}{label}</span>
-    {children}
-  </label>
-);
+export const ModalFormField: React.FC<{ label: React.ReactNode; required?: boolean; children: React.ReactNode; className?: string; composite?: boolean }> = ({ label, required, children, className, composite = false }) => {
+  const content = <><span className="app-modal-form-label">{required && <span className="app-modal-form-required">*</span>}{label}</span>{children}</>;
+  return composite
+    ? <div className={join('app-modal-form-field', className)}>{content}</div>
+    : <label className={join('app-modal-form-field', className)}>{content}</label>;
+};

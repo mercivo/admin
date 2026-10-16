@@ -6,10 +6,6 @@ export class CreateProductDto {
   nameZh: string;
 
   @IsString()
-  @MaxLength(255)
-  nameEn: string;
-
-  @IsString()
   @MaxLength(100)
   sku: string;
 
@@ -30,8 +26,11 @@ export class CreateProductDto {
   levelPrices?: Record<string, number>;
 
   @IsOptional()
+  currencyPrices?: Record<string, { basePrice: number; levelPrices?: Record<string, number> }>;
+
+  @IsOptional()
   @IsArray()
-  variants?: Array<{ id?: string; specification: string; option: string; stock: number; surcharge: number }>;
+  variants?: Array<{ id?: string; specification: string; option: string; stock: number; surcharge: number; surcharges?: Record<string, number> }>;
 
   @IsOptional()
   @IsArray()
@@ -47,8 +46,8 @@ export class CreateProductDto {
   moq: number;
 
   @IsOptional()
-  @IsIn(['published', 'draft'])
-  status?: 'published' | 'draft';
+  @IsIn(['published', 'pending'])
+  status?: 'published' | 'pending';
 
   @IsString()
   @MaxLength(100)
@@ -114,11 +113,6 @@ export class UpdateProductDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(255)
-  nameEn?: string;
-
-  @IsOptional()
-  @IsString()
   @MaxLength(100)
   sku?: string;
 
@@ -140,8 +134,11 @@ export class UpdateProductDto {
   levelPrices?: Record<string, number>;
 
   @IsOptional()
+  currencyPrices?: Record<string, { basePrice: number; levelPrices?: Record<string, number> }>;
+
+  @IsOptional()
   @IsArray()
-  variants?: Array<{ id?: string; specification: string; option: string; stock: number; surcharge: number }>;
+  variants?: Array<{ id?: string; specification: string; option: string; stock: number; surcharge: number; surcharges?: Record<string, number> }>;
 
   @IsOptional()
   @IsArray()
@@ -158,8 +155,8 @@ export class UpdateProductDto {
   moq?: number;
 
   @IsOptional()
-  @IsIn(['published', 'draft'])
-  status?: 'published' | 'draft';
+  @IsIn(['published', 'pending'])
+  status?: 'published' | 'pending';
 
   @IsOptional()
   @IsString()

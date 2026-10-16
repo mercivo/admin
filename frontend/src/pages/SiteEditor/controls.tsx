@@ -26,6 +26,8 @@ const createEditorTheme = (primaryColor: string): ThemeConfig => ({
     Button: { borderRadius: 6, controlHeight: 32, paddingInline: 15 },
     Input: { activeBorderColor: primaryColor, hoverBorderColor: primaryColor, activeShadow: `0 0 0 2px ${primaryColor}1f` },
     Select: { activeBorderColor: primaryColor, hoverBorderColor: primaryColor, optionSelectedBg: `${primaryColor}12` },
+    Segmented: { itemSelectedBg: '#fff', itemSelectedColor: primaryColor, trackBg: '#f3f4f3' },
+    Slider: { handleActiveColor: primaryColor, handleColor: primaryColor, trackBg: primaryColor, trackHoverBg: primaryColor },
     Switch: { colorPrimary: primaryColor, colorPrimaryHover: primaryColor },
     Modal: { borderRadiusLG: 8 },
   },

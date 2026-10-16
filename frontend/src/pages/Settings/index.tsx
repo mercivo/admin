@@ -8,6 +8,7 @@ import {
   Save,
   Trash2,
   Mail,
+  Phone,
   AlertCircle,
   Search,
 } from 'lucide-react';
@@ -16,11 +17,11 @@ import { siteApi, workspaceApi } from '../../services/api/index';
 import type { PermissionItem, PlanItem, SiteDomain, SubscriptionOrder, TeamMember, WorkspaceSettings } from '../../services/api/index';
 import { currentPermissions } from '../../utils/permissions';
 import { useSearchParams } from 'react-router-dom';
+import { ANTD_LOCALE_OPTIONS, antdLocaleLabel } from '../../config/antdLocales';
 
 const roleMap: Record<string, { label: string; cls: string }> = {
   admin: { label: '管理员', cls: 'bg-red-50 text-red-700 border-red-200' },
-  editor: { label: '编辑者', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
-  viewer: { label: '观察者', cls: 'bg-gray-100 text-gray-600 border-gray-200' },
+  member: { label: '成员', cls: 'bg-gray-100 text-gray-600 border-gray-200' },
 };
 
 const DEFAULT_SEO = {
@@ -30,32 +31,24 @@ const DEFAULT_SEO = {
 };
 
 // ─────────────── Invite Modal ───────────────
-const InviteModal: React.FC<{ catalog: PermissionItem[]; onClose: () => void; onInvite: (data: { name: string; email: string; password: string; role: string; permissions: string[] }) => void }> = ({ catalog, onClose, onInvite }) => {
+const InviteModal: React.FC<{ catalog: PermissionItem[]; onClose: () => void; onInvite: (data: { name: string; email?: string; phone: string; password: string; permissions: string[] }) => void }> = ({ catalog, onClose, onInvite }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('editor');
   const [permissions, setPermissions] = useState<string[]>([]);
   return (
-    <AppModal open title="添加团队成员" width={880} onCancel={onClose} onOk={() => onInvite({ name: name.trim(), email: email.trim(), password, role, permissions })} okText="确认添加" cancelText="取消" okButtonProps={{ disabled: !name.trim() || !email.trim() || password.length < 6 }}>
+    <AppModal open title="添加团队成员" width={880} onCancel={onClose} onOk={() => onInvite({ name: name.trim(), email: email.trim() || undefined, phone: phone.trim(), password, permissions })} okText="确认添加" cancelText="取消" okButtonProps={{ disabled: !name.trim() || !/^\+?[1-9]\d{7,14}$/.test(phone.trim()) || password.length < 8 }}>
         <ModalForm>
           <ModalFormGrid>
           <ModalFormField label="成员姓名" required><Input value={name} onChange={e => setName(e.target.value)} placeholder="请输入成员姓名" variant="filled" /></ModalFormField>
-          <ModalFormField label="邮箱地址" required>
-            <Input value={email} onChange={e => setEmail(e.target.value)} placeholder="请输入邮箱..." prefix={<Mail className="w-4 h-4 text-muted-foreground" />} variant="filled" size="middle" />
+          <ModalFormField label="邮箱地址（选填）">
+            <Input value={email} onChange={e => setEmail(e.target.value)} placeholder="请输入邮箱" prefix={<Mail className="w-4 h-4 text-muted-foreground" />} variant="filled" size="middle" />
           </ModalFormField>
-          <ModalFormField label="初始登录密码" required><Input.Password value={password} onChange={e => setPassword(e.target.value)} placeholder="至少 6 位，成员首次登录使用" variant="filled" /></ModalFormField>
-          <ModalFormField label="角色" required>
-            <div className="grid grid-cols-3 gap-2">
-              {['editor', 'viewer'].map(r => (
-                <button key={r} onClick={() => setRole(r)} className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all ${role === r ? 'bg-primary/10 border-primary text-primary' : 'border-border text-muted-foreground hover:bg-secondary'}`}>
-                  {roleMap[r].label}
-                </button>
-              ))}
-            </div>
-          </ModalFormField>
+          <ModalFormField label="手机号（登录账号）" required><Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="请输入手机号" prefix={<Phone className="w-4 h-4 text-muted-foreground" />} variant="filled" /></ModalFormField>
+          <ModalFormField label="初始登录密码" required><Input.Password value={password} onChange={e => setPassword(e.target.value)} placeholder="至少 8 位，成员首次登录使用" variant="filled" /></ModalFormField>
           </ModalFormGrid>
-          <ModalFormField label="功能权限"><PermissionTreePicker catalog={catalog} value={permissions} onChange={setPermissions} title="" /></ModalFormField>
+          <ModalFormField label="功能权限" composite><PermissionTreePicker catalog={catalog} value={permissions} onChange={setPermissions} title="" /></ModalFormField>
         </ModalForm>
     </AppModal>
   );
@@ -96,29 +89,43 @@ const SettingsPage: React.FC = () => {
   const canManageMembers = currentRole === 'admin' && hasPermission('settings.team');
 
   useEffect(() => {
-    workspaceApi.getSettings().then(async currentWorkspace => {
-      const granted = currentWorkspace.billing.permissions || [];
-      const allowed = (permission: string) => granted.includes(permission);
+    workspaceApi.getSettings().then(currentWorkspace => {
       setWorkspace(currentWorkspace);
-      setEffectivePermissions(granted);
-      const tenant = JSON.parse(localStorage.getItem('mercivo_tenant') || '{}');
-      localStorage.setItem('mercivo_tenant', JSON.stringify({ ...tenant, permissions: granted }));
-      const [team, permissions, seo, planItems, orderItems, siteDomains] = await Promise.all([
-        allowed('menu.team') ? workspaceApi.listTeam() : Promise.resolve([]),
-        allowed('menu.team') ? workspaceApi.teamPermissions() : Promise.resolve([]),
-        allowed('menu.site.config') ? workspaceApi.getConfig<Partial<typeof DEFAULT_SEO>>('seo').catch(() => DEFAULT_SEO) : Promise.resolve(DEFAULT_SEO),
-        workspaceApi.listPlans(),
-        workspaceApi.listSubscriptionOrders(),
-        allowed('site.domain') ? siteApi.domains(currentWorkspace.site.id) : Promise.resolve([]),
-      ]);
-      setMembers(team);
-      setPermissionCatalog(permissions);
-      setDomains(siteDomains);
-      setSeoConfig({ ...DEFAULT_SEO, ...seo });
-      setPlans(planItems);
-      setOrders(orderItems);
+      setEffectivePermissions(currentPermissions());
     }).catch(() => setToast({ message: '设置数据加载失败', type: 'error' }));
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'team') {
+      void workspaceApi.listTeam().then(setMembers).catch(() => setToast({ message: '成员列表加载失败', type: 'error' }));
+    } else if (activeTab === 'billing') {
+      void Promise.all([workspaceApi.listPlans(), workspaceApi.listSubscriptionOrders()])
+        .then(([planItems, orderItems]) => { setPlans(planItems); setOrders(orderItems); })
+        .catch(() => setToast({ message: '套餐账单加载失败', type: 'error' }));
+    } else if (activeTab === 'seo') {
+      void workspaceApi.getConfig<Partial<typeof DEFAULT_SEO>>('seo').then(seo => setSeoConfig({ ...DEFAULT_SEO, ...seo })).catch(() => setSeoConfig(DEFAULT_SEO));
+    }
+  }, [activeTab]);
+  useEffect(() => {
+    if (activeTab === 'site' && workspace && hasPermission('site.domain')) {
+      void siteApi.domains(workspace.site.id).then(setDomains).catch(() => setToast({ message: '域名列表加载失败', type: 'error' }));
+    }
+  }, [activeTab, workspace?.site.id]);
+
+  const ensurePermissionCatalog = async () => {
+    if (permissionCatalog.length) return permissionCatalog;
+    const items = await workspaceApi.teamPermissions();
+    setPermissionCatalog(items);
+    return items;
+  };
+  const openInvite = async () => {
+    try { await ensurePermissionCatalog(); setShowInvite(true); }
+    catch { setToast({ message: '权限选项加载失败', type: 'error' }); }
+  };
+  const openMemberPermissions = async (member: TeamMember) => {
+    try { await ensurePermissionCatalog(); setEditingMember({ ...member, permissions: [...(member.permissions || [])] }); }
+    catch { setToast({ message: '权限选项加载失败', type: 'error' }); }
+  };
 
   const saveAccount = async () => {
     if (!workspace) return;
@@ -128,12 +135,17 @@ const SettingsPage: React.FC = () => {
       setWorkspace(updated);
       const tenant = JSON.parse(localStorage.getItem('mercivo_tenant') || '{}');
       localStorage.setItem('mercivo_tenant', JSON.stringify({ ...tenant, name: updated.account.enterpriseName }));
+      if (updated.account.role === 'member') {
+        const user = JSON.parse(localStorage.getItem('mercivo_user') || '{}');
+        localStorage.setItem('mercivo_user', JSON.stringify({ ...user, name: updated.account.memberName }));
+        window.dispatchEvent(new Event('mercivo-user-updated'));
+      }
       setToast({ message: '账号信息已保存', type: 'success' });
     } catch { setToast({ message: '账号信息保存失败', type: 'error' }); }
     finally { setSaving(false); }
   };
 
-  const saveSite = async () => { if (!workspace) return; setSaving(true); try { await workspaceApi.updateSite(workspace.site); setToast({ message: '站点设置已保存', type: 'success' }); } catch { setToast({ message: '站点设置保存失败', type: 'error' }); } finally { setSaving(false); } };
+  const saveSite = async () => { if (!workspace) return; setSaving(true); try { const updates: Promise<unknown>[] = []; if (hasPermission('settings.site')) updates.push(workspaceApi.updateSiteInfo(workspace.site)); if (hasPermission('settings.site')) updates.push(workspaceApi.updateSiteLanguages(workspace.site)); await Promise.all(updates); setToast({ message: '站点设置已保存', type: 'success' }); } catch { setToast({ message: '站点设置保存失败', type: 'error' }); } finally { setSaving(false); } };
   const addDomain = async () => {
     if (!workspace || !newDomain.trim()) return;
     setDomainSaving(true);
@@ -155,15 +167,15 @@ const SettingsPage: React.FC = () => {
     finally { setSaving(false); }
   };
 
-  const handleInvite = async (data: { name: string; email: string; password: string; role: string; permissions: string[] }) => {
+  const handleInvite = async (data: { name: string; email?: string; phone: string; password: string; permissions: string[] }) => {
     try {
       const newMember = await workspaceApi.createMember(data);
       setMembers(prev => [...prev, newMember]);
       setWorkspace(current => current ? { ...current, billing: { ...current.billing, usage: { ...current.billing.usage, members: current.billing.usage.members + 1 } } } : current);
-    } catch { setToast({ message: '邀请失败，请检查邮箱是否已存在', type: 'error' }); return; }
+    } catch { setToast({ message: '添加失败，请检查手机号或邮箱是否已存在', type: 'error' }); return; }
     workspaceApi.getSettings().then(setWorkspace).catch(() => undefined);
     setShowInvite(false);
-    setToast({ message: `成员 ${data.email} 已添加`, type: 'success' });
+    setToast({ message: `成员 ${data.name} 已添加`, type: 'success' });
   };
 
   const handleDeleteMember = async () => {
@@ -178,25 +190,16 @@ const SettingsPage: React.FC = () => {
   };
 
   const subscribe = (plan: PlanItem) => AppModal.confirm({
-    title: `确认订购${plan.name}`,
-    content: `套餐价格 ¥${Number(plan.price).toLocaleString()}/${plan.billingCycle === 'year' ? '年' : '月'}。当前暂不接入支付，确认后将直接生效并生成订购记录。`,
-    okText: '确认订购', cancelText: '取消',
-    onOk: async () => {
-      try {
-        const order = await workspaceApi.subscribePlan(plan.id);
-        const currentWorkspace = await workspaceApi.getSettings();
-        setWorkspace(currentWorkspace); setEffectivePermissions(currentWorkspace.billing.permissions || []); setOrders(items => [order, ...items]);
-        const tenant = JSON.parse(localStorage.getItem('mercivo_tenant') || '{}');
-        localStorage.setItem('mercivo_tenant', JSON.stringify({ ...tenant, plan: currentWorkspace.billing.plan, permissions: currentWorkspace.billing.permissions }));
-        setToast({ message: `${plan.name}已生效`, type: 'success' });
-      } catch { setToast({ message: '套餐订购失败', type: 'error' }); }
-    },
+    title: `${plan.name}暂不支持在线订购`,
+    content: '当前尚未接入在线支付体系，如需开通或变更套餐，请联系系统管理员。',
+    okText: '我知道了',
+    cancelButtonProps: { style: { display: 'none' } },
   });
 
   const tabs: Array<{ id: string; label: string; icon: React.ElementType; permission?: string }> = [
-    { id: 'account', label: '账号信息', icon: User, permission: 'page.settings.account' },
+    { id: 'account', label: '账号信息', icon: User },
     { id: 'site', label: '基础设置', icon: Globe, permission: 'page.site.settings' },
-    { id: 'seo', label: 'SEO 优化', icon: Search, permission: 'page.site.seo' },
+    { id: 'seo', label: 'SEO 优化', icon: Search, permission: 'page.site.settings' },
     { id: 'team', label: '成员与权限', icon: Users, permission: 'page.settings.team' },
     { id: 'billing', label: '套餐账单', icon: CreditCard },
   ].filter(tab => !tab.permission || hasPermission(tab.permission));
@@ -204,7 +207,7 @@ const SettingsPage: React.FC = () => {
     ? tabs.filter(tab => tab.id === 'site' || tab.id === 'seo')
     : tabs.filter(tab => tab.id === activeTab);
   const pageMeta: Record<string, { title: string; description: string }> = {
-    account: { title: '账号设置', description: '维护商户主体与管理员账号信息' },
+    account: { title: '账号信息', description: '维护商户主体与当前账号信息' },
     site: { title: '站点配置', description: '统一管理独立站基础信息与搜索引擎优化' },
     seo: { title: '站点配置', description: '统一管理独立站基础信息与搜索引擎优化' },
     team: { title: '成员与权限', description: '管理团队成员、角色与功能权限' },
@@ -240,36 +243,35 @@ const SettingsPage: React.FC = () => {
         {activeTab === 'account' && (
           <div className="space-y-6">
             <div className="flex items-center gap-5">
-              <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center text-2xl font-bold text-primary">{workspace?.account.enterpriseName.slice(0, 2) || '-'}</div>
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-2xl font-bold text-primary">{(workspace?.account.role === 'member' ? workspace.account.memberName : workspace?.account.enterpriseName)?.slice(-2) || '-'}</div>
               <div>
-                <h3 className="font-bold text-foreground">{workspace?.account.enterpriseName || '加载中...'}</h3>
+                <h3 className="font-bold text-foreground">{(workspace?.account.role === 'member' ? workspace.account.memberName : workspace?.account.enterpriseName) || '加载中...'}</h3>
                 <p className="text-sm text-muted-foreground">{workspace?.account.phone || '-'}</p>
-                <p className="text-xs text-muted-foreground mt-1">管理员 · 加入于 {workspace?.account.joinedAt ? new Date(workspace.account.joinedAt).toLocaleDateString() : '-'}</p>
+                <p className="text-xs text-muted-foreground mt-1">{workspace?.account.role === 'member' ? '成员' : '管理员'} · 加入于 {workspace?.account.joinedAt ? new Date(workspace.account.joinedAt).toLocaleDateString() : '-'}</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">企业名称</label><Input value={workspace?.account.enterpriseName || ''} onChange={e => workspace && setWorkspace({ ...workspace, account: { ...workspace.account, enterpriseName: e.target.value } })} variant="filled" size="middle" /></div>
+              {workspace?.account.role === 'member' && <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">成员姓名</label><Input value={workspace.account.memberName || ''} onChange={e => setWorkspace({ ...workspace, account: { ...workspace.account, memberName: e.target.value } })} variant="filled" size="middle" /></div>}
+              <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">企业名称</label><Input disabled={workspace?.account.role === 'member'} value={workspace?.account.enterpriseName || ''} onChange={e => workspace && setWorkspace({ ...workspace, account: { ...workspace.account, enterpriseName: e.target.value } })} variant="filled" size="middle" /></div>
               <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">邮箱</label><Input type="email" value={workspace?.account.email || ''} onChange={e => workspace && setWorkspace({ ...workspace, account: { ...workspace.account, email: e.target.value } })} placeholder="未设置" variant="filled" size="middle" /></div>
-              <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">手机号</label><Input value={workspace?.account.phone || ''} onChange={e => workspace && setWorkspace({ ...workspace, account: { ...workspace.account, phone: e.target.value } })} variant="filled" size="middle" /></div>
-              <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">时区</label><Select value="Asia/Shanghai" disabled style={{ width: '100%' }} size="middle" variant="filled" options={[{ value: 'Asia/Shanghai', label: '北京时间 (UTC+8 / Asia/Shanghai)' }]} /></div>
+              <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">手机号</label><Input disabled value={workspace?.account.phone || ''} variant="filled" size="middle" /></div>
             </div>
-            {hasPermission('settings.account') && <button onClick={saveAccount} disabled={saving || !workspace} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 shadow-sm disabled:opacity-60">
+            <button onClick={saveAccount} disabled={saving || !workspace} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 shadow-sm disabled:opacity-60">
               <Save className="w-4 h-4" />{saving ? '保存中...' : '保存修改'}
-            </button>}
+            </button>
           </div>
         )}
 
         {activeTab === 'site' && (
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
-              <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">站点名称</label><Input value={workspace?.site.name || ''} onChange={e => workspace && setWorkspace({ ...workspace, site: { ...workspace.site, name: e.target.value } })} variant="filled" size="middle" /></div>
-              <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">站点描述</label><Input value={workspace?.site.description || ''} onChange={e => workspace && setWorkspace({ ...workspace, site: { ...workspace.site, description: e.target.value } })} placeholder="请输入站点描述" variant="filled" size="middle" /></div>
+              <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">站点名称</label><Input disabled={!hasPermission('settings.site')} value={workspace?.site.name || ''} onChange={e => workspace && setWorkspace({ ...workspace, site: { ...workspace.site, name: e.target.value } })} variant="filled" size="middle" /></div>
+              <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">站点描述</label><Input disabled={!hasPermission('settings.site')} value={workspace?.site.description || ''} onChange={e => workspace && setWorkspace({ ...workspace, site: { ...workspace.site, description: e.target.value } })} placeholder="请输入站点描述" variant="filled" size="middle" /></div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">默认语言</label><Select value={workspace?.site.defaultLanguage} onChange={defaultLanguage => workspace && setWorkspace({ ...workspace, site: { ...workspace.site, defaultLanguage } })} style={{ width: '100%' }} size="middle" variant="filled" options={[{ value: 'zh', label: '中文' }, { value: 'en', label: 'English' }]} /></div>
-              <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">默认货币</label><Select value={workspace?.site.defaultCurrency} onChange={defaultCurrency => workspace && setWorkspace({ ...workspace, site: { ...workspace.site, defaultCurrency } })} style={{ width: '100%' }} size="middle" variant="filled" options={[{ value: 'CNY', label: '人民币（CNY）' }, { value: 'USD', label: '美元（USD）' }, { value: 'EUR', label: '欧元（EUR）' }]} /></div>
+              <div><label className="block text-xs font-bold text-muted-foreground mb-1.5 uppercase tracking-wide">默认语言</label><Select disabled={!hasPermission('settings.site')} showSearch optionFilterProp="label" value={workspace?.site.defaultLanguage} onChange={defaultLanguage => workspace && setWorkspace({ ...workspace, site: { ...workspace.site, defaultLanguage } })} style={{ width: '100%' }} size="middle" variant="filled" options={ANTD_LOCALE_OPTIONS.filter(option => (workspace?.site.supportedLanguages || [workspace?.site.defaultLanguage]).includes(option.value)).map(option => ({ value: option.value, label: antdLocaleLabel(option.value) }))} /></div>
             </div>
-            {hasPermission('settings.site') && <button onClick={saveSite} disabled={saving || !workspace} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 shadow-sm disabled:opacity-60"><Save className="w-4 h-4" />{saving ? '保存中...' : '保存修改'}</button>}
+            {(hasPermission('settings.site') || hasPermission('settings.site')) && <button onClick={saveSite} disabled={saving || !workspace} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 shadow-sm disabled:opacity-60"><Save className="w-4 h-4" />{saving ? '保存中...' : '保存修改'}</button>}
             {hasPermission('site.domain') && <div className="border-t border-border pt-6">
               <div className="mb-4"><h3 className="font-bold text-foreground">自定义域名</h3><p className="mt-1 text-xs text-muted-foreground">绑定企业自己的域名。完成 TXT 所有权验证和 CNAME 解析后，系统将自动提供 HTTPS。</p></div>
               <div className="flex max-w-2xl gap-2"><Input value={newDomain} onChange={event => setNewDomain(event.target.value)} onPressEnter={() => void addDomain()} placeholder="例如：www.example.com" variant="filled" /><button disabled={domainSaving || !newDomain.trim()} onClick={() => void addDomain()} className="shrink-0 rounded-xl bg-primary px-4 text-sm font-semibold text-white disabled:opacity-50">{domainSaving ? '添加中…' : '添加域名'}</button></div>
@@ -301,7 +303,7 @@ const SettingsPage: React.FC = () => {
               </div>
               <div><label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-muted-foreground">关键词</label><Input value={seoConfig.keywords} onChange={e => setSeoConfig(v => ({ ...v, keywords: e.target.value }))} placeholder="关键词之间用英文逗号分隔" variant="filled" /></div>
             </div>
-            {hasPermission('settings.seo') && <button onClick={handleSeoSave} disabled={saving} className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary/90"><Save className="h-4 w-4" />{saving ? '保存中...' : '保存 SEO 配置'}</button>}
+            {hasPermission('settings.site') && <button onClick={handleSeoSave} disabled={saving} className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary/90"><Save className="h-4 w-4" />{saving ? '保存中...' : '保存 SEO 配置'}</button>}
           </div>
         )}
 
@@ -309,25 +311,24 @@ const SettingsPage: React.FC = () => {
           <div className="space-y-5">
             <div className="flex items-center justify-between">
               <div><h3 className="font-bold text-foreground">团队成员</h3><p className="text-xs text-muted-foreground mt-0.5">成员额度按整个租户计算，包含商户管理员</p></div>
-              <div className="flex items-center gap-3">{workspace && <QuotaUsage label="成员配额" used={workspace.billing.usage.members} limit={workspace.billing.limits.members} onExhaustedClick={()=>{setActiveTab('billing');setSearchParams({tab:'billing'});}}/>}<button disabled={!canManageMembers || !workspace || workspace.billing.usage.members >= workspace.billing.limits.members} title={!canManageMembers ? '仅商户管理员可以添加成员' : workspace && workspace.billing.usage.members >= workspace.billing.limits.members ? '成员名额已用完，请升级套餐或联系系统管理员' : ''} onClick={() => setShowInvite(true)} className="flex h-[42px] items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"><Mail className="w-4 h-4" />添加成员</button></div>
+              <div className="flex items-center gap-3">{workspace && <QuotaUsage label="成员配额" used={workspace.billing.usage.members} limit={workspace.billing.limits.members} onExhaustedClick={()=>{setActiveTab('billing');setSearchParams({tab:'billing'});}}/>}<button disabled={!canManageMembers || !workspace || workspace.billing.usage.members >= workspace.billing.limits.members} title={!canManageMembers ? '仅商户管理员可以添加成员' : workspace && workspace.billing.usage.members >= workspace.billing.limits.members ? '成员名额已用完，请升级套餐或联系系统管理员' : ''} onClick={() => void openInvite()} className="flex h-9 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"><Mail className="w-4 h-4" />添加成员</button></div>
             </div>
             <div className="space-y-2">
               {members.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无团队成员" className="py-10" />}
               {members.map(m => {
-                const r = roleMap[m.role];
+                const r = roleMap[m.role] || roleMap.member;
                 return (
                   <div key={m.id} className="flex items-center gap-4 p-4 border border-border rounded-xl hover:bg-secondary/20 transition-colors">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold ${m.color}`}>{m.avatar}</div>
+                    <div data-testid="team-member-avatar" className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">{m.name.slice(-2) || '-'}</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-foreground text-sm">{m.name}</span>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${r.cls}`}>{r.label}</span>
                       </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">{m.email || m.phone || '未设置联系方式'} · 加入于 {new Date(m.joinedAt).toLocaleDateString()}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">手机号 {m.phone || '-'} · 邮箱 {m.email || '-'} · 加入于 {new Date(m.joinedAt).toLocaleDateString()}</div>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Select size="small" value={m.role} disabled={m.role === 'admin' || !canManageMembers} options={[{ value: 'editor', label: '编辑者' }, { value: 'viewer', label: '观察者' }]} onChange={async role => { try { const updated = await workspaceApi.updateMember(m.id, { role }); setMembers(items => items.map(item => item.id === m.id ? updated : item)); setToast({ message: '成员权限已更新', type: 'success' }); } catch { setToast({ message: '成员权限更新失败', type: 'error' }); } }} />
-                      {m.role !== 'admin' && canManageMembers && <button onClick={() => setEditingMember({ ...m, permissions: [...(m.permissions || [])] })} className="rounded-lg px-2 py-1.5 text-xs font-medium text-primary hover:bg-primary/10">配置权限</button>}
+                      {m.role !== 'admin' && canManageMembers && <button onClick={() => void openMemberPermissions(m)} className="rounded-lg px-2 py-1.5 text-xs font-medium text-primary hover:bg-primary/10">配置权限</button>}
                       {m.role !== 'admin' && canManageMembers && <button onClick={() => setDeleteMember({ id: m.id, name: m.name })} className="p-2 hover:bg-red-50 rounded-lg text-muted-foreground hover:text-red-500"><Trash2 className="w-4 h-4" /></button>}
                     </div>
                   </div>
@@ -340,15 +341,15 @@ const SettingsPage: React.FC = () => {
         {activeTab === 'billing' && (
           <div className="space-y-6">
             <div><h3 className="text-lg font-bold text-foreground">当前套餐：{plans.find(item => item.code === workspace?.billing.plan)?.name || workspace?.billing.plan?.toUpperCase() || '-'}</h3><p className="mt-1 text-sm text-muted-foreground">套餐状态：{workspace?.billing.status === 'active' ? '正常' : '已停用'}{workspace?.billing.expiresAt ? ` · 到期时间 ${new Date(workspace.billing.expiresAt).toLocaleDateString()}` : ''}</p></div>
-            {workspace && <div className="grid grid-cols-2 gap-4 xl:grid-cols-4"><QuotaUsage label="商品配额" used={workspace.billing.usage.products} limit={workspace.billing.limits.products} className="min-w-0"/><QuotaUsage label="成员配额" used={workspace.billing.usage.members} limit={workspace.billing.limits.members} className="min-w-0"/><QuotaUsage label="站点配额" used={workspace.billing.usage.sites} limit={workspace.billing.limits.sites} className="min-w-0"/><QuotaUsage label="仓库配额" used={workspace.billing.usage.warehouses} limit={workspace.billing.limits.warehouses} className="min-w-0"/></div>}
-            <div><h3 className="mb-3 font-bold text-foreground">可订购套餐</h3><div className="grid grid-cols-1 gap-4 xl:grid-cols-3">{plans.map(plan => <div key={plan.id} className={`rounded-2xl border p-5 ${workspace?.billing.plan === plan.code ? 'border-primary bg-primary/5' : 'border-border'}`}><div className="flex items-start justify-between"><div><div className="font-bold text-foreground">{plan.name}</div><div className="mt-1 text-xs text-muted-foreground">{plan.description || '适用于外贸 ERP 与品牌独立站'}</div></div>{workspace?.billing.plan === plan.code && <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-bold text-primary">当前</span>}</div><div className="mt-4"><span className="text-2xl font-bold text-foreground">¥{Number(plan.price).toLocaleString()}</span><span className="text-xs text-muted-foreground">/{plan.billingCycle === 'year' ? '年' : '月'}</span></div><div className="mt-4 space-y-1 text-xs text-muted-foreground"><div>{plan.maxProducts} 件商品</div><div>{plan.maxSites} 个独立站</div><div>{plan.maxMembers} 位团队成员</div><div>{plan.maxWarehouses} 个仓库</div></div><button disabled={workspace?.billing.plan === plan.code} onClick={() => subscribe(plan)} className="mt-5 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white disabled:bg-secondary disabled:text-muted-foreground">{workspace?.billing.plan === plan.code ? '当前套餐' : '立即订购'}</button></div>)}</div></div>
+            {workspace && <div className="grid grid-cols-1 gap-4 md:grid-cols-3"><QuotaUsage label="商品配额" used={workspace.billing.usage.products} limit={workspace.billing.limits.products} className="min-w-0"/><QuotaUsage label="成员配额" used={workspace.billing.usage.members} limit={workspace.billing.limits.members} className="min-w-0"/><QuotaUsage label="仓库配额" used={workspace.billing.usage.warehouses} limit={workspace.billing.limits.warehouses} className="min-w-0"/></div>}
+            <div><h3 className="mb-3 font-bold text-foreground">可订购套餐</h3><div className="grid grid-cols-1 gap-4 xl:grid-cols-3">{plans.map(plan => <div key={plan.id} className={`rounded-2xl border p-5 ${workspace?.billing.plan === plan.code ? 'border-primary bg-primary/5' : 'border-border'}`}><div className="flex items-start justify-between"><div><div className="font-bold text-foreground">{plan.name}</div><div className="mt-1 text-xs text-muted-foreground">{plan.description || '适用于外贸 ERP 与品牌独立站'}</div></div>{workspace?.billing.plan === plan.code && <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-bold text-primary">当前</span>}</div><div className="mt-4"><span className="text-2xl font-bold text-foreground">¥{Number(plan.price).toLocaleString()}</span><span className="text-xs text-muted-foreground">/{plan.billingCycle === 'year' ? '年' : '月'}</span></div><div className="mt-4 space-y-1 text-xs text-muted-foreground"><div>{plan.maxProducts} 件商品</div><div>1 个独立站（租户固定）</div><div>{plan.maxMembers} 位团队成员</div><div>{plan.maxWarehouses} 个仓库</div></div><button disabled={workspace?.billing.plan === plan.code} onClick={() => subscribe(plan)} className="mt-5 w-full rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white disabled:bg-secondary disabled:text-muted-foreground">{workspace?.billing.plan === plan.code ? '当前套餐' : '立即订购'}</button></div>)}</div></div>
             <div><h3 className="mb-3 font-bold text-foreground">订购记录</h3><Table size="small" rowKey="id" dataSource={orders} pagination={false} locale={{ emptyText: '暂无订购记录' }} columns={[{ title: '订单号', dataIndex: 'orderNo' }, { title: '套餐', dataIndex: 'planName' }, { title: '金额', render: (_, row) => `¥${Number(row.amount).toLocaleString()}` }, { title: '支付', render: () => '暂不需支付' }, { title: '生效时间', dataIndex: 'effectiveAt', render: value => new Date(value).toLocaleString('zh-CN') }]} /></div>
           </div>
         )}
       </div>
 
       {showInvite && <InviteModal catalog={permissionCatalog} onClose={() => setShowInvite(false)} onInvite={handleInvite} />}
-      <AppModal open={!!editingMember} title={`配置成员权限${editingMember ? ` · ${editingMember.name}` : ''}`} width={880} okText="保存权限" cancelText="取消" onCancel={() => setEditingMember(null)} onOk={async () => { if (!editingMember) return; try { const updated = await workspaceApi.updateMember(editingMember.id, { permissions: editingMember.permissions || [] }); setMembers(items => items.map(item => item.id === updated.id ? updated : item)); setEditingMember(null); setToast({ message: '成员权限已更新', type: 'success' }); } catch { setToast({ message: '成员权限更新失败', type: 'error' }); } }}>{editingMember && <ModalForm><ModalFormField label="功能权限"><PermissionTreePicker catalog={permissionCatalog} value={editingMember.permissions || []} onChange={permissions => setEditingMember({ ...editingMember, permissions })} title="" /></ModalFormField></ModalForm>}</AppModal>
+      <AppModal open={!!editingMember} title={`配置成员${editingMember ? ` · ${editingMember.name}` : ''}`} width={880} okText="保存" cancelText="取消" onCancel={() => setEditingMember(null)} onOk={async () => { if (!editingMember) return; try { const updated = await workspaceApi.updateMember(editingMember.id, { name: editingMember.name, email: editingMember.email || '', phone: editingMember.phone || undefined, permissions: editingMember.permissions || [] }); setMembers(items => items.map(item => item.id === updated.id ? updated : item)); setEditingMember(null); setToast({ message: '成员信息与权限已更新', type: 'success' }); } catch { setToast({ message: '成员信息或权限更新失败', type: 'error' }); } }}>{editingMember && <ModalForm><ModalFormGrid><ModalFormField label="成员姓名" required><Input value={editingMember.name} onChange={event => setEditingMember({ ...editingMember, name: event.target.value })}/></ModalFormField><ModalFormField label="手机号（登录账号）" required><Input value={editingMember.phone || ''} onChange={event => setEditingMember({ ...editingMember, phone: event.target.value })}/></ModalFormField><ModalFormField label="邮箱（选填）"><Input value={editingMember.email || ''} onChange={event => setEditingMember({ ...editingMember, email: event.target.value })}/></ModalFormField></ModalFormGrid><ModalFormField label="功能权限" composite><PermissionTreePicker catalog={permissionCatalog} value={editingMember.permissions || []} onChange={permissions => setEditingMember({ ...editingMember, permissions })} title="" /></ModalFormField></ModalForm>}</AppModal>
       {deleteMember && <DeleteMemberModal name={deleteMember.name} onClose={() => setDeleteMember(null)} onConfirm={handleDeleteMember} />}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>

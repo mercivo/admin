@@ -11,11 +11,11 @@ describe('CloudStorageService', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('writes public images beneath a tenant-isolated prefix', async () => {
-    const config = { get: jest.fn((key: string) => ({ GCS_BUCKET: 'mercivo-assets', GCS_PROJECT_ID: 'project', GCS_PUBLIC_BASE_URL: 'https://image.aihubflux.com', GCS_OBJECT_PREFIX: 'local' } as Record<string, string>)[key]) };
+    const config = { get: jest.fn((key: string) => ({ GCS_BUCKET: 'mercivo-assets', GCS_PROJECT_ID: 'project', GCS_PUBLIC_BASE_URL: '', GCS_OBJECT_PREFIX: 'local' } as Record<string, string>)[key]) };
     const service = new CloudStorageService(config as never);
     const result = await service.upload({ originalname: '产品.webp', mimetype: 'image/webp', buffer: Buffer.from('image') } as Express.Multer.File, 'tenants/t1/sites/s1/images');
     expect(result.objectName).toMatch(/^local\/tenants\/t1\/sites\/s1\/images\/[a-f0-9-]+\.webp$/);
-    expect(result.url).toBe(`https://image.aihubflux.com/${result.objectName}`);
+    expect(result.url).toBe(`https://storage.googleapis.com/mercivo-assets/${result.objectName}`);
     expect(save).toHaveBeenCalledWith(expect.any(Buffer), expect.objectContaining({ contentType: 'image/webp' }));
   });
 

@@ -1,70 +1,31 @@
-import { IsString, IsOptional, IsInt, Min, Max, MaxLength } from 'class-validator';
+import { IsString, IsOptional, MaxLength, IsIn, Matches, ValidateIf } from 'class-validator';
+import { PageQueryDto } from '../../common/dto/page-query.dto';
 
-export class CreateTestimonialDto {
-  @IsString()
-  @MaxLength(255)
-  name: string;
-
-  @IsString()
-  @MaxLength(255)
-  company: string;
-
-  @IsString()
-  text: string;
-
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(5)
-  rating?: number;
-
-  @IsString()
-  @MaxLength(500)
-  img: string;
-
-  @IsString()
-  @MaxLength(100)
-  orders: string;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  sort?: number;
+export class CreateInquiryLeadDto {
+  @IsOptional() @IsIn(['inquiry', 'sample', 'contact']) type?: 'inquiry' | 'sample' | 'contact';
+  @IsString() @Matches(/\S/, { message: '联系人不能为空' }) @MaxLength(120) name: string;
+  @ValidateIf(value => !value.email && !value.phone) @IsString() @Matches(/\S/, { message: '联系方式不能为空' }) @MaxLength(160) contact?: string;
+  @IsOptional() @IsString() @MaxLength(160) email?: string;
+  @IsOptional() @IsString() @MaxLength(160) company?: string;
+  @IsOptional() @IsString() @MaxLength(50) phone?: string;
+  @IsOptional() @IsString() @MaxLength(100) country?: string;
+  @IsOptional() @IsString() @MaxLength(36) productId?: string;
+  @IsOptional() @IsString() @MaxLength(255) productName?: string;
+  @IsOptional() @IsString() @MaxLength(500) sourcePage?: string;
+  @IsString() @Matches(/\S/, { message: '采购需求不能为空' }) @MaxLength(5000) requirements: string;
 }
 
-export class UpdateTestimonialDto {
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  name?: string;
+export class InquiryLeadQueryDto extends PageQueryDto {
+  @IsOptional() @IsIn(['new', 'following', 'converted', 'closed']) status?: string;
+}
 
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  company?: string;
+export class StorefrontProductQueryDto extends PageQueryDto {
+  @IsOptional() @IsString() category?: string;
+}
 
-  @IsOptional()
-  @IsString()
-  text?: string;
-
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(5)
-  rating?: number;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  img?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  orders?: string;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  sort?: number;
+export class UpdateInquiryLeadDto {
+  @IsIn(['new', 'following', 'converted', 'closed']) status: 'new' | 'following' | 'converted' | 'closed';
+  @IsOptional() @IsString() @MaxLength(5000) note?: string;
+  @IsOptional() @IsString() @MaxLength(36) assigneeUserId?: string;
+  @IsOptional() @IsString() @MaxLength(2000) closeReason?: string;
 }

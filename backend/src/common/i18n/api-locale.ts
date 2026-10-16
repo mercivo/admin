@@ -33,7 +33,6 @@ const messages: Array<[RegExp, string, string]> = [
   [/^客户不存在$/, '客户不存在', 'Customer not found'],
   [/^商户不存在$/, '商户不存在', 'Merchant not found'],
   [/^Product with id (.+) not found$/i, '商品 $1 不存在', 'Product $1 not found'],
-  [/^Testimonial (.+) not found$/i, '客户评价 $1 不存在', 'Testimonial $1 not found'],
   [/^Domain not found$/i, '域名不存在', 'Domain not found'],
   [/^Site version not found$/i, '站点版本不存在', 'Site version not found'],
   [/^Published site not found$/i, '已发布站点不存在', 'Published site not found'],

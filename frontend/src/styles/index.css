@@ -1,6 +1,6 @@
-@import './fonts.css';
-@import './tailwind.css';
-@import './theme.css';
+@import "./fonts.css";
+@import "./tailwind.css";
+@import "./theme.css";
 
 /* One scrollbar system for page, panels, modals and third-party scroll containers. */
 html,
@@ -96,23 +96,107 @@ html,
   background: transparent;
   color: var(--muted-foreground);
   cursor: pointer;
-  transition: color 150ms ease, background-color 150ms ease;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease;
 }
-.app-table-action-button:hover { background: var(--secondary); color: var(--foreground); }
-.app-table-action-button-primary:hover { background: rgba(124, 110, 245, 0.1); color: var(--primary); }
-.app-table-action-button-success:hover { background: #ecfdf5; color: #059669; }
-.app-table-action-button-warning:hover { background: #fffbeb; color: #d97706; }
-.app-table-action-button-danger:hover { background: #fef2f2; color: #dc2626; }
-.app-table-action-button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.app-table-action-button:disabled { cursor: not-allowed; opacity: 0.4; }
+.app-table-action-button:hover {
+  background: var(--secondary);
+  color: var(--foreground);
+}
+.app-table-action-button-primary:hover {
+  background: rgba(124, 110, 245, 0.1);
+  color: var(--primary);
+}
+.app-table-action-button-success:hover {
+  background: #ecfdf5;
+  color: #059669;
+}
+.app-table-action-button-warning:hover {
+  background: #fffbeb;
+  color: #d97706;
+}
+.app-table-action-button-danger:hover {
+  background: #fef2f2;
+  color: #dc2626;
+}
+.app-table-action-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.app-table-action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
 
-.app-confirm-icon { display: grid; width: 3rem; height: 3rem; place-items: center; border-radius: 999px; background: rgba(124, 110, 245, 0.12); color: var(--primary); font-size: 1.25rem; font-weight: 800; animation: app-confirm-pop 180ms ease-out; }
-.app-confirm-icon.is-danger { background: #fee2e2; color: #ef4444; }
-.app-confirm-content-title { color: var(--foreground); font-size: 1rem; font-weight: 700; line-height: 1.5; }
-.app-confirm-message { max-width: 22rem; color: var(--muted-foreground); font-size: 0.875rem; line-height: 1.7; }
-@keyframes app-confirm-pop { from { opacity: 0; transform: scale(0.72); } to { opacity: 1; transform: scale(1); } }
-.app-confirm-modal .ant-modal-content { animation: app-confirm-surface 180ms ease-out; }
-@keyframes app-confirm-surface { from { opacity: 0; transform: translateY(8px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.app-confirm-icon {
+  display: grid;
+  width: 3rem;
+  height: 3rem;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(124, 110, 245, 0.12);
+  color: var(--primary);
+  font-size: 1.25rem;
+  font-weight: 800;
+  animation: app-confirm-pop 180ms ease-out;
+}
+.app-confirm-icon.is-danger {
+  background: #fee2e2;
+  color: #ef4444;
+}
+.app-confirm-content-title {
+  color: var(--foreground);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.app-confirm-message {
+  width: 100%;
+  max-width: 22rem;
+  margin-inline: auto;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  line-height: 1.7;
+  text-align: center;
+}
+@keyframes app-confirm-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.app-confirm-modal .ant-modal-content {
+  animation: app-confirm-surface 180ms ease-out;
+}
+@keyframes app-confirm-surface {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Keep every table and product grid pager 12px from its container edges. */
+.ant-table-wrapper .ant-table-pagination.ant-pagination {
+  margin: 14px 12px !important;
+  justify-content: flex-end;
+}
+.product-grid-pagination {
+  padding-inline: 12px;
+}
+
+/* Keep the translation section indicator visually close to its tab label. */
+.translation-tabs .ant-tabs-tab {
+  padding-block: 10px 7px;
+}
 
 /* Shared table surfaces inside application modals. */
 .app-modal .app-data-table {
@@ -120,16 +204,27 @@ html,
   border: 1px solid var(--border);
   border-radius: 12px;
 }
-.app-modal .app-data-table .ant-table-thead > tr > th { background: var(--secondary); }
-.app-modal .app-data-table .ant-table-pagination { margin: 12px 16px; }
+.app-modal .app-data-table .ant-table-thead > tr > th {
+  background: var(--secondary);
+}
+.app-modal .app-data-table .ant-table-pagination.ant-pagination {
+  margin: 12px !important;
+}
 .app-editable-table {
   width: 100%;
   overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: 12px;
 }
-.app-editable-table table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.app-editable-table thead tr { border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--secondary) 70%, transparent); }
+.app-editable-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.app-editable-table thead tr {
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--secondary) 70%, transparent);
+}
 .app-editable-table th {
   padding: 10px 16px;
   color: var(--muted-foreground);
@@ -138,13 +233,29 @@ html,
   line-height: 18px;
   text-align: left;
 }
-.app-editable-table tbody tr { border-bottom: 1px solid var(--border); transition: background-color 150ms ease; }
-.app-editable-table tbody tr:last-child { border-bottom: 0; }
-.app-editable-table tbody tr:hover { background: color-mix(in srgb, var(--secondary) 40%, transparent); }
-.app-editable-table td { padding: 10px 16px; vertical-align: middle; }
+.app-editable-table tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background-color 150ms ease;
+}
+.app-editable-table tbody tr:last-child {
+  border-bottom: 0;
+}
+.app-editable-table tbody tr:hover {
+  background: color-mix(in srgb, var(--secondary) 40%, transparent);
+}
+.app-editable-table td {
+  padding: 10px 16px;
+  vertical-align: middle;
+}
+.app-editable-table .app-product-spec-column { width: 260px; max-width: 260px; }
+.app-editable-table td.app-product-spec-column > * { min-width: 0; max-width: 228px; }
+.app-editable-table td.app-product-spec-column div,
+.app-editable-table td.app-product-spec-column span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app-editable-table .ant-input,
 .app-editable-table .ant-input-number,
-.app-editable-table .ant-select-selector { background: transparent !important; }
+.app-editable-table .ant-select-selector {
+  background: transparent !important;
+}
 
 /* Shared application modal */
 .app-modal .ant-modal-title,
@@ -165,6 +276,15 @@ html,
   font-size: 12px;
   font-weight: 400;
   line-height: 1.5;
+}
+.app-confirm-modal .app-modal-heading {
+  justify-items: center;
+  padding-inline: 32px;
+  text-align: center;
+}
+.app-confirm-modal .app-modal-description {
+  width: 100%;
+  text-align: center;
 }
 .app-modal .app-modal-form .ant-form-item {
   margin-bottom: 16px;
@@ -193,10 +313,18 @@ html,
   gap: 16px;
 }
 .app-modal .app-modal-form > .ant-form-item,
-.app-modal .app-modal-form-grid > .ant-form-item { margin-bottom: 0; }
-.app-modal-form-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.app-modal-form-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.app-modal-form-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.app-modal .app-modal-form-grid > .ant-form-item {
+  margin-bottom: 0;
+}
+.app-modal-form-grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.app-modal-form-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.app-modal-form-grid-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
 .app-modal-form-field {
   display: grid;
   min-width: 0;
@@ -216,7 +344,9 @@ html,
 @media (max-width: 640px) {
   .app-modal-form-grid-2,
   .app-modal-form-grid-3,
-  .app-modal-form-grid-4 { grid-template-columns: minmax(0, 1fr); }
+  .app-modal-form-grid-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .app-modal .ant-modal-content {
   display: flex;
@@ -239,6 +369,21 @@ html,
   padding: 20px 24px;
   overflow-y: auto;
 }
+.storefront-settings-card,
+.storefront-settings-card * {
+  font-weight: 400 !important;
+}
+.storefront-settings-card textarea.ant-input {
+  height: 96px !important;
+  min-height: 96px !important;
+  resize: none;
+}
+.site-publish-modal .ant-modal-body {
+  flex: none;
+  height: 300px;
+  min-height: 300px;
+  overflow-y: visible !important;
+}
 .app-modal .ant-modal-close {
   top: 16px;
   inset-inline-end: 20px;
@@ -256,6 +401,26 @@ html,
 .app-modal .ant-modal-footer .ant-btn + .ant-btn,
 .app-confirm-modal .ant-modal-confirm-btns .ant-btn + .ant-btn {
   margin-inline-start: 0;
+}
+.app-modal-footer-layout {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.app-modal-footer-left {
+  display: flex;
+  min-width: 0;
+  align-self: stretch;
+  align-items: center;
+  text-align: left;
+}
+.app-modal-footer-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
 }
 .app-confirm-modal .ant-modal-confirm-title {
   display: block;
@@ -284,7 +449,83 @@ html,
   width: 100%;
   max-width: 100%;
   gap: 8px;
+  justify-items: center;
+  text-align: center;
+}
+.app-confirm-modal .ant-modal-body {
+  text-align: center;
 }
 .app-confirm-modal .ant-modal-confirm-btns {
   margin: 0;
+}
+
+/* Sales workflow and detail modals. */
+.sales-workflow-modal .app-modal-form {
+  gap: 18px;
+}
+.sales-workflow-modal .ant-input:not(textarea),
+.sales-workflow-modal .ant-input-number,
+.sales-workflow-modal .ant-picker,
+.sales-workflow-modal .ant-select-selector {
+  min-height: 36px;
+}
+.sales-order-lines-table tbody td {
+  height: 56px;
+  vertical-align: middle;
+}
+.sales-order-lines-table .ant-select-single,
+.sales-order-lines-table .ant-input-number {
+  display: inline-flex;
+  align-items: center;
+}
+.sales-order-lines-table .ant-select-single .ant-select-selector {
+  display: flex;
+  align-items: center;
+}
+.sales-order-lines-table .ant-select-single .ant-select-selection-item,
+.sales-order-lines-table .ant-select-single .ant-select-selection-placeholder {
+  line-height: normal;
+}
+.sales-shipment-modal .app-modal-form {
+  gap: 18px;
+}
+.sales-shipment-modal .ant-descriptions {
+  margin-bottom: 2px;
+}
+.sales-shipment-modal .app-editable-table {
+  margin-top: 2px;
+}
+.sales-detail-modal .ant-descriptions-header {
+  margin: 0 0 6px;
+  padding-inline: 0;
+}
+.sales-detail-modal .ant-descriptions-title,
+.sales-content-title {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  line-height: 18px;
+}
+.sales-content-block {
+  display: grid;
+  gap: 6px;
+}
+.sales-detail-modal .ant-table-wrapper {
+  margin-top: 22px;
+}
+.sales-detail-modal .ant-table-wrapper .ant-table-title {
+  margin: 0 !important;
+  padding: 0 0 6px !important;
+  border-bottom: 0;
+  background: transparent;
+}
+@media (max-width: 640px) {
+  .sales-detail-modal .ant-table-wrapper {
+    margin-top: 18px;
+  }
+}
+section:has(.translation-tabs)>div.space-y-3>article>button h2{
+  color:var(--primary);
+  font-weight:400;
 }

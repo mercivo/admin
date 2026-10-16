@@ -3,11 +3,18 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Tenant } from '../../modules/site/tenant.entity';
 
-const RULES: Array<{ method?: string; pattern: RegExp; permission: string }> = [
+const RULES: Array<{ method?: string; pattern: RegExp; permission: string | string[] }> = [
   { method: 'GET', pattern: /^\/api\/v1\/dashboard/, permission: 'page.dashboard' },
+  { method: 'GET', pattern: /^\/api\/v1\/storefront\/overview/, permission: ['page.dashboard', 'page.storefront.leads'] },
+  { method: 'GET', pattern: /^\/api\/v1\/storefront\/product-pool/, permission: 'page.storefront.products' },
+  { method: 'GET', pattern: /^\/api\/v1\/storefront\/leads/, permission: 'page.storefront.leads' },
+  { method: 'GET', pattern: /^\/api\/v1\/storefront\/lead-assignees$/, permission: 'storefront.lead.assign' },
+  { method: 'POST', pattern: /^\/api\/v1\/storefront\/leads$/, permission: 'storefront.lead.manage' },
+  { method: 'PATCH', pattern: /^\/api\/v1\/storefront\/leads\//, permission: ['storefront.lead.assign', 'storefront.lead.manage'] },
   { method: 'GET', pattern: /^\/api\/v1\/product/, permission: 'page.products' },
   { method: 'POST', pattern: /^\/api\/v1\/product$/, permission: 'product.create' },
   { method: 'POST', pattern: /^\/api\/v1\/product\/images/, permission: 'product.edit' },
+  { method: 'POST', pattern: /^\/api\/v1\/product\/site-logo/, permission: 'settings.site' },
   { method: 'PUT', pattern: /^\/api\/v1\/product\//, permission: 'product.edit' },
   { method: 'DELETE', pattern: /^\/api\/v1\/product\//, permission: 'product.delete' },
   { method: 'POST', pattern: /^\/api\/v1\/customers\/levels(?:\/|$)/, permission: 'customer.level.manage' },
@@ -17,12 +24,17 @@ const RULES: Array<{ method?: string; pattern: RegExp; permission: string }> = [
   { method: 'POST', pattern: /^\/api\/v1\/customers/, permission: 'customer.create' },
   { method: 'PUT', pattern: /^\/api\/v1\/customers/, permission: 'customer.edit' },
   { method: 'DELETE', pattern: /^\/api\/v1\/customers/, permission: 'customer.delete' },
-  { method: 'PUT', pattern: /^\/api\/v1\/workspace\/settings\/account/, permission: 'settings.account' },
-  { method: 'PUT', pattern: /^\/api\/v1\/workspace\/settings\/site/, permission: 'settings.site' },
-  { method: 'PUT', pattern: /^\/api\/v1\/workspace\/config\/seo/, permission: 'settings.seo' },
-  { method: 'GET', pattern: /^\/api\/v1\/workspace\/config\/seo/, permission: 'page.site.seo' },
+  { method: 'PUT', pattern: /^\/api\/v1\/workspace\/settings\/site-info/, permission: 'settings.site' },
+  { method: 'PUT', pattern: /^\/api\/v1\/workspace\/settings\/site-languages/, permission: 'settings.site' },
+  { method: 'GET', pattern: /^\/api\/v1\/workspace\/settings\/site-contact/, permission: 'page.site.settings' },
+  { method: 'PUT', pattern: /^\/api\/v1\/workspace\/settings\/site-contact/, permission: 'settings.site' },
+  { method: 'PUT', pattern: /^\/api\/v1\/workspace\/config\/seo/, permission: 'settings.site' },
+  { method: 'GET', pattern: /^\/api\/v1\/workspace\/config\/seo/, permission: 'page.site.settings' },
   { method: 'GET', pattern: /^\/api\/v1\/workspace\/config\/siteEditor/, permission: 'page.site.editor' },
   { method: 'PUT', pattern: /^\/api\/v1\/workspace\/config\/siteEditor/, permission: 'site.edit' },
+  { method: 'GET', pattern: /^\/api\/v1\/translations/, permission: 'page.site.translations' },
+  { method: 'PUT', pattern: /^\/api\/v1\/translations/, permission: 'site.translation.edit' },
+  { method: 'POST', pattern: /^\/api\/v1\/translations\/import/, permission: 'site.translation.edit' },
   { method: 'GET', pattern: /^\/api\/v1\/workspace\/team$/, permission: 'page.settings.team' },
   { pattern: /^\/api\/v1\/workspace\/team(?:\/|$)/, permission: 'settings.team' },
   { method: 'POST', pattern: /^\/api\/v1\/admin\/sites\/[^/]+\/publish/, permission: 'site.publish' },
@@ -31,6 +43,7 @@ const RULES: Array<{ method?: string; pattern: RegExp; permission: string }> = [
   { method: 'POST', pattern: /^\/api\/v1\/admin\/sites\/[^/]+\/domains/, permission: 'site.domain' },
   { method: 'POST', pattern: /^\/api\/v1\/admin\/sites\/domains\/[^/]+\/verify/, permission: 'site.domain' },
   { method: 'DELETE', pattern: /^\/api\/v1\/admin\/sites\/domains\//, permission: 'site.domain' },
+  { method: 'GET', pattern: /^\/api\/v1\/admin\/sites\/[^/]+\/versions/, permission: 'page.storefront.releases' },
   { method: 'GET', pattern: /^\/api\/v1\/admin\/sites(?:\/|$)/, permission: 'page.site.editor' },
   { method: 'PUT', pattern: /^\/api\/v1\/admin\/sites\/[^/]+$/, permission: 'site.edit' },
   { method: 'GET', pattern: /^\/api\/v1\/product-categories/, permission: 'page.product-categories' },
@@ -45,6 +58,17 @@ const RULES: Array<{ method?: string; pattern: RegExp; permission: string }> = [
   { method: 'GET', pattern: /^\/api\/v1\/inventory\/transfers/, permission: 'page.inventory.transfers' },
   { method: 'POST', pattern: /^\/api\/v1\/inventory\/transfers\/[^/]+\/receive$/, permission: 'inventory.transfer.receive' },
   { pattern: /^\/api\/v1\/inventory\/transfers/, permission: 'inventory.transfer.create' },
+  { method: 'GET', pattern: /^\/api\/v1\/finance\/receipts/, permission: 'page.finance.receipts' },
+  { method: 'POST', pattern: /^\/api\/v1\/finance\/receipts$/, permission: 'finance.receipt.create' },
+  { method: 'PATCH', pattern: /^\/api\/v1\/finance\/receipts\/[^/]+\/confirm$/, permission: 'finance.receipt.confirm' },
+  { method: 'PATCH', pattern: /^\/api\/v1\/finance\/receipts\/[^/]+\/cancel$/, permission: 'finance.receipt.cancel' },
+  { method: 'GET', pattern: /^\/api\/v1\/finance\/receivable-orders/, permission: 'finance.receipt.create' },
+  { method: 'GET', pattern: /^\/api\/v1\/finance\/payments/, permission: 'page.finance.payments' },
+  { method: 'POST', pattern: /^\/api\/v1\/finance\/payments$/, permission: 'finance.payment.create' },
+  { method: 'PATCH', pattern: /^\/api\/v1\/finance\/payments\/[^/]+\/confirm$/, permission: 'finance.payment.confirm' },
+  { method: 'PATCH', pattern: /^\/api\/v1\/finance\/payments\/[^/]+\/cancel$/, permission: 'finance.payment.cancel' },
+  { method: 'GET', pattern: /^\/api\/v1\/finance\/payable-orders/, permission: 'finance.payment.create' },
+  { method: 'GET', pattern: /^\/api\/v1\/finance\/statistics/, permission: 'page.finance.statistics' },
 ];
 
 @Injectable()
@@ -58,7 +82,8 @@ export class PlanPermissionsGuard implements CanActivate {
     if (!rule) return true;
     const tenant = await this.tenants.findOne({ where: { id: request.user.tenantId } });
     const permissions = request.user.role === 'admin' ? tenant?.permissions || [] : request.user.permissions || [];
-    if (permissions.includes(rule.permission)) return true;
+    const required = Array.isArray(rule.permission) ? rule.permission : [rule.permission];
+    if (required.some(permission => permissions.includes(permission))) return true;
     throw new ForbiddenException('当前账号未开通此权限');
   }
 }

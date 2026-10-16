@@ -1,16 +1,16 @@
 export interface Product {
   id: string | number;
   nameZh: string;
-  nameEn: string;
   sku: string;
   price: string;
   basePrice?: number;
   levelPrices?: Record<string, number>;
-  variants?: Array<{ id?: string; specification: string; option: string; stock: number; surcharge: number }>;
+  currencyPrices?: Record<string, { basePrice: number; levelPrices: Record<string, number> }>;
+  variants?: Array<{ id?: string; specification: string; option: string; stock: number; surcharge: number; surcharges?: Record<string, number> }>;
   tags?: string[];
   stock: number;
   moq: number;
-  status: 'published' | 'draft';
+  status: 'published' | 'pending';
   category: string;
   img: string;
   hot: boolean;

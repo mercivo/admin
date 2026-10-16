@@ -1,17 +1,28 @@
-import { BadRequestException, ConflictException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
-import { randomBytes, randomInt } from 'crypto';
-import { Site } from '../site/site.entity';
-import { Tenant } from '../site/tenant.entity';
-import { User } from './user.entity';
-import { LoginDto, RegisterDto } from './auth.dto';
-import { hashPassword, verifyPassword } from './password.util';
-import { TRIAL_PERMISSIONS } from '../system/permission-catalog';
-import { Plan } from '../system/plan.entity';
-import { CaptchaStore } from './captcha-store';
-import { Warehouse } from '../inventory/inventory.entity';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  UnauthorizedException,
+} from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import { InjectRepository } from "@nestjs/typeorm";
+import { DataSource, Repository } from "typeorm";
+import { randomBytes, randomInt } from "crypto";
+import { Site } from "../site/site.entity";
+import { Tenant } from "../site/tenant.entity";
+import { User } from "./user.entity";
+import { ChangePasswordDto, LoginDto, RegisterDto } from "./auth.dto";
+import { hashPassword, verifyPassword } from "./password.util";
+import {
+  TRIAL_PERMISSIONS,
+  migrateFinanceWorkflowPermissions,
+  withPermissionParents,
+} from "../system/permission-catalog";
+import { Plan } from "../system/plan.entity";
+import { CaptchaStore } from "./captcha-store";
+import { Warehouse } from "../inventory/inventory.entity";
+import { TeamMember } from "../workspace/team-member.entity";
 
 @Injectable()
 export class AuthService {
@@ -22,32 +33,132 @@ export class AuthService {
     @InjectRepository(Tenant) private readonly tenants: Repository<Tenant>,
     @InjectRepository(Site) private readonly sites: Repository<Site>,
     @InjectRepository(Plan) private readonly plans: Repository<Plan>,
-    @Inject('CAPTCHA_REDIS') private readonly captchaRedis: CaptchaStore,
+    @Inject("CAPTCHA_REDIS") private readonly captchaRedis: CaptchaStore,
   ) {}
 
   async captcha() {
-    const captchaId = randomBytes(18).toString('hex');
-    const code = Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[randomInt(32)]).join('');
-    await this.captchaRedis.set(`captcha:${captchaId}`, code, 'EX', 300);
-    const noise = Array.from({ length: 7 }, (_, i) => `<line x1="${randomInt(130)}" y1="${randomInt(46)}" x2="${randomInt(130)}" y2="${randomInt(46)}" stroke="hsl(${i * 47} 55% 70%)"/>`).join('');
-    const chars = [...code].map((char, i) => `<text x="${18 + i * 27}" y="34" transform="rotate(${randomInt(-12, 13)} ${18 + i * 27} 34)">${char}</text>`).join('');
+    const captchaId = randomBytes(18).toString("hex");
+    const code = Array.from(
+      { length: 4 },
+      () => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[randomInt(32)],
+    ).join("");
+    await this.captchaRedis.set(`captcha:${captchaId}`, code, "EX", 300);
+    const noise = Array.from(
+      { length: 7 },
+      (_, i) =>
+        `<line x1="${randomInt(130)}" y1="${randomInt(46)}" x2="${randomInt(130)}" y2="${randomInt(46)}" stroke="hsl(${i * 47} 55% 70%)"/>`,
+    ).join("");
+    const chars = [...code]
+      .map(
+        (char, i) =>
+          `<text x="${18 + i * 27}" y="34" transform="rotate(${randomInt(-12, 13)} ${18 + i * 27} 34)">${char}</text>`,
+      )
+      .join("");
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="140" height="46" viewBox="0 0 140 46"><rect width="140" height="46" rx="8" fill="#f3f1ff"/>${noise}<g font-family="monospace" font-size="25" font-weight="700" fill="#4f46e5">${chars}</g></svg>`;
-    return { captchaId, image: `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`, expiresIn: 300, ...(process.env.AUTH_CAPTCHA_DEBUG_ENABLED === 'true' ? { debugCode: code } : {}) };
+    return {
+      captchaId,
+      image: `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`,
+      expiresIn: 300,
+      ...(process.env.AUTH_CAPTCHA_DEBUG_ENABLED === "true"
+        ? { debugCode: code }
+        : {}),
+    };
   }
 
   async register(dto: RegisterDto) {
     const expected = await this.captchaRedis.getdel(`captcha:${dto.captchaId}`);
-    if (!expected || expected.toUpperCase() !== dto.captchaCode.trim().toUpperCase()) throw new BadRequestException('验证码错误或已过期');
-    if (await this.users.exist({ where: { phone: dto.phone } })) throw new ConflictException('该手机号已注册');
+    if (
+      !expected ||
+      expected.toUpperCase() !== dto.captchaCode.trim().toUpperCase()
+    )
+      throw new BadRequestException("验证码错误或已过期");
+    if (await this.users.exist({ where: { phone: dto.phone } }))
+      throw new ConflictException("该手机号已注册");
     const passwordHash = await hashPassword(dto.password);
-    const suffix = dto.phone.replace(/\D/g, '').slice(-8);
-    const trialPlan = await this.plans.findOne({ where: { code: 'trial', enabled: true } });
-    const trial = trialPlan || { code: 'trial', maxProducts: 20, maxMembers: 1, maxSites: 1, maxWarehouses: 1, features: {}, permissions: TRIAL_PERMISSIONS };
+    const suffix = dto.phone.replace(/\D/g, "").slice(-8);
+    const trialPlan = await this.plans.findOne({
+      where: { code: "trial", enabled: true },
+    });
+    const trial = trialPlan || {
+      code: "trial",
+      maxProducts: 20,
+      maxMembers: 1,
+      maxWarehouses: 1,
+      features: {},
+      permissions: TRIAL_PERMISSIONS,
+    };
     const result = await this.dataSource.transaction(async (manager) => {
-      const tenant = await manager.save(Tenant, manager.create(Tenant, { slug: `tenant-${suffix}-${Date.now().toString(36)}`, name: dto.tenantName.trim(), status: 'active', plan: trial.code, maxProducts: trial.maxProducts, maxMembers: trial.maxMembers, maxSites: trial.maxSites, maxWarehouses: trial.maxWarehouses, features: trial.features || {}, permissions: trial.permissions || [], permissionsCustomized: false, expiresAt: new Date(Date.now() + 14 * 86400000) }));
-      const site = await manager.save(Site, manager.create(Site, { tenantId: tenant.id, slug: `site-${suffix}-${Date.now().toString(36)}`, name: `${dto.tenantName} 独立站`, status: 'draft', defaultLanguage: 'zh', defaultCurrency: 'CNY', publishedVersionId: null }));
-      await manager.save(Warehouse, manager.create(Warehouse, { tenantId: tenant.id, siteId: site.id, code: 'DEFAULT', name: '默认仓库', contact: '', phone: '', address: '', status: 'active', isDefault: true }));
-      const user = await manager.save(User, manager.create(User, { tenantId: tenant.id, siteId: site.id, phone: dto.phone, username: null, passwordHash, role: 'admin', status: 'active', lastLoginAt: null }));
+      const tenant = await manager.save(
+        Tenant,
+        manager.create(Tenant, {
+          slug: `tenant-${suffix}-${Date.now().toString(36)}`,
+          name: dto.tenantName.trim(),
+          status: "active",
+          plan: trial.code,
+          maxProducts: trial.maxProducts,
+          maxMembers: trial.maxMembers,
+          maxWarehouses: trial.maxWarehouses,
+          features: trial.features || {},
+          permissions: trial.permissions || [],
+          permissionsCustomized: false,
+          expiresAt: new Date(Date.now() + 14 * 86400000),
+        }),
+      );
+      const site = await manager.save(
+        Site,
+        manager.create(Site, {
+          tenantId: tenant.id,
+          slug: `site-${suffix}-${Date.now().toString(36)}`,
+          name: `${dto.tenantName} 独立站`,
+          status: "draft",
+          defaultLanguage: "zh_CN",
+          supportedLanguages: ["zh_CN"],
+          defaultCurrency: "CNY",
+          publishedVersionId: null,
+        }),
+      );
+      await manager.save(
+        Warehouse,
+        manager.create(Warehouse, {
+          tenantId: tenant.id,
+          siteId: site.id,
+          code: "DEFAULT",
+          name: "默认仓库",
+          contact: "",
+          phone: "",
+          address: "",
+          status: "active",
+          isDefault: true,
+        }),
+      );
+      const user = await manager.save(
+        User,
+        manager.create(User, {
+          tenantId: tenant.id,
+          siteId: site.id,
+          phone: dto.phone,
+          username: null,
+          passwordHash,
+          role: "admin",
+          status: "active",
+          lastLoginAt: null,
+        }),
+      );
+      await manager.save(
+        TeamMember,
+        manager.create(TeamMember, {
+          userId: user.id,
+          tenantId: tenant.id,
+          siteId: site.id,
+          name: tenant.name,
+          email: null,
+          phone: dto.phone,
+          role: "admin",
+          permissions: null,
+          avatar: "",
+          color: "bg-indigo-600 text-white",
+        }),
+      );
       return { tenant, site, user };
     });
     return this.issueToken(result.user, result.tenant);
@@ -55,12 +166,20 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     const account = dto.account.trim();
-    const user = await this.users.findOne({ where: [{ phone: account }, { username: account }] });
-    if (!user || !(await verifyPassword(dto.password, user.passwordHash))) throw new UnauthorizedException('账号或密码错误');
-    if (user.status !== 'active') throw new UnauthorizedException('账号已被停用');
-    const tenant = user.tenantId ? await this.tenants.findOne({ where: { id: user.tenantId } }) : null;
-    if (tenant?.status === 'suspended') throw new UnauthorizedException('商户已被停用，请联系平台管理员');
-    if (tenant?.expiresAt && tenant.expiresAt.getTime() <= Date.now()) throw new UnauthorizedException('当前套餐已到期，请联系平台管理员续费');
+    const user = await this.users.findOne({
+      where: [{ phone: account }, { username: account }],
+    });
+    if (!user || !(await verifyPassword(dto.password, user.passwordHash)))
+      throw new UnauthorizedException("账号或密码错误");
+    if (user.status !== "active")
+      throw new UnauthorizedException("账号已被停用");
+    const tenant = user.tenantId
+      ? await this.tenants.findOne({ where: { id: user.tenantId } })
+      : null;
+    if (tenant?.status === "suspended")
+      throw new UnauthorizedException("商户已被停用，请联系平台管理员");
+    if (tenant?.expiresAt && tenant.expiresAt.getTime() <= Date.now())
+      throw new UnauthorizedException("当前套餐已到期，请联系平台管理员续费");
     user.lastLoginAt = new Date();
     await this.users.save(user);
     return this.issueToken(user, tenant);
@@ -68,23 +187,91 @@ export class AuthService {
 
   async switchSite(userId: string, tenantId: string, siteId: string) {
     const [user, tenant, site] = await Promise.all([
-      this.users.findOne({ where: { id: userId, tenantId, status: 'active' } }),
-      this.tenants.findOne({ where: { id: tenantId, status: 'active' } }),
+      this.users.findOne({ where: { id: userId, tenantId, status: "active" } }),
+      this.tenants.findOne({ where: { id: tenantId, status: "active" } }),
       this.sites.findOne({ where: { id: siteId, tenantId } }),
     ]);
-    if (!user || !tenant || !site) throw new UnauthorizedException('无权访问该站点');
+    if (!user || !tenant || !site)
+      throw new UnauthorizedException("无权访问该站点");
     user.siteId = site.id;
     await this.users.save(user);
     return this.issueToken(user, tenant);
   }
 
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.users.findOne({ where: { id: userId, status: "active" } });
+    if (!user || !(await verifyPassword(dto.currentPassword, user.passwordHash))) throw new BadRequestException("当前密码错误");
+    if (dto.currentPassword === dto.newPassword) throw new BadRequestException("新密码不能与当前密码相同");
+    user.passwordHash = await hashPassword(dto.newPassword);
+    await this.users.save(user);
+    return { success: true };
+  }
+
   private async issueToken(user: User, tenant: Tenant | null) {
+    if (tenant?.permissionsCustomized) {
+      const migrated = migrateFinanceWorkflowPermissions(tenant.permissions || []);
+      if (!this.samePermissions(tenant.permissions || [], migrated)) {
+        tenant.permissions = migrated;
+        await this.tenants.save(tenant);
+      }
+    }
+    if (tenant && !tenant.permissionsCustomized) {
+      const plan = await this.plans.findOne({
+        where: { code: tenant.plan, enabled: true },
+      });
+      if (plan) {
+        const inherited = withPermissionParents(migrateFinanceWorkflowPermissions(plan.permissions || []));
+        if (!this.samePermissions(tenant.permissions || [], inherited)) {
+          tenant.permissions = inherited;
+          await this.tenants.save(tenant);
+        }
+      }
+    }
     const tenantPermissions = tenant?.permissions || [];
-    const effectivePermissions = user.role === 'admin'
-      ? tenantPermissions
-      : (user.permissions || []).filter(permission => tenantPermissions.includes(permission));
+    const effectivePermissions =
+      user.role === "admin"
+        ? tenantPermissions
+        : migrateFinanceWorkflowPermissions(user.permissions || []).filter((permission) =>
+            tenantPermissions.includes(permission),
+          );
     const account = user.phone || user.username || user.id;
-    const payload = { sub: user.id, account, role: user.role, tenantId: user.tenantId || '', siteId: user.siteId || '' };
-    return { accessToken: await this.jwt.signAsync(payload), user: { userId: user.id, account, role: user.role, tenantId: payload.tenantId, siteId: payload.siteId }, tenant: tenant ? { id: tenant.id, name: tenant.name, plan: tenant.plan, status: tenant.status, expiresAt: tenant.expiresAt, permissions: effectivePermissions } : null };
+    const member = user.role === "member"
+      ? await this.dataSource.getRepository(TeamMember).findOne({ where: { userId: user.id } })
+      : null;
+    const payload = {
+      sub: user.id,
+      account,
+      role: user.role,
+      tenantId: user.tenantId || "",
+      siteId: user.siteId || "",
+    };
+    return {
+      accessToken: await this.jwt.signAsync(payload),
+      user: {
+        userId: user.id,
+        account,
+        name: member?.name || (user.role === "admin" ? tenant?.name : account),
+        role: user.role,
+        tenantId: payload.tenantId,
+        siteId: payload.siteId,
+      },
+      tenant: tenant
+        ? {
+            id: tenant.id,
+            name: tenant.name,
+            plan: tenant.plan,
+            status: tenant.status,
+            expiresAt: tenant.expiresAt,
+            permissions: effectivePermissions,
+          }
+        : null,
+    };
+  }
+
+  private samePermissions(left: string[], right: string[]) {
+    return (
+      left.length === right.length &&
+      left.every((permission) => right.includes(permission))
+    );
   }
 }

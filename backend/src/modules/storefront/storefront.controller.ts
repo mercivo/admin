@@ -1,6 +1,9 @@
-import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Headers, Query, Req, Patch } from '@nestjs/common';
 import { StorefrontService } from './storefront.service';
-import { CreateTestimonialDto, UpdateTestimonialDto } from './storefront.dto';
+import { CreateInquiryLeadDto, InquiryLeadQueryDto, StorefrontProductQueryDto, UpdateInquiryLeadDto } from './storefront.dto';
+import { Public } from '../../common/decorators/public.decorator';
+import { Throttle } from '@nestjs/throttler';
+import { AuthUser } from '../../common/types/auth-user';
 
 @Controller('storefront')
 export class StorefrontController {
@@ -11,23 +14,34 @@ export class StorefrontController {
     return this.storefrontService.getFeaturedProducts();
   }
 
-  @Get('testimonials')
-  async getTestimonials() {
-    return this.storefrontService.findAllTestimonials();
-  }
+  @Get('overview')
+  overview(@Req() req: { user: AuthUser }) { return this.storefrontService.overview(req.user); }
 
-  @Post('testimonials')
-  async createTestimonial(@Body() dto: CreateTestimonialDto) {
-    return this.storefrontService.createTestimonial(dto);
-  }
+  @Get('product-pool')
+  productPool(@Query() query: StorefrontProductQueryDto, @Req() req: { user: AuthUser }) { return this.storefrontService.productPool(query, req.user.siteId); }
 
-  @Put('testimonials/:id')
-  async updateTestimonial(@Param('id') id: string, @Body() dto: UpdateTestimonialDto) {
-    return this.storefrontService.updateTestimonial(id, dto);
-  }
+  @Get('leads')
+  leads(@Query() query: InquiryLeadQueryDto, @Req() req: { user: AuthUser }) { return this.storefrontService.listLeads(query, req.user); }
 
-  @Delete('testimonials/:id')
-  async deleteTestimonial(@Param('id') id: string) {
-    return this.storefrontService.deleteTestimonial(id);
+  @Get('lead-assignees')
+  leadAssignees(@Req() req: { user: AuthUser }) { return this.storefrontService.leadAssignees(req.user); }
+
+  @Post('leads')
+  createManagedLead(@Body() dto: CreateInquiryLeadDto, @Req() req: { user: AuthUser }) { return this.storefrontService.createManagedLead(dto, req.user.tenantId, req.user.siteId, req.user); }
+
+  @Patch('leads/:id')
+  updateLead(@Param('id') id: string, @Body() dto: UpdateInquiryLeadDto, @Req() req: { user: AuthUser }) { return this.storefrontService.updateLead(id, dto, req.user); }
+
+}
+
+@Controller('public/inquiries')
+@Public()
+export class StorefrontInquiryController {
+  constructor(private readonly storefrontService: StorefrontService) {}
+
+  @Post()
+  @Throttle({ default: { limit: 8, ttl: 60000 } })
+  create(@Headers('x-forwarded-host') forwardedHost: string, @Headers('host') host: string, @Query('site') site: string | undefined, @Body() dto: CreateInquiryLeadDto) {
+    return this.storefrontService.createLead(forwardedHost || host || 'localhost', site, dto);
   }
 }

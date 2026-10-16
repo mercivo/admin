@@ -8,5 +8,6 @@ export class SiteVersion {
   @Column({ length: 20, default: 'published' }) status: 'published' | 'archived';
   @Column({ type: 'json' }) snapshot: Record<string, unknown>;
   @Column({ name: 'published_by', length: 255, default: 'system' }) publishedBy: string;
+  @Column({ name: 'release_note', type: 'text' }) releaseNote: string;
   @CreateDateColumn({ name: 'published_at' }) publishedAt: Date;
 }

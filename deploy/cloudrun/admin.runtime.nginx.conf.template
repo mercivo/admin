@@ -4,6 +4,8 @@ server {
   root /usr/share/nginx/html;
   index index.html;
   server_tokens off;
+  # 商品图片限制为 5MiB；为 multipart 边界和请求头预留空间。
+  client_max_body_size 6m;
 
   add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
   add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'" always;

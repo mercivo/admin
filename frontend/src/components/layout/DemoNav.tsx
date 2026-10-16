@@ -1,25 +1,20 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Input, Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
 import {
   Search,
-  Bell,
   ChevronDown,
   Settings,
-  ExternalLink,
+  KeyRound,
   LayoutDashboard,
   Package,
   Globe,
   Tags,
-  CheckCircle,
-  AlertTriangle,
-  Eye,
-  TrendingUp,
   ContactRound,
 } from 'lucide-react';
-import { BrandMark } from '../shared';
-import { openPublishedStorefront } from '../../utils/storefront';
+import { BrandMark, ChangePasswordModal } from '../shared';
+import { can } from '../../utils/permissions';
 
 // ─────────────── Path to PageId mapping ───────────────
 
@@ -79,7 +74,7 @@ const NAV_GROUPS: Array<{
   },
   {
     id: 'site',
-    label: '独立站',
+    label: '站点设计',
     activeCls: 'bg-primary/10 text-primary',
     dotCls: 'bg-primary',
     pages: [{ id: 'site-editor', label: '站点设计', icon: Globe }],
@@ -88,73 +83,46 @@ const NAV_GROUPS: Array<{
 
 // ─────────────── Notification Data ───────────────
 
-const ACTIVITIES = [
-  { text: '商品目录已完成同步', time: '2分钟前', color: 'bg-violet-100', icon: Package, iconColor: 'text-violet-600' },
-  { text: 'Yuki Tanaka 签订棉质手提袋合同 ¥12,000', time: '1小时前', color: 'bg-emerald-100', icon: CheckCircle, iconColor: 'text-emerald-600' },
-  { text: '抽绳袋库存降至预警线以下', time: '2小时前', color: 'bg-amber-100', icon: AlertTriangle, iconColor: 'text-amber-700' },
-  { text: 'Emma Clarke 查看了帆布包产品详情', time: '3小时前', color: 'bg-violet-100', icon: Eye, iconColor: 'text-violet-600' },
-  { text: '独立站今日访客突破 3,000 人次', time: '5小时前', color: 'bg-rose-100', icon: TrendingUp, iconColor: 'text-rose-600' },
-];
-
 // ─────────────── DemoNav (Top Navigation Bar) ───────────────
 
 const DemoNav: React.FC = () => {
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [, setIdentityVersion] = useState(0);
+  useEffect(() => {
+    const refreshIdentity = () => setIdentityVersion(version => version + 1);
+    window.addEventListener('mercivo-user-updated', refreshIdentity);
+    return () => window.removeEventListener('mercivo-user-updated', refreshIdentity);
+  }, []);
   const location = useLocation();
   const navigate = useNavigate();
   const activePage = getPageId(location.pathname);
+  const visibleNavGroups = NAV_GROUPS.filter(group => group.id !== 'site' || can('page.site.editor'));
 
   const activeGroupId = useMemo(
-    () => NAV_GROUPS.find(g => g.pages.some(p => p.id === activePage))?.id ?? NAV_GROUPS[0].id,
-    [activePage],
-  );
-  const activeGroup = useMemo(
-    () => NAV_GROUPS.find(g => g.id === activeGroupId)!,
-    [activeGroupId],
+    () => visibleNavGroups.find(g => g.pages.some(p => p.id === activePage))?.id ?? visibleNavGroups[0]?.id ?? '',
+    [activePage, visibleNavGroups],
   );
 
   const handleNav = (pageId: string) => {
-    if (pageId === 'storefront') {
-      void openPublishedStorefront();
-      return;
-    }
     const route = PAGE_ROUTES[pageId];
     if (route) navigate(route);
   };
 
-  const notifItems: MenuProps['items'] = [
-    {
-      key: 'header',
-      label: (
-        <div className="flex items-center justify-between w-full">
-          <span className="font-semibold text-sm text-foreground">通知中心</span>
-          <button className="text-xs text-primary hover:underline">全部标记已读</button>
-        </div>
-      ),
-      disabled: true,
-    },
-    { type: 'divider' },
-    ...ACTIVITIES.slice(0, 4).map((a, i) => ({
-      key: `notif-${i}`,
-      label: (
-        <div className="flex items-start gap-3 py-1">
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${a.color}`}>
-            <a.icon className={`w-3 h-3 ${a.iconColor}`} />
-          </div>
-          <div>
-            <p className="text-xs text-foreground leading-relaxed">{a.text}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{a.time}</p>
-          </div>
-        </div>
-      ),
-    })),
-  ];
-
   const userMenuItems: MenuProps['items'] = [
-    { key: 'settings', label: '账号设置', icon: <Settings className="w-3.5 h-3.5" /> },
-    { key: 'storefront', label: '查看前台', icon: <ExternalLink className="w-3.5 h-3.5" /> },
+    { key: 'settings', label: '账号信息', icon: <Settings className="w-3.5 h-3.5" /> },
+    { key: 'change-password', label: '修改密码', icon: <KeyRound className="w-3.5 h-3.5" /> },
     { type: 'divider' },
     { key: 'logout', label: <span className="text-red-500">退出登录</span> },
   ];
+  const storedUser = (() => {
+    try { return JSON.parse(localStorage.getItem('mercivo_user') || '{}') as { account?: string; name?: string; role?: string }; }
+    catch { return {}; }
+  })();
+  const storedTenant = (() => {
+    try { return JSON.parse(localStorage.getItem('mercivo_tenant') || '{}') as { name?: string }; }
+    catch { return {}; }
+  })();
+  const accountName = storedUser.role === 'admin' ? storedTenant.name || '商户管理员' : storedUser.name || storedUser.account || '成员账号';
 
   return (
     <div className="flex-shrink-0 bg-white border-b border-border select-none" style={{ boxShadow: '0 1px 0 rgba(91,68,232,0.07)' }}>
@@ -175,7 +143,7 @@ const DemoNav: React.FC = () => {
 
         {/* Group switcher */}
         <div className="flex h-full items-center gap-1">
-          {NAV_GROUPS.map(group => {
+          {visibleNavGroups.map(group => {
             const isActive = group.id === activeGroupId;
             return (
               <Link
@@ -206,24 +174,17 @@ const DemoNav: React.FC = () => {
           />
         </div>
 
-        {/* Notifications */}
-        <Dropdown menu={{ items: notifItems }} trigger={['click']} placement="bottomRight" overlayStyle={{ width: 320 }}>
-          <button className="relative p-2 hover:bg-secondary rounded-xl transition-colors flex-shrink-0">
-            <Bell className="w-4 h-4 text-muted-foreground" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white" />
-          </button>
-        </Dropdown>
-
         {/* User Avatar */}
-        <Dropdown menu={{ items: userMenuItems, onClick: ({ key }) => { if (key === 'logout') { localStorage.removeItem('mercivo_access_token'); localStorage.removeItem('mercivo_user'); localStorage.removeItem('mercivo_tenant'); window.location.assign('/login'); } else handleNav(key); } }} trigger={['click']} placement="bottomRight">
+        <Dropdown menu={{ items: userMenuItems, onClick: ({ key }) => { if (key === 'logout') { localStorage.removeItem('mercivo_access_token'); localStorage.removeItem('mercivo_user'); localStorage.removeItem('mercivo_tenant'); window.location.assign('/login'); } else if (key === 'change-password') setPasswordModalOpen(true); else handleNav(key); } }} trigger={['click']} placement="bottomRight">
           <button className="flex items-center gap-2 hover:bg-secondary rounded-xl px-1.5 py-1 transition-colors flex-shrink-0">
-            <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop&auto=format" alt="Avatar"
-              className="w-7 h-7 rounded-full object-cover ring-2 ring-primary/20" />
-            <span className="text-xs font-semibold text-foreground">张经理</span>
+            <span className="grid h-7 w-7 place-items-center rounded-full bg-primary text-[10px] font-bold text-white ring-2 ring-primary/20">{accountName.slice(-2)}</span>
+            <span className="max-w-36 truncate text-xs font-semibold text-foreground">{accountName}</span>
             <ChevronDown className="w-3 h-3 text-muted-foreground" />
           </button>
         </Dropdown>
       </div>
+
+      <ChangePasswordModal open={passwordModalOpen} onClose={() => setPasswordModalOpen(false)} />
 
     </div>
   );

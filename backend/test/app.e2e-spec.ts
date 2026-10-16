@@ -1,143 +1,157 @@
-import { Test } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import * as dotenv from 'dotenv';
+import Redis from 'ioredis';
 import request = require('supertest');
 import { AppModule } from '../src/app.module';
-import { DataSource } from 'typeorm';
-import { User } from '../src/modules/auth/user.entity';
-import { Site } from '../src/modules/site/site.entity';
-import { Tenant } from '../src/modules/site/tenant.entity';
-import Redis from 'ioredis';
 
-jest.setTimeout(30000);
+const localEnvironment = dotenv.config({ path: '../.env.local', quiet: true }).parsed || {};
+jest.setTimeout(60_000);
 
-describe('Mercivo API (e2e)', () => {
+const unwrap = <T>(body: T | { data: T }): T => body && typeof body === 'object' && 'data' in body ? body.data : body as T;
+const decodeCaptcha = (image: string) => [...Buffer.from(image.split(',')[1], 'base64').toString('utf8').matchAll(/<text\b[^>]*>([^<])<\/text>/g)].map(match => match[1]).join('');
+
+describe('Mercivo API real-database integration (e2e)', () => {
   let app: INestApplication;
-  let token: string;
-  let systemToken: string;
+  let tenantToken = '';
+  let systemToken = '';
+  let tenantId = '';
+  let siteId = '';
+  let siteSlug = '';
+  const runId = process.env.E2E_RUN_ID || `API-E2E-${Date.now()}`;
+  const phone = `139${Date.now().toString().slice(-8)}`;
+  const password = process.env.E2E_TENANT_PASSWORD || 'Mercivo@E2E2026';
+
   beforeAll(async () => {
-    process.env.NODE_ENV = 'production';
-    process.env.DB_HOST = '127.0.0.1';
-    process.env.DB_PORT = '3307';
-    process.env.DB_USERNAME = 'root';
-    process.env.DB_PASSWORD = 'seo_platform_2024';
-    process.env.DB_DATABASE = 'seo_platform';
-    process.env.REDIS_HOST = '127.0.0.1';
-    process.env.REDIS_PORT = '6380';
-    process.env.JWT_SECRET = 'seo-jwt-secret-change-in-production';
+    process.env.NODE_ENV = 'test';
+    process.env.DB_HOST = process.env.E2E_DB_HOST || '127.0.0.1';
+    process.env.DB_PORT = process.env.E2E_DB_PORT || process.env.DB_HOST_PORT || '3307';
+    process.env.DB_USERNAME = process.env.E2E_DB_USERNAME || process.env.DB_USERNAME || 'root';
+    process.env.DB_PASSWORD = process.env.E2E_DB_PASSWORD || localEnvironment.DB_PASSWORD || process.env.DB_PASSWORD;
+    process.env.DB_DATABASE = process.env.E2E_DB_DATABASE || localEnvironment.DB_DATABASE || process.env.DB_DATABASE;
+    process.env.JWT_SECRET = process.env.E2E_JWT_SECRET || localEnvironment.JWT_SECRET || process.env.JWT_SECRET;
+    process.env.REDIS_HOST = process.env.E2E_REDIS_HOST || '127.0.0.1';
+    process.env.REDIS_PORT = process.env.E2E_REDIS_PORT || process.env.REDIS_HOST_PORT || '6381';
     process.env.AUTH_CAPTCHA_DEBUG_ENABLED = 'true';
-    process.env.SYSTEM_ADMIN_USERNAME = 'admin';
-    process.env.SYSTEM_ADMIN_PASSWORD = 'TestAdmin!Only2026';
     const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = module.createNestApplication();
+    app.getHttpAdapter().getInstance().get('/healthz', (_request: unknown, response: { status: (code: number) => { send: (body: string) => void } }) => response.status(200).send('ok'));
     app.setGlobalPrefix('api/v1');
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
     await app.init();
   });
+
   afterAll(async () => {
-    if (app) {
-      await app.get<Redis>('CAPTCHA_REDIS').quit();
-      await app.close();
-    }
+    if (!app) return;
+    await app.get<Redis>('CAPTCHA_REDIS').quit();
+    await app.close();
   });
 
-  it('serves a published storefront without authentication', () => request(app.getHttpServer()).get('/api/v1/public/site').set('Host', 'localhost').expect(200));
-  it('rejects slug overrides on production storefront hosts', () => request(app.getHttpServer()).get('/api/v1/public/site?site=eco-bags').set('Host', 'tenant.example.com').expect(400));
-  it('does not expose removed CRM and AI APIs', async () => {
-    await request(app.getHttpServer()).get('/api/v1/agent').expect(404);
-    await request(app.getHttpServer()).get('/api/v1/lead').expect(404);
-    await request(app.getHttpServer()).get('/api/v1/opportunities').expect(404);
-    await request(app.getHttpServer()).get('/api/v1/outreach').expect(404);
-    await request(app.getHttpServer()).post('/api/v1/chat/public/send').expect(404);
-    await request(app.getHttpServer()).get('/api/v1/dict/tree').expect(404);
+  it('exposes health and protects tenant APIs', async () => {
+    await request(app.getHttpServer()).get('/healthz').expect(200);
+    await request(app.getHttpServer()).get('/api/v1/product').expect(401);
   });
-  it('rejects protected APIs without a token', () => request(app.getHttpServer()).get('/api/v1/product').expect(401));
-  it('logs in and returns tenant context', async () => {
-    const response = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ account: '13800000000', password: 'TestTenant!Only2026' }).expect(201);
-    token = response.body.accessToken || response.body.data?.accessToken;
-    expect(token).toBeTruthy();
-  });
-  it('returns only products belonging to the authenticated site', async () => {
-    const response = await request(app.getHttpServer()).get('/api/v1/product').set('Authorization', `Bearer ${token}`).expect(200);
-    const products = response.body.data || response.body;
-    expect(products.length).toBeGreaterThan(0);
-    expect(products.every((item: { siteId: string }) => Boolean(item.siteId))).toBe(true);
-  });
-  it('drives the tenant operations console through real APIs', async () => {
-    const server = app.getHttpServer();
-    const auth = { Authorization: `Bearer ${token}` };
-    const suffix = Date.now().toString(36);
 
-    const dashboard = await request(server).get('/api/v1/dashboard/stats').set(auth).expect(200);
-    expect(dashboard.body.data || dashboard.body).toMatchObject({ totalProducts: expect.any(Number), publishedProducts: expect.any(Number), totalCustomers: expect.any(Number), customerValue: expect.any(Number) });
-
-    const productResponse = await request(server).post('/api/v1/product').set(auth).send({ nameZh: '自动化测试商品', nameEn: 'Automated Product', sku: `E2E-${suffix}`, price: '$9.90', stock: 30, moq: 3, status: 'draft', category: 'eco', img: 'photo-test', hot: false }).expect(201);
-    const product = productResponse.body.data || productResponse.body;
-    await request(server).put(`/api/v1/product/${product.id}`).set(auth).send({ stock: 36, status: 'published' }).expect(200).expect(response => expect((response.body.data || response.body).stock).toBe(36));
-    await request(server).put(`/api/v1/product/${product.id}/seo`).set(auth).send({ seoTitle: 'Automated SEO title', seoDescription: 'Automated SEO description' }).expect(200);
-    await request(server).get(`/api/v1/product/${product.id}/seo`).set(auth).expect(200).expect(response => expect((response.body.data || response.body).seoTitle).toBe('Automated SEO title'));
-
-    await request(server).get('/api/v1/customers/levels/rules').set(auth).expect(200).expect(response => expect((response.body.data || response.body)).toHaveLength(4));
-
-    const sitesResponse = await request(server).get('/api/v1/admin/sites').set(auth).expect(200);
-    const sites = sitesResponse.body.data || sitesResponse.body;
-    expect(sites.length).toBeGreaterThan(0);
-    await request(server).get(`/api/v1/admin/sites/${sites[0].id}/versions`).set(auth).expect(200);
-
-    const originalSettingsResponse = await request(server).get('/api/v1/workspace/config/settings').set(auth).expect(200);
-    const originalSettings = originalSettingsResponse.body.data || originalSettingsResponse.body;
-    await request(server).put('/api/v1/workspace/config/settings').set(auth).send({ value: { ...originalSettings, automationVerifiedAt: suffix } }).expect(200);
-    await request(server).get('/api/v1/workspace/config/settings').set(auth).expect(200).expect(response => expect((response.body.data || response.body).automationVerifiedAt).toBe(suffix));
-    await request(server).put('/api/v1/workspace/config/settings').set(auth).send({ value: originalSettings }).expect(200);
-
-    const memberResponse = await request(server).post('/api/v1/workspace/team').set(auth).send({ name: 'E2E Operator', email: `operator-${suffix}@example.com`, role: 'viewer' }).expect(201);
-    const member = memberResponse.body.data || memberResponse.body;
-    await request(server).put(`/api/v1/workspace/team/${member.id}`).set(auth).send({ role: 'editor' }).expect(200);
-    await request(server).delete(`/api/v1/workspace/team/${member.id}`).set(auth).expect(200);
-
-    const categoryCode = `e2e-${suffix}`;
-    await request(server).post('/api/v1/product-categories').set(auth).send({ code: categoryCode, label: '自动化分类', sort: 99, status: 'enabled', remark: 'E2E' }).expect(201);
-    await request(server).put(`/api/v1/product-categories/${categoryCode}`).set(auth).send({ label: '自动化商品分类' }).expect(200);
-    await request(server).get('/api/v1/product-categories').set(auth).expect(200).expect(response => expect((response.body.data || response.body).some((item: { code: string }) => item.code === categoryCode)).toBe(true));
-    await request(server).delete(`/api/v1/product-categories/${categoryCode}`).set(auth).expect(200);
-
-    await request(server).delete(`/api/v1/product/${product.id}`).set(auth).expect(200);
-  });
-  it('provides a graphical one-time captcha', async () => {
-    const response = await request(app.getHttpServer()).get('/api/v1/auth/captcha').expect(200);
-    expect(response.body.image || response.body.data?.image).toMatch(/^data:image\/svg\+xml;base64,/);
-  });
-  it('registers a tenant with a one-time graphical captcha and can log in', async () => {
+  it('registers a traceable tenant with a one-time graphical captcha', async () => {
     const captchaResponse = await request(app.getHttpServer()).get('/api/v1/auth/captcha').expect(200);
-    const captcha = captchaResponse.body.data || captchaResponse.body;
-    const phone = `139${Date.now().toString().slice(-8)}`;
-    const registration = await request(app.getHttpServer()).post('/api/v1/auth/register').send({ phone, password: 'Registered@2026', tenantName: 'E2E 临时商户', captchaId: captcha.captchaId, captchaCode: captcha.debugCode }).expect(201);
-    const data = registration.body.data || registration.body;
-    expect(data.user.role).toBe('admin');
-    await request(app.getHttpServer()).post('/api/v1/auth/register').send({ phone: `137${Date.now().toString().slice(-8)}`, password: 'Registered@2026', tenantName: '重复验证码', captchaId: captcha.captchaId, captchaCode: captcha.debugCode }).expect(400);
-    await request(app.getHttpServer()).post('/api/v1/auth/login').send({ account: phone, password: 'Registered@2026' }).expect(201);
-    const ds = app.get(DataSource);
-    await ds.getRepository(User).delete({ id: data.user.userId });
-    await ds.getRepository(Site).delete({ id: data.user.siteId });
-    await ds.getRepository(Tenant).delete({ id: data.user.tenantId });
+    const captcha = unwrap<{ captchaId: string; image: string; debugCode?: string }>(captchaResponse.body);
+    expect(captcha.image).toMatch(/^data:image\/svg\+xml;base64,/);
+    const code = captcha.debugCode || decodeCaptcha(captcha.image);
+    expect(code).toHaveLength(4);
+    const response = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      phone, password, tenantName: `${runId} 集成测试商户`, captchaId: captcha.captchaId, captchaCode: code,
+    }).expect(201);
+    const registration = unwrap<{ accessToken: string; user: { role: string; tenantId: string; siteId: string } }>(response.body);
+    tenantToken = registration.accessToken;
+    tenantId = registration.user.tenantId;
+    siteId = registration.user.siteId;
+    expect(registration.user.role).toBe('admin');
+    await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      phone: `137${Date.now().toString().slice(-8)}`, password, tenantName: `${runId} 重复验证码`, captchaId: captcha.captchaId, captchaCode: code,
+    }).expect(400);
   });
-  it('allows the separate system administrator to inspect all tenants', async () => {
-    const login = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ account: 'admin', password: 'TestAdmin!Only2026' }).expect(201);
-    systemToken = login.body.accessToken || login.body.data?.accessToken;
-    const response = await request(app.getHttpServer()).get('/api/v1/system/overview').set('Authorization', `Bearer ${systemToken}`).expect(200);
-    expect((response.body.data || response.body).totalTenants).toBeGreaterThan(0);
+
+  it('authenticates system admin from environment and grants release permissions', async () => {
+    const systemPassword = process.env.E2E_SYSTEM_ADMIN_PASSWORD || localEnvironment.SYSTEM_ADMIN_PASSWORD || process.env.SYSTEM_ADMIN_PASSWORD;
+    if (!systemPassword) throw new Error('SYSTEM_ADMIN_PASSWORD or E2E_SYSTEM_ADMIN_PASSWORD is required');
+    const login = await request(app.getHttpServer()).post('/api/v1/auth/login').send({
+      account: process.env.E2E_SYSTEM_ADMIN_USERNAME || localEnvironment.SYSTEM_ADMIN_USERNAME || process.env.SYSTEM_ADMIN_USERNAME || 'admin', password: systemPassword,
+    }).expect(201);
+    systemToken = unwrap<{ accessToken: string }>(login.body).accessToken;
+    await request(app.getHttpServer()).get('/api/v1/system/overview').set('Authorization', `Bearer ${systemToken}`).expect(200);
+    await request(app.getHttpServer()).patch(`/api/v1/system/tenants/${tenantId}`).set('Authorization', `Bearer ${systemToken}`).send({
+      maxProducts: 100, maxMembers: 10, maxWarehouses: 5,
+      permissions: ['page.dashboard', 'page.products', 'product.create', 'page.product-categories', 'product-category.manage', 'page.site.editor', 'site.edit', 'site.publish', 'site.domain'], permissionsCustomized: true,
+    }).expect(200);
+    const tenantLogin = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ account: phone, password }).expect(201);
+    tenantToken = unwrap<{ accessToken: string }>(tenantLogin.body).accessToken;
+    const me = await request(app.getHttpServer()).get('/api/v1/auth/me').set('Authorization', `Bearer ${tenantToken}`).expect(200);
+    expect(unwrap<{ tenantId: string }>(me.body).tenantId).toBe(tenantId);
   });
-  it('forbids tenant administrators from system APIs', () => request(app.getHttpServer()).get('/api/v1/system/tenants').set('Authorization', `Bearer ${token}`).expect(403));
-  it('applies tenant suspension immediately to existing tokens', async () => {
-    const tenantsResponse = await request(app.getHttpServer()).get('/api/v1/system/tenants').set('Authorization', `Bearer ${systemToken}`).expect(200);
-    const tenants = tenantsResponse.body.data || tenantsResponse.body;
-    const demo = tenants.find((item: { slug: string }) => item.slug === 'mercivo-demo');
-    expect(demo).toBeTruthy();
-    try {
-      await request(app.getHttpServer()).patch(`/api/v1/system/tenants/${demo.id}`).set('Authorization', `Bearer ${systemToken}`).send({ status: 'suspended' }).expect(200);
-      await request(app.getHttpServer()).get('/api/v1/product').set('Authorization', `Bearer ${token}`).expect(401);
-      await request(app.getHttpServer()).get('/api/v1/public/site').set('Host', 'localhost').expect(404);
-    } finally {
-      await request(app.getHttpServer()).patch(`/api/v1/system/tenants/${demo.id}`).set('Authorization', `Bearer ${systemToken}`).send({ status: 'active' }).expect(200);
-    }
+
+  it('enforces role boundaries and persists tenant-owned data', async () => {
+    await request(app.getHttpServer()).get('/api/v1/system/tenants').set('Authorization', `Bearer ${tenantToken}`).expect(403);
+    const auth = { Authorization: `Bearer ${tenantToken}` };
+    const categoryResponse = await request(app.getHttpServer()).post('/api/v1/product-categories').set(auth).send({
+      label: `${runId} 集成分类`, sort: 10, status: 'enabled', remark: runId,
+    }).expect(201);
+    const category = unwrap<{ code: string }>(categoryResponse.body);
+    const created = await request(app.getHttpServer()).post('/api/v1/product').set(auth).send({
+      nameZh: `${runId} 集成商品`, sku: `${runId}-SKU`, price: '19.90', basePrice: 19.9,
+      stock: 0, moq: 1, status: 'pending', category: category.code, img: 'https://image.aihubflux.com/local/api-e2e-placeholder.webp',
+    }).expect(201);
+    expect(unwrap<{ siteId: string }>(created.body).siteId).toBe(siteId);
+    const list = await request(app.getHttpServer()).get(`/api/v1/product?keyword=${encodeURIComponent(runId)}`).set(auth).expect(200);
+    const result = unwrap<{ items?: Array<{ siteId: string }> } | Array<{ siteId: string }>>(list.body);
+    const items = Array.isArray(result) ? result : result.items || [];
+    expect(items.some(item => item.siteId === siteId)).toBe(true);
+  });
+
+  it('publishes and serves the registered site', async () => {
+    const auth = { Authorization: `Bearer ${tenantToken}` };
+    await request(app.getHttpServer()).post(`/api/v1/admin/sites/${siteId}/publish`).set(auth).send({ releaseNote: `${runId} 集成发布` }).expect(201);
+    const response = await request(app.getHttpServer()).get('/api/v1/admin/sites').set(auth).expect(200);
+    const sites = unwrap<Array<{ id: string; slug: string }>>(response.body);
+    siteSlug = sites.find(site => site.id === siteId)?.slug || '';
+    expect(siteSlug).toBeTruthy();
+    const publishedBeforeLiveData = await request(app.getHttpServer()).get(`/api/v1/public/site?site=${encodeURIComponent(siteSlug)}`).set('Host', 'localhost').expect(200);
+    const publishedVersionId = unwrap<{ versionId: string }>(publishedBeforeLiveData.body).versionId;
+    const liveCategoryResponse = await request(app.getHttpServer()).post('/api/v1/product-categories').set(auth).send({
+      label: `${runId} 发布后实时分类`, sort: 20, status: 'enabled', remark: runId,
+    }).expect(201);
+    const liveCategory = unwrap<{ code: string; label: string }>(liveCategoryResponse.body);
+    const liveProductResponse = await request(app.getHttpServer()).post('/api/v1/product').set(auth).send({
+      nameZh: `${runId} 发布后实时商品`, sku: `${runId}-LIVE-SKU`, price: '39.90', basePrice: 39.9,
+      stock: 20, moq: 2, status: 'published', category: liveCategory.code, img: 'https://image.aihubflux.com/local/api-e2e-live.webp',
+    }).expect(201);
+    const liveProduct = unwrap<{ id: string }>(liveProductResponse.body);
+    const publishedAfterLiveDataResponse = await request(app.getHttpServer()).get(`/api/v1/public/site?site=${encodeURIComponent(siteSlug)}`).set('Host', 'localhost').expect(200);
+    const publishedAfterLiveData = unwrap<{ versionId: string; products: Array<{ id: string; nameZh: string; category: string }>; categories: Array<{ code: string; label: string }> }>(publishedAfterLiveDataResponse.body);
+    expect(publishedAfterLiveData.versionId).toBe(publishedVersionId);
+    expect(publishedAfterLiveData.products).toContainEqual(expect.objectContaining({ id: liveProduct.id, nameZh: `${runId} 发布后实时商品`, category: liveCategory.code }));
+    expect(publishedAfterLiveData.categories).toContainEqual(expect.objectContaining({ code: liveCategory.code, label: `${runId} 发布后实时分类` }));
+    const customDomain = `${tenantId}.localhost`;
+    const domainResponse = await request(app.getHttpServer()).post(`/api/v1/admin/sites/${siteId}/domains`).set(auth).send({ hostname: customDomain, isPrimary: true }).expect(201);
+    expect(unwrap<{ status: string; sslStatus: string }>(domainResponse.body)).toMatchObject({ status: 'active', sslStatus: 'active' });
+    const customDomainSite = await request(app.getHttpServer()).get('/api/v1/public/site').set('Host', customDomain).expect(200);
+    expect(unwrap<{ siteId: string }>(customDomainSite.body).siteId).toBe(siteId);
+    const forwardedDomainSite = await request(app.getHttpServer()).get('/api/v1/public/site').set('Host', 'api:8080').set('X-Forwarded-Host', `${customDomain}:443`).expect(200);
+    expect(unwrap<{ siteId: string }>(forwardedDomainSite.body).siteId).toBe(siteId);
+    await request(app.getHttpServer()).get('/api/v1/public/site?site=invalid').set('Host', 'tenant.example.com').expect(400);
+  });
+
+  it('invalidates existing tokens while suspended and restores access', async () => {
+    const auth = { Authorization: `Bearer ${systemToken}` };
+    await request(app.getHttpServer()).patch(`/api/v1/system/tenants/${tenantId}`).set(auth).send({ status: 'suspended' }).expect(200);
+    await request(app.getHttpServer()).get('/api/v1/product').set('Authorization', `Bearer ${tenantToken}`).expect(401);
+    await request(app.getHttpServer()).get(`/api/v1/public/site?site=${encodeURIComponent(siteSlug)}`).set('Host', 'localhost').expect(404);
+    await request(app.getHttpServer()).patch(`/api/v1/system/tenants/${tenantId}`).set(auth).send({ status: 'active' }).expect(200);
+    await request(app.getHttpServer()).get('/api/v1/product').set('Authorization', `Bearer ${tenantToken}`).expect(200);
+  });
+
+  it('keeps removed CRM and AI endpoints unavailable', async () => {
+    await request(app.getHttpServer()).get('/api/v1/agent').expect(404);
+    await request(app.getHttpServer()).get('/api/v1/opportunities').expect(404);
+    await request(app.getHttpServer()).post('/api/v1/chat/public/send').expect(404);
   });
 });

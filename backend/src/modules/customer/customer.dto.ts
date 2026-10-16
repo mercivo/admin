@@ -11,10 +11,7 @@ export class CreateCustomerDto {
 }
 export class UpdateCustomerDto extends CreateCustomerDto {}
 export class UpdateGuestPricingDto {
-  @IsIn(['base', 'hidden']) mode: 'base' | 'hidden';
-}
-export class PublicCustomerLoginDto {
-  @Matches(/^\+?[0-9\s()-]{6,24}$/, { message: '请输入有效手机号' }) phone: string;
+  @IsIn(['base', 'hidden', 'percentage']) mode: 'base' | 'hidden' | 'percentage';
 }
 export class CreateCustomerLevelDto {
   @IsString() @MaxLength(50) name: string;

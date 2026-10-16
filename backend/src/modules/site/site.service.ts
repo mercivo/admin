@@ -9,14 +9,12 @@ import { SiteDomain } from './site-domain.entity';
 import { SiteVersion } from './site-version.entity';
 import { Tenant } from './tenant.entity';
 import { Product } from '../product/product.entity';
-import { Testimonial } from '../storefront/testimonial.entity';
 import { AppConfig } from '../workspace/app-config.entity';
 import { CreateDomainDto, CreateSiteDto, UpdateSiteDto } from './site.dto';
 import { ProductCategory } from '../product-category/product-category.entity';
-import { Customer } from '../customer/customer.entity';
-import { JwtService } from '@nestjs/jwt';
-import { UnauthorizedException } from '@nestjs/common';
 import { Warehouse } from '../inventory/inventory.entity';
+import { ANTD_LOCALE_SET } from '../../common/constants/antd-locales';
+import { TranslationService } from '../translation/translation.service';
 
 @Injectable()
 export class SiteService {
@@ -26,13 +24,11 @@ export class SiteService {
     @InjectRepository(SiteDomain) private readonly domainRepo: Repository<SiteDomain>,
     @InjectRepository(SiteVersion) private readonly versionRepo: Repository<SiteVersion>,
     @InjectRepository(Product) private readonly productRepo: Repository<Product>,
-    @InjectRepository(Testimonial) private readonly testimonialRepo: Repository<Testimonial>,
     @InjectRepository(AppConfig) private readonly configRepo: Repository<AppConfig>,
     @InjectRepository(ProductCategory) private readonly productCategoryRepo: Repository<ProductCategory>,
-    @InjectRepository(Customer) private readonly customerRepo: Repository<Customer>,
     @InjectRepository(Warehouse) private readonly warehouseRepo: Repository<Warehouse>,
-    private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly translations: TranslationService,
   ) {}
 
   listTenants(tenantId: string) { return this.tenantRepo.find({ where: { id: tenantId } }); }
@@ -47,8 +43,7 @@ export class SiteService {
   }
   async updateSite(id: string, dto: UpdateSiteDto, tenantId: string) {
     const site = await this.getSite(id, tenantId);
-    const allowedLanguages = new Set(['zh', 'en', 'bs']);
-    if ((dto.defaultLanguage && !allowedLanguages.has(dto.defaultLanguage)) || dto.supportedLanguages?.some(language => !allowedLanguages.has(language))) throw new BadRequestException('独立站仅支持中文、英文和波斯尼亚语');
+    if ((dto.defaultLanguage && !ANTD_LOCALE_SET.has(dto.defaultLanguage)) || dto.supportedLanguages?.some(language => !ANTD_LOCALE_SET.has(language))) throw new BadRequestException('语言编码必须使用 Ant Design 支持的 locale');
     if (dto.supportedLanguages && !dto.supportedLanguages.includes(dto.defaultLanguage || site.defaultLanguage)) throw new BadRequestException('支持语言必须包含站点默认语言');
     return this.siteRepo.save(Object.assign(site, dto));
   }
@@ -89,21 +84,40 @@ export class SiteService {
     return this.domainRepo.save(domain);
   }
   async removeDomain(id: string, tenantId: string) { const domain = await this.domainRepo.findOne({ where: { id } }); if (!domain) throw new NotFoundException('Domain not found'); await this.getSite(domain.siteId, tenantId); await this.domainRepo.delete(id); }
-  async listVersions(siteId: string, tenantId: string) { await this.getSite(siteId, tenantId); return this.versionRepo.find({ where: { siteId }, order: { version: 'DESC' } }); }
+  async listVersions(siteId: string, tenantId: string) {
+    await this.getSite(siteId, tenantId);
+    return this.versionRepo.find({
+      select: { id: true, siteId: true, version: true, status: true, publishedBy: true, publishedAt: true, releaseNote: true },
+      where: { siteId },
+      order: { version: 'DESC' },
+    });
+  }
 
-  async publish(siteId: string, publishedBy = 'system', tenantId?: string) {
+  async publish(siteId: string, publishedBy: string, releaseNote: string, tenantId?: string) {
     const site = await this.getSite(siteId, tenantId);
-    const [products, testimonials, editor, seo, categoryEntries] = await Promise.all([
+    const normalizedReleaseNote = releaseNote?.trim();
+    if (!normalizedReleaseNote) throw new BadRequestException('请填写发版备注');
+    const [products, editor, seo, categoryEntries, currencyConfig, siteMeta] = await Promise.all([
       this.productRepo.find({ where: { siteId, status: 'published' }, order: { createdAt: 'DESC' } }),
-      this.testimonialRepo.find({ where: { siteId }, order: { sort: 'ASC' } }),
       (async () => (await this.configRepo.findOne({ where: { key: `${siteId}:siteEditor` } })) || this.configRepo.findOne({ where: { key: 'siteEditor' } }))(),
       (async () => (await this.configRepo.findOne({ where: { key: `${siteId}:seo` } })) || this.configRepo.findOne({ where: { key: 'seo' } }))(),
       this.productCategoryRepo.find({ where: { siteId, status: 'enabled' }, order: { sort: 'ASC' } }),
+      this.configRepo.findOne({ where: { key: `${siteId}:currency` } }),
+      this.configRepo.findOne({ where: { key: `${siteId}:site-meta` } }),
     ]);
+    const displayCurrency = String(site.defaultCurrency || 'CNY').toUpperCase();
+    const missing = products.filter(product => !product.currencyPrices?.[displayCurrency]);
+    if (missing.length) throw new BadRequestException(`以下商品缺少 ${displayCurrency} 基础售价：${missing.map(product => `${product.nameZh}（${product.sku}）`).join('、')}`);
+    const publishedProducts = products.map(product => {
+      const fixedPrice = product.currencyPrices![displayCurrency];
+      return { ...product, currencyPrices: undefined, basePrice: fixedPrice.basePrice, levelPrices: fixedPrice.levelPrices, variants: (product.variants || []).map(variant => ({ ...variant, surcharge: Number(variant.surcharges?.[displayCurrency] ?? 0), surcharges: undefined })) };
+    });
+    const i18n = await this.translations.validateForPublish(siteId);
     const latest = await this.versionRepo.findOne({ where: { siteId }, order: { version: 'DESC' } });
     const categories = categoryEntries.map(({ code, label, parentCode, sort }) => ({ code, label, parentCode, sort }));
-    const snapshot = { site: { id: site.id, slug: site.slug, name: site.name, defaultLanguage: site.defaultLanguage, defaultCurrency: site.defaultCurrency, guestPriceMode: site.guestPriceMode || 'base' }, config: editor?.value || {}, seo: seo?.value || {}, products, categories, testimonials, generatedAt: new Date().toISOString() };
-    const version = await this.versionRepo.save(this.versionRepo.create({ siteId, version: (latest?.version || 0) + 1, snapshot, publishedBy }));
+    const symbol = ((currencyConfig?.value as any)?.currencies || []).find((item: any) => item.code === displayCurrency)?.symbol || displayCurrency;
+    const snapshot = { site: { id: site.id, slug: site.slug, name: site.name, logoUrl: String((siteMeta?.value as any)?.logoUrl || ''), defaultLanguage: site.defaultLanguage, supportedLanguages: site.supportedLanguages || [site.defaultLanguage], defaultCurrency: displayCurrency, currencySymbol: symbol, guestPriceMode: site.guestPriceMode || 'base' }, config: editor?.value || {}, seo: seo?.value || {}, products: publishedProducts, categories, i18n, generatedAt: new Date().toISOString() };
+    const version = await this.versionRepo.save(this.versionRepo.create({ siteId, version: (latest?.version || 0) + 1, snapshot, publishedBy, releaseNote: normalizedReleaseNote }));
     site.status = 'published'; site.publishedVersionId = version.id; await this.siteRepo.save(site);
     return version;
   }
@@ -113,26 +127,31 @@ export class SiteService {
     if (!version) throw new NotFoundException('Site version not found');
     site.publishedVersionId = version.id; site.status = 'published'; await this.siteRepo.save(site); return version;
   }
-  async resolvePublished(hostname: string, siteSlug?: string, authorization?: string) {
+  async resolvePublished(hostname: string, siteSlug?: string, requestedLanguage?: string) {
     const { site, version } = await this.resolveSiteVersion(hostname, siteSlug);
-    const customer = await this.resolvePublicCustomer(site.id, authorization);
     const snapshot = version.snapshot as Record<string, any>;
-    const guestMode = (site.guestPriceMode || snapshot.site?.guestPriceMode) === 'hidden' ? 'hidden' : 'base';
-    const products = (snapshot.products || []).map((product: Product) => {
-      const levelPrice = customer?.level ? product.levelPrices?.[customer.level] : undefined;
-      const priceValue = customer ? (levelPrice ?? Number(product.basePrice)) : Number(product.basePrice);
-      const priceVisible = !!customer || guestMode !== 'hidden';
-      return { ...product, price: priceVisible ? this.calculatePublicPrice(priceValue, product.variants || []) : '', priceVisible, priceSource: customer ? (levelPrice == null ? 'base' : 'level') : guestMode };
+    const [systemConfig, liveProducts, liveCategoryEntries, liveI18n] = await Promise.all([
+      this.configRepo.findOne({ where: { key: `${site.id}:system` } }),
+      this.productRepo.find({ where: { siteId: site.id, status: 'published' }, order: { createdAt: 'DESC' } }),
+      this.productCategoryRepo.find({ where: { siteId: site.id, status: 'enabled' }, order: { sort: 'ASC' } }),
+      this.translations.messages(site.id),
+    ]);
+    const storefront = (systemConfig?.value as any)?.storefront || {};
+    const guestMode = ['base', 'hidden', 'percentage'].includes(storefront.guestPriceMode) ? storefront.guestPriceMode : ((site.guestPriceMode || snapshot.site?.guestPriceMode) === 'hidden' ? 'hidden' : 'base');
+    const guestAccessEnabled = storefront.guestAccessEnabled !== false;
+    const guestPricePercentage = Math.max(0, Number(storefront.guestPricePercentage) || 100);
+    const displayCurrency = String(site.defaultCurrency || snapshot.site?.defaultCurrency || 'CNY').toUpperCase();
+    const products = liveProducts.map((product: Product) => {
+      const currencyPrice = product.currencyPrices?.[displayCurrency];
+      const basePrice = Number(currencyPrice?.basePrice ?? product.basePrice);
+      const priceValue = guestMode === 'percentage' ? basePrice * guestPricePercentage / 100 : basePrice;
+      const priceVisible = guestMode !== 'hidden';
+      return { ...product, currencyPrices: undefined, price: priceVisible ? this.calculatePublicPrice(priceValue, product.variants || []) : '', priceVisible, priceSource: guestMode };
     });
-    return { siteId: site.id, versionId: version.id, version: version.version, ...snapshot, site: { ...snapshot.site, guestPriceMode: guestMode }, products, customer: customer ? { id: customer.id, name: customer.name, company: customer.company, phone: customer.phone, level: customer.level } : null };
-  }
-  async loginPublicCustomer(hostname: string, siteSlug: string | undefined, phone: string) {
-    const { site } = await this.resolveSiteVersion(hostname, siteSlug);
-    const phoneNormalized = phone.trim().replace(/[\s()-]/g, '');
-    const customer = await this.customerRepo.findOne({ where: { siteId: site.id, phoneNormalized, status: 'active' } });
-    if (!customer) throw new UnauthorizedException('未找到该手机号对应的有效客户');
-    const accessToken = await this.jwt.signAsync({ sub: customer.id, type: 'storefront_customer', siteId: site.id, phone: customer.phone });
-    return { accessToken, customer: { id: customer.id, name: customer.name, company: customer.company, phone: customer.phone, level: customer.level } };
+    const categories = liveCategoryEntries.map(({ code, label, parentCode, sort }) => ({ code, label, parentCode, sort }));
+    const supported = snapshot.site?.supportedLanguages || [snapshot.site?.defaultLanguage || 'zh_CN'];
+    const locale = requestedLanguage && supported.includes(requestedLanguage) ? requestedLanguage : snapshot.site?.defaultLanguage || 'zh_CN';
+    return { siteId: site.id, versionId: version.id, version: version.version, ...snapshot, locale, site: { ...snapshot.site, guestAccessEnabled, guestPriceMode: guestMode, guestPricePercentage }, products: guestAccessEnabled ? products : [], categories, i18n: liveI18n };
   }
   async resolvePublicSite(hostname: string, siteSlug?: string) {
     return (await this.resolveSiteVersion(hostname, siteSlug)).site;
@@ -147,13 +166,11 @@ export class SiteService {
   }
   async sitemap(hostname: string, siteKey?: string) {
     const { site, version } = await this.resolveSiteVersion(hostname, siteKey);
-    const snapshot = version.snapshot as Record<string, any>;
     const origin = `https://${this.normalizeHost(hostname)}`;
     const basePath = siteKey ? `/${encodeURIComponent(siteKey)}` : '';
     const languages = site.supportedLanguages || [site.defaultLanguage];
     const alternate = languages.map(language => `<xhtml:link rel="alternate" hreflang="${this.xml(language)}" href="${origin}${basePath}/?lang=${this.xml(language)}"/>`).join('');
-    const products = (snapshot.products || []).map((product: Product) => `<url><loc>${origin}${basePath}/products/${encodeURIComponent(product.id)}</loc><lastmod>${new Date(version.publishedAt).toISOString()}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>`).join('');
-    return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml"><url><loc>${origin}${basePath}/</loc><lastmod>${new Date(version.publishedAt).toISOString()}</lastmod><changefreq>weekly</changefreq><priority>1.0</priority>${alternate}</url>${products}</urlset>`;
+    return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml"><url><loc>${origin}${basePath}/</loc><lastmod>${new Date(version.publishedAt).toISOString()}</lastmod><changefreq>weekly</changefreq><priority>1.0</priority>${alternate}</url></urlset>`;
   }
   async robots(hostname: string, siteKey?: string) {
     const { version } = await this.resolveSiteVersion(hostname, siteKey);
@@ -175,29 +192,20 @@ export class SiteService {
       const domain = await this.domainRepo.findOne({ where: { hostname: normalizedHost, status: 'active' } });
       if (domain) site = await this.siteRepo.findOne({ where: { id: domain.siteId } });
     }
-    if (!site || site.status !== 'published' || !site.publishedVersionId) throw new NotFoundException('Published site not found');
+    if (!site || site.status !== 'published' || !site.publishedVersionId) throw new NotFoundException({ errorCode: 'SITE_NOT_FOUND_OR_UNPUBLISHED', message: 'Published site not found' });
     const tenant = await this.tenantRepo.findOne({ where: { id: site.tenantId } });
-    if (!tenant || tenant.status !== 'active' || (tenant.expiresAt && tenant.expiresAt.getTime() <= Date.now())) throw new NotFoundException('Published site not found');
+    if (!tenant || tenant.status !== 'active' || (tenant.expiresAt && tenant.expiresAt.getTime() <= Date.now())) throw new NotFoundException({ errorCode: 'SITE_NOT_FOUND_OR_UNPUBLISHED', message: 'Published site not found' });
     const version = await this.versionRepo.findOne({ where: { id: site.publishedVersionId, siteId: site.id } });
-    if (!version) throw new NotFoundException('Published version not found');
+    if (!version) throw new NotFoundException({ errorCode: 'SITE_NOT_FOUND_OR_UNPUBLISHED', message: 'Published version not found' });
     return { site, version };
   }
   private async getSite(id: string, tenantId?: string) { const site = await this.siteRepo.findOne({ where: tenantId ? { id, tenantId } : { id } }); if (!site) throw new NotFoundException(`Site ${id} not found`); return site; }
-  private async resolvePublicCustomer(siteId: string, authorization?: string) {
-    const token = authorization?.startsWith('Bearer ') ? authorization.slice(7) : '';
-    if (!token) return null;
-    try {
-      const payload = await this.jwt.verifyAsync<{ sub: string; type: string; siteId: string }>(token);
-      if (payload.type !== 'storefront_customer' || payload.siteId !== siteId) return null;
-      return this.customerRepo.findOne({ where: { id: payload.sub, siteId, status: 'active' } });
-    } catch { return null; }
-  }
   private calculatePublicPrice(basePrice: number, variants: NonNullable<Product['variants']>) {
     const safeBase = Math.max(0, Number(basePrice) || 0);
     if (!variants.length) return safeBase.toFixed(2);
     const prices = variants.map(item => safeBase + Math.max(0, Number(item.surcharge) || 0));
     const min = Math.min(...prices).toFixed(2); const max = Math.max(...prices).toFixed(2);
-    return min === max ? min : `${min}–${max}`;
+    return min === max ? min : `${min}～${max}`;
   }
   private domainDetails(domain: SiteDomain) {
     return {

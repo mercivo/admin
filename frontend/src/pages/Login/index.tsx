@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Form, Segmented, Typography, message } from 'antd';
+import { Button, Form, Typography, message } from 'antd';
 import {
   LockOutlined,
   MobileOutlined,
@@ -11,9 +11,10 @@ import { ArrowRight, Globe2, Package, Sparkles } from 'lucide-react';
 import { AppForm, AppFormItem, AppInput, AppPasswordInput, BrandMark } from '../../components/shared';
 import api from '../../services/api';
 import { LanguageSwitcher } from '../../i18n';
+import { firstAuthorizedRoute } from '../../utils/navigation';
 
 type Captcha = { captchaId: string; image: string };
-type AuthResult = { accessToken: string; user: { role: string; account: string }; tenant: { name: string } | null };
+type AuthResult = { accessToken: string; user: { role: string; account: string; name?: string }; tenant: { name: string; permissions?: string[] } | null };
 
 const capabilities = [
   { icon: Package, label: '外贸 ERP' },
@@ -21,7 +22,7 @@ const capabilities = [
 ];
 
 const LoginPage: React.FC = () => {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode] = useState<'login' | 'register'>('login');
   const [loading, setLoading] = useState(false);
   const [captcha, setCaptcha] = useState<Captcha | null>(null);
   const loadCaptcha = async () => setCaptcha(await api.get<unknown, Captcha>('/auth/captcha'));
@@ -32,7 +33,7 @@ const LoginPage: React.FC = () => {
     localStorage.setItem('mercivo_access_token', result.accessToken);
     localStorage.setItem('mercivo_user', JSON.stringify(result.user));
     if (result.tenant) localStorage.setItem('mercivo_tenant', JSON.stringify(result.tenant));
-    location.assign(result.user.role === 'system_admin' ? '/system' : '/dashboard');
+    location.assign(result.user.role === 'system_admin' ? '/system' : firstAuthorizedRoute(result.tenant?.permissions || []));
   };
 
   const login = async (values: { account: string; password: string }) => {
@@ -112,19 +113,9 @@ const LoginPage: React.FC = () => {
             </Typography.Text>
           </div>
 
-          <div className="mb-7">
-            <Segmented
-              block
-              className="!rounded-xl !p-1"
-              value={mode}
-              onChange={value => setMode(value as 'login' | 'register')}
-              options={[{ label: '登录', value: 'login' }, { label: '注册', value: 'register' }]}
-            />
-          </div>
-
           {mode === 'login' ? (
             <AppForm className="[&_.ant-form-item]:!mb-4 [&_.ant-form-item-label]:!pb-1.5" onFinish={login}>
-              <AppFormItem label="手机号 / 系统管理员账号" name="account" rules={[{ required: true, message: '请输入登录账号' }]}>
+              <AppFormItem label="登录账号" name="account" rules={[{ required: true, message: '请输入登录账号' }]}>
                 <AppInput prefix={<UserOutlined />} autoComplete="username" placeholder="请输入手机号或管理员账号" />
               </AppFormItem>
               <AppFormItem label="密码" name="password" rules={[{ required: true, min: 8, message: '密码至少 8 位' }]}>
@@ -133,7 +124,6 @@ const LoginPage: React.FC = () => {
               <Button className="mt-1 !h-10 !rounded-xl !font-semibold" block type="primary" htmlType="submit" loading={loading}>
                 安全登录 <ArrowRight className="ml-1 inline" size={15} />
               </Button>
-              <p className="mb-0 mt-3 text-center text-xs text-gray-400">系统管理员可使用专属账号登录</p>
             </AppForm>
           ) : (
             <AppForm className="[&_.ant-form-item]:!mb-3.5 [&_.ant-form-item-label]:!pb-1.5" onFinish={register}>

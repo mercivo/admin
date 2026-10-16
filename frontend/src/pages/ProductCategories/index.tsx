@@ -172,7 +172,7 @@ const ProductCategoriesPage: React.FC = () => {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div><h1 className="text-xl font-bold text-foreground">商品分类</h1><p className="text-sm text-muted-foreground mt-0.5">维护商品的一级分类与二级子分类</p></div>
-        <button onClick={() => setShowAddLevel1(true)} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary/90"><Plus className="h-4 w-4" />新增一级分类</button>
+        <button onClick={() => setShowAddLevel1(true)} className="flex h-9 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary/90"><Plus className="h-4 w-4" />新增一级分类</button>
       </div>
 
       <div className="flex min-h-[560px] flex-col overflow-hidden rounded-2xl border border-white/60 bg-white/80 shadow-sm backdrop-blur-xl">

@@ -5,7 +5,6 @@ import {
   Upload,
   Plus,
   Trash2,
-  AlertCircle,
   X,
   ExternalLink,
   AlertTriangle,
@@ -18,8 +17,21 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { customerApi, productApi, productCategoryApi, workspaceApi } from '../../services/api/index';
 import type { CustomerLevel, GuestPricingPolicy } from '../../services/api/index';
 import type { Product, ProductCategory } from '../../types';
+import { DEFAULT_CURRENCY_CONFIG, type CurrencyConfig } from '../../config/sales';
 
-type ProductVariant = { id?: string; specification: string; option: string; stock: number; surcharge: number };
+type ProductVariant = { id?: string; specification: string; option: string; stock: number; surcharge: number; surcharges?: Record<string, number> };
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
+const normalizeTags = (value: unknown): string[] => {
+  if (Array.isArray(value)) return value.map(item => String(item).trim()).filter(Boolean).slice(0, 20);
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.map(item => String(item).trim()).filter(Boolean).slice(0, 20);
+  } catch { /* 兼容旧数据中的逗号分隔标签 */ }
+  return value.split(/[,，]/).map(item => item.trim()).filter(Boolean).slice(0, 20);
+};
 
 const TABS = [
   { id: 'basic', label: '基本信息' },
@@ -33,18 +45,18 @@ const ProductEditPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('basic');
   const [publishToSite, setPublishToSite] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
-  const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [categories, setCategories] = useState<Array<{ code: string; label: string }>>([]);
   const [form, setForm] = useState<Partial<Product>>({
-    nameZh: '', nameEn: '', description: '', sku: '', price: '0.00', basePrice: 0,
+    nameZh: '', description: '', sku: '', price: '0.00', basePrice: 0,
     stock: 0, moq: 0, category: '', img: '', hot: false, badge: '', likeCount: 0,
-    status: 'draft', tags: [],
+    status: 'pending', tags: [],
     levelPrices: {},
   });
   const [deleteVariantIndex, setDeleteVariantIndex] = useState<number | null>(null);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [currency, setCurrency] = useState('CNY');
+  const [currencyConfig, setCurrencyConfig] = useState<CurrencyConfig>(DEFAULT_CURRENCY_CONFIG);
   const [tagInput, setTagInput] = useState('');
   const [uploading, setUploading] = useState(false);
   const [customerLevels, setCustomerLevels] = useState<CustomerLevel[]>([]);
@@ -52,22 +64,23 @@ const ProductEditPage: React.FC = () => {
   const [productQuota, setProductQuota] = useState<{ used: number; limit: number } | null>(null);
 
   const priceRange = () => {
-    const basePrice = Math.max(0, Number(form.basePrice) || 0);
+    const basePrice = Math.max(0, Number(form.currencyPrices?.[currency]?.basePrice) || 0);
     if (!variants.length) return basePrice.toFixed(2);
-    const values = variants.map(item => basePrice + Math.max(0, Number(item.surcharge) || 0));
+    const values = variants.map(item => basePrice + Math.max(0, Number(item.surcharges?.[currency]) || 0));
     const min = Math.min(...values).toFixed(2);
     const max = Math.max(...values).toFixed(2);
-    return min === max ? min : `${min}–${max}`;
+    return min === max ? min : `${min}～${max}`;
   };
 
   const referencePrice = (level: CustomerLevel) => {
-    const basePrice = Math.max(0, Number(form.basePrice) || 0);
+    const basePrice = Math.max(0, Number(form.currencyPrices?.[currency]?.basePrice) || 0);
     return level.discountRate == null ? basePrice : basePrice * Number(level.discountRate) / 100;
   };
 
   useEffect(() => {
-    workspaceApi.getSettings().then(settings => {
-      setCurrency(settings.site.defaultCurrency || 'CNY');
+    Promise.all([workspaceApi.getSettings(), workspaceApi.getConfig<Partial<CurrencyConfig>>('currency').catch(() => DEFAULT_CURRENCY_CONFIG)]).then(([settings, currencyConfig]) => {
+      const resolved = { ...DEFAULT_CURRENCY_CONFIG, ...currencyConfig, currencies: currencyConfig.currencies?.length ? currencyConfig.currencies : DEFAULT_CURRENCY_CONFIG.currencies } as CurrencyConfig;
+      setCurrencyConfig(resolved); setCurrency(resolved.defaultCurrency || settings.site.defaultCurrency || 'CNY');
       setProductQuota({ used: settings.billing.usage.products, limit: settings.billing.limits.products });
     }).catch(() => undefined);
     productCategoryApi.list().then((categories: ProductCategory[]) => {
@@ -85,7 +98,8 @@ const ProductEditPage: React.FC = () => {
   useEffect(() => {
     if (!id) return;
     productApi.getById(id).then(product => {
-      setForm(product);
+      setForm({ ...product, tags: normalizeTags(product.tags), currencyPrices: product.currencyPrices || { [currencyConfig.defaultCurrency]: { basePrice: Number(product.basePrice) || 0, levelPrices: product.levelPrices || {} } } });
+      setTagInput('');
       setVariants(product.variants || []);
       setPublishToSite(product.status === 'published');
     }).catch(() => {
@@ -101,14 +115,18 @@ const ProductEditPage: React.FC = () => {
       return;
     }
     if (publishToSite) {
-      setSaveConfirmOpen(true);
+      AppModal.confirm({
+        title: '确认同步',
+        content: '保存后，商品将立即进入独立站商品池并更新前台展示。请确认所有信息填写正确。',
+        okText: '保存并同步',
+        onOk: doSave,
+      });
     } else {
-      doSave();
+      void doSave();
     }
   };
 
   const doSave = async () => {
-    setSaveConfirmOpen(false);
     setSaving(true);
     if (!form.category) {
       setSaving(false);
@@ -116,18 +134,18 @@ const ProductEditPage: React.FC = () => {
       return;
     }
     const payload: Partial<Product> = {
-      status: publishToSite ? 'published' as const : 'draft' as const,
-      nameZh: form.nameZh || '未命名商品', nameEn: form.nameEn || form.nameZh || '未命名商品',
-      sku: form.sku || `PRODUCT-${Date.now()}`, basePrice: Number(form.basePrice) || 0, variants, tags: form.tags || [],
+      status: publishToSite ? 'published' as const : 'pending' as const,
+      nameZh: form.nameZh || '未命名商品',
+      sku: form.sku || `PRODUCT-${Date.now()}`, basePrice: Number(form.currencyPrices?.[currencyConfig.defaultCurrency]?.basePrice) || 0, currencyPrices: form.currencyPrices || {}, variants, tags: form.tags || [],
       moq: Number(form.moq) || 0,
       category: form.category, img: form.img || '', hot: form.badge === 'hot' || form.badge === 'bestseller', badge: form.badge || '', likeCount: Math.max(0, Number(form.likeCount) || 0),
       description: form.description || '',
-      levelPrices: form.levelPrices || {},
+      levelPrices: form.currencyPrices?.[currencyConfig.defaultCurrency]?.levelPrices || {},
     };
     try {
       if (id) await productApi.update(id, payload);
       else await productApi.create(payload);
-      showToast(publishToSite ? '商品已保存并发布成功' : '草稿已保存成功', 'success');
+      showToast(publishToSite ? '商品已保存并同步到独立站' : '商品已保存，暂未同步到独立站', 'success');
       window.setTimeout(() => navigate('/products'), 500);
     } catch {
       showToast('商品保存失败，请检查填写内容', 'error');
@@ -143,7 +161,8 @@ const ProductEditPage: React.FC = () => {
   };
 
   const handleAddVariant = () => {
-    setVariants(prev => [...prev, { specification: '', option: '', stock: 0, surcharge: 0 }]);
+    const surcharges = Object.fromEntries(currencyConfig.currencies.filter(item => item.enabled).map(item => [item.code, 0]));
+    setVariants(prev => [...prev, { specification: '', option: '', stock: 0, surcharge: 0, surcharges }]);
     showToast('规格已添加', 'success');
   };
 
@@ -156,6 +175,10 @@ const ProductEditPage: React.FC = () => {
 
   const uploadImage = async (file?: File) => {
     if (!file) return;
+    if (!IMAGE_TYPES.includes(file.type) || file.size > MAX_IMAGE_SIZE) {
+      showToast('请选择 5MB 以内的 JPG、PNG、WebP 或 GIF 图片', 'error');
+      return;
+    }
     setUploading(true);
     try {
       const uploaded = await productApi.uploadImage(file);
@@ -169,6 +192,10 @@ const ProductEditPage: React.FC = () => {
   };
 
   const uploadDescriptionImage = async (file: File) => {
+    if (!IMAGE_TYPES.includes(file.type) || file.size > MAX_IMAGE_SIZE) {
+      showToast('请选择 5MB 以内的 JPG、PNG、WebP 或 GIF 图片', 'error');
+      throw new Error('Invalid image');
+    }
     try {
       const uploaded = await productApi.uploadImage(file);
       showToast('描述图片上传成功', 'success');
@@ -178,9 +205,6 @@ const ProductEditPage: React.FC = () => {
       throw error;
     }
   };
-
-  const totalStock = variants.reduce((sum, item) => sum + (Number(item.stock) || 0), 0);
-  const warningStock = Math.max((Number(form.moq) || 0) * 10, 100);
 
   return (
     <div className="space-y-5">
@@ -192,11 +216,11 @@ const ProductEditPage: React.FC = () => {
           </button>
           <span className="text-border">/</span>
           <h1 className="text-xl font-bold text-foreground">{id ? '编辑商品' : '新建商品'}</h1>
-          <StatusBadge status={publishToSite ? 'published' : 'draft'} />
+          <StatusBadge status={publishToSite ? 'published' : 'pending'} />
         </div>
         <div className="flex items-center gap-2">
           {!id && productQuota && <QuotaUsage label="商品配额" used={productQuota.used} limit={productQuota.limit} onExhaustedClick={()=>navigate('/settings?tab=billing')}/>}
-          <button disabled={!id} onClick={() => id && navigate(`/products/${id}`)} className="flex h-[42px] items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-muted-foreground hover:bg-secondary disabled:opacity-50">
+          <button disabled={!id} onClick={() => id && navigate(`/products/${id}`)} className="flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs text-muted-foreground hover:bg-secondary disabled:opacity-50">
             <ExternalLink className="w-3.5 h-3.5" />预览前台
           </button>
         </div>
@@ -221,7 +245,7 @@ const ProductEditPage: React.FC = () => {
                 <div className="space-y-5">
                   <div>
                     <label className="block text-sm font-normal text-foreground mb-1.5">商品名称</label>
-                    <Input value={form.nameZh} onChange={e => setForm(v => ({ ...v, nameZh: e.target.value, nameEn: e.target.value }))} variant="filled" size="middle" />
+                    <Input value={form.nameZh} onChange={e => setForm(v => ({ ...v, nameZh: e.target.value }))} variant="filled" size="middle" />
                   </div>
                   <div>
                     <label className="block text-sm font-normal text-foreground mb-1.5">商品描述</label>
@@ -244,17 +268,18 @@ const ProductEditPage: React.FC = () => {
 
               {activeTab === 'specs' && (
                 <div className="space-y-5">
+                  <div className="flex gap-2">{currencyConfig.currencies.filter(item => item.enabled).map(item => <button type="button" key={item.code} onClick={() => setCurrency(item.code)} className={`rounded-lg px-3 py-2 text-sm ${currency === item.code ? 'bg-primary text-white' : 'bg-secondary text-muted-foreground'}`}>{item.code} · {item.symbol}</button>)}</div>
                   <div className="grid grid-cols-3 gap-4">
                     {[
                       { label: '商品编码', key: 'sku', value: form.sku || '', mono: true },
                       { label: '库存数量', key: 'stock', value: String(variants.reduce((sum, item) => sum + (Number(item.stock) || 0), 0)), disabled: true },
                       { label: '最小起订量', key: 'moq', value: String(form.moq ?? 0) },
-                      { label: `基础单价（${currency}）`, key: 'basePrice', value: String(form.basePrice ?? 0), number: true },
+                      { label: `基础单价（${currency}）`, key: 'basePrice', value: String(form.currencyPrices?.[currency]?.basePrice ?? ''), number: true },
                       { label: `价格区间（${currency}）`, key: 'price', value: priceRange(), disabled: true },
                     ].map(f => (
                       <div key={f.label}>
                         <label className="block text-xs font-normal text-muted-foreground mb-1.5 uppercase tracking-wide">{f.label}</label>
-                        {f.number ? <InputNumber value={Number(f.value)} min={0} precision={2} onChange={value => setForm(current => ({ ...current, basePrice: Number(value) || 0 }))} variant="filled" size="middle" style={{ width: '100%' }} /> : <Input value={f.value} disabled={f.disabled} onChange={e => setForm(v => ({
+                        {f.number ? <InputNumber value={f.value === '' ? null : Number(f.value)} min={0} precision={2} onChange={value => setForm(current => ({ ...current, currencyPrices: { ...(current.currencyPrices || {}), [currency]: { basePrice: Number(value) || 0, levelPrices: current.currencyPrices?.[currency]?.levelPrices || {} } } }))} variant="filled" size="middle" style={{ width: '100%' }} /> : <Input value={f.value} disabled={f.disabled} onChange={e => setForm(v => ({
                           ...v,
                           [f.key]: f.key === 'stock' || f.key === 'moq' ? Number(e.target.value) : e.target.value,
                         }))} variant="filled" size="middle" style={f.mono ? { fontFamily: 'monospace' } : undefined} />}
@@ -266,7 +291,7 @@ const ProductEditPage: React.FC = () => {
                       <label className="text-sm font-normal text-foreground">规格表（尺寸 × 颜色）</label>
                       <button onClick={handleAddVariant} className="flex items-center gap-1 text-xs text-primary hover:underline"><Plus className="w-3 h-3" />添加规格行</button>
                     </div>
-                    <AppEditableTable rowKey={(_, index) => index} dataSource={variants} emptyText="暂无规格数据，请添加规格行" columns={[{ title: '规格' }, { title: '选项' }, { title: '库存', width: 120 }, { title: `额外加价（${currency}）`, width: 180 }, { title: '', width: 56, className: 'text-center' }]} renderRow={(variant, i) => [<Input value={variant.specification} placeholder="如：尺寸" onChange={e => setVariants(items => items.map((item, index) => index === i ? { ...item, specification: e.target.value } : item))} variant="borderless" size="small" />, <Input value={variant.option} placeholder="如：L" onChange={e => setVariants(items => items.map((item, index) => index === i ? { ...item, option: e.target.value } : item))} variant="borderless" size="small" />, <InputNumber value={variant.stock} disabled min={0} precision={0} variant="borderless" size="small" />, <InputNumber value={variant.surcharge} min={0} precision={2} onChange={value => setVariants(items => items.map((item, index) => index === i ? { ...item, surcharge: Number(value) || 0 } : item))} variant="borderless" size="small" />, <TableActionButton title="删除规格" tone="danger" onClick={() => setDeleteVariantIndex(i)}><Trash2 size={15}/></TableActionButton>]}/>
+                    <AppEditableTable rowKey={(_, index) => index} dataSource={variants} emptyText="暂无规格数据，请添加规格行" columns={[{ title: '规格' }, { title: '选项' }, { title: '库存', width: 120 }, { title: `额外加价（${currency}）`, width: 180 }, { title: '', width: 56, className: 'text-center' }]} renderRow={(variant, i) => [<Input value={variant.specification} placeholder="如：尺寸" onChange={e => setVariants(items => items.map((item, index) => index === i ? { ...item, specification: e.target.value } : item))} variant="borderless" size="small" />, <Input value={variant.option} placeholder="如：L" onChange={e => setVariants(items => items.map((item, index) => index === i ? { ...item, option: e.target.value } : item))} variant="borderless" size="small" />, <InputNumber value={variant.stock} disabled min={0} precision={0} variant="borderless" size="small" />, <InputNumber value={variant.surcharges?.[currency] ?? 0} min={0} precision={2} onChange={value => setVariants(items => items.map((item, index) => index === i ? { ...item, surcharges: { ...(item.surcharges || {}), [currency]: Number(value) || 0 }, surcharge: currency === currencyConfig.defaultCurrency ? Number(value) || 0 : item.surcharge } : item))} variant="borderless" size="small" />, <TableActionButton title="删除规格" tone="danger" onClick={() => setDeleteVariantIndex(i)}><Trash2 size={15}/></TableActionButton>]}/>
                     <p className="mt-2 text-xs text-muted-foreground">最终规格价格 = 基础单价 + 额外加价；规格库存由库存管理模块汇总，不可在商品页直接修改。</p>
                   </div>
                 </div>
@@ -274,6 +299,7 @@ const ProductEditPage: React.FC = () => {
 
               {activeTab === 'pricing' && (
                 <div className="space-y-4">
+                  <div className="flex gap-2">{currencyConfig.currencies.filter(item => item.enabled).map(item => <button type="button" key={item.code} onClick={() => setCurrency(item.code)} className={`rounded-lg px-3 py-2 text-sm ${currency === item.code ? 'bg-primary text-white' : 'bg-secondary text-muted-foreground'}`}>{item.code} · {item.symbol}</button>)}</div>
                   <div>
                     <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
@@ -286,10 +312,10 @@ const ProductEditPage: React.FC = () => {
                         <Tooltip title={guestPricingMode === 'hidden' ? '游客当前不显示价格，识别客户手机号后显示对应价格。' : '游客当前展示商品基础价。'} placement="top">
                           <span className="inline-flex cursor-help items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-xs font-normal text-muted-foreground"><Info className="h-3 w-3" />游客：{guestPricingMode === 'hidden' ? '不显示价格' : '基础价'}</span>
                         </Tooltip>
-                        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-normal text-primary">基础价 {currency} {Number(form.basePrice || 0).toFixed(2)}</span>
+                        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-normal text-primary">基础价 {currency} {Number(form.currencyPrices?.[currency]?.basePrice || 0).toFixed(2)}</span>
                       </div>
                     </div>
-                    {customerLevels.length ? <div className="overflow-hidden rounded-xl border border-border"><table className="w-full text-sm"><thead><tr className="border-b border-border bg-secondary/40"><th className="px-4 py-3 text-left text-xs font-normal text-muted-foreground">客户等级</th><th className="w-64 px-4 py-3 text-left text-xs font-normal text-muted-foreground">专属价（{currency}）</th><th className="w-52 px-4 py-3 text-left text-xs font-normal text-muted-foreground">参考价（{currency}）</th></tr></thead><tbody>{customerLevels.map(level => <tr key={level.id} className="border-b border-border last:border-0"><td className="px-4 py-3"><div className="flex items-center gap-2 font-normal text-foreground"><span>{level.name}</span>{level.note && <Tooltip title={level.note} placement="topLeft"><button type="button" aria-label={`查看${level.name}说明`} className="text-muted-foreground transition hover:text-primary"><Info className="h-3.5 w-3.5" /></button></Tooltip>}</div></td><td className="px-4 py-3"><InputNumber value={form.levelPrices?.[level.code]} min={0} precision={2} placeholder={`默认 ${Number(form.basePrice || 0).toFixed(2)}`} onChange={value => setForm(current => { const prices = { ...(current.levelPrices || {}) }; if (value === null) delete prices[level.code]; else prices[level.code] = Number(value); return { ...current, levelPrices: prices }; })} variant="filled" style={{ width: '100%' }} /></td><td className="px-4 py-3"><div className="font-normal text-foreground">{referencePrice(level).toFixed(2)}</div><div className="mt-0.5 text-xs text-muted-foreground">{level.discountRate == null ? '无规则，按原价' : `${Number(level.discountRate)}%`}</div></td></tr>)}</tbody></table></div> : <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center"><p className="text-sm font-normal text-foreground">尚未创建客户等级</p><Link to="/customer" className="mt-3 inline-block text-xs font-normal text-primary hover:underline">前往客户管理</Link></div>}
+                    {customerLevels.length ? <div className="overflow-hidden rounded-xl border border-border"><table className="w-full text-sm"><thead><tr className="border-b border-border bg-secondary/40"><th className="px-4 py-3 text-left text-xs font-normal text-muted-foreground">客户等级</th><th className="w-64 px-4 py-3 text-left text-xs font-normal text-muted-foreground">专属价（{currency}）</th><th className="w-52 px-4 py-3 text-left text-xs font-normal text-muted-foreground">参考价（{currency}）</th></tr></thead><tbody>{customerLevels.map(level => <tr key={level.id} className="border-b border-border last:border-0"><td className="px-4 py-3"><div className="flex items-center gap-2 font-normal text-foreground"><span>{level.name}</span>{level.note && <Tooltip title={level.note} placement="topLeft"><button type="button" aria-label={`查看${level.name}说明`} className="text-muted-foreground transition hover:text-primary"><Info className="h-3.5 w-3.5" /></button></Tooltip>}</div></td><td className="px-4 py-3"><InputNumber value={form.currencyPrices?.[currency]?.levelPrices?.[level.code]} min={0} precision={2} placeholder={`默认 ${Number(form.currencyPrices?.[currency]?.basePrice || 0).toFixed(2)}`} onChange={value => setForm(current => { const price = current.currencyPrices?.[currency] || { basePrice: 0, levelPrices: {} }; const levelPrices = { ...price.levelPrices }; if (value === null) delete levelPrices[level.code]; else levelPrices[level.code] = Number(value); return { ...current, currencyPrices: { ...(current.currencyPrices || {}), [currency]: { ...price, levelPrices } } }; })} variant="filled" style={{ width: '100%' }} /></td><td className="px-4 py-3"><div className="font-normal text-foreground">{referencePrice(level).toFixed(2)}</div><div className="mt-0.5 text-xs text-muted-foreground">{level.discountRate == null ? '无规则，按原价' : `${Number(level.discountRate)}%`}</div></td></tr>)}</tbody></table></div> : <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center"><p className="text-sm font-normal text-foreground">尚未创建客户等级</p><Link to="/customer" className="mt-3 inline-block text-xs font-normal text-primary hover:underline">前往客户管理</Link></div>}
                   </div>
                 </div>
               )}
@@ -298,19 +324,19 @@ const ProductEditPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Sidebar Publish Card */}
+        {/* Sidebar Sync Card */}
         <div className="flex flex-col gap-4">
           <div className="order-2 backdrop-blur-xl bg-white/80 rounded-2xl border border-white/60 shadow-sm p-5 space-y-4">
-            <h3 className="font-normal text-foreground text-sm">发布设置</h3>
+            <h3 className="font-normal text-foreground text-sm">同步设置</h3>
             <div className="space-y-3">
               {[
-                { label: '发布状态', value: publishToSite ? 'published' : 'draft', badge: true },
+                { label: '同步状态', value: publishToSite ? 'published' : 'pending', badge: true },
                 { label: '可见性', value: publishToSite ? '公开' : '仅后台可见' },
                 { label: '最后更新', value: form.updatedAt ? new Date(form.updatedAt).toLocaleDateString('zh-CN') : '尚未保存' },
               ].map(f => (
                 <div key={f.label} className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">{f.label}</span>
-                  {f.badge ? <StatusBadge status={f.value as 'published' | 'draft'} /> : <span className="text-xs font-normal text-foreground">{f.value}</span>}
+                  {f.badge ? <StatusBadge status={f.value as 'published' | 'pending'} /> : <span className="text-xs font-normal text-foreground">{f.value}</span>}
                 </div>
               ))}
             </div>
@@ -319,12 +345,12 @@ const ProductEditPage: React.FC = () => {
                 <Checkbox checked={publishToSite} onChange={e => setPublishToSite(e.target.checked)} className="mt-0.5" />
                 <div>
                   <div className="text-sm font-normal text-foreground">同步到独立站</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">保存后立即更新前台展示</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">保存后立即同步到独立站商品池</div>
                 </div>
               </label>
             </div>
             <button disabled={saving || (!id && !!productQuota && productQuota.used >= productQuota.limit)} title={!id && productQuota && productQuota.used >= productQuota.limit ? '商品额度已用完，请升级套餐或联系管理员' : ''} onClick={handleSave} className="w-full py-2.5 bg-primary text-white rounded-xl text-sm font-normal hover:bg-primary/90 shadow-sm disabled:cursor-not-allowed disabled:opacity-60">
-              {saving ? '保存中...' : publishToSite ? '保存并发布' : '保存草稿'}
+              {saving ? '保存中...' : publishToSite ? '保存并同步' : '保存'}
             </button>
             <button onClick={() => navigate('/products')} className="w-full py-2.5 border border-border text-muted-foreground rounded-xl text-sm font-normal hover:bg-secondary transition-colors">
               取消
@@ -344,11 +370,11 @@ const ProductEditPage: React.FC = () => {
                     <div className="mb-2 flex gap-1 flex-wrap">
                       {(form.tags || []).map(t => (
                         <span key={t} className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-xs font-normal flex items-center gap-1">
-                          {t}<button onClick={() => setForm(current => ({ ...current, tags: (current.tags || []).filter(tag => tag !== t) }))} className="hover:text-red-500"><X className="w-2.5 h-2.5" /></button>
+                          {t}<button type="button" onClick={() => setForm(current => ({ ...current, tags: (current.tags || []).filter(tag => tag !== t) }))} className="hover:text-red-500"><X className="w-2.5 h-2.5" /></button>
                         </span>
                       ))}
                     </div>
-                    <Input value={tagInput} onChange={e => setTagInput(e.target.value)} onPressEnter={addTag} placeholder="输入标签后按回车" variant="filled" size="middle" suffix={<button onClick={addTag} className="text-xs font-normal text-primary">添加</button>} />
+                    <Input value={tagInput} onChange={e => setTagInput(e.target.value)} onPressEnter={addTag} placeholder="输入标签后按回车" variant="filled" size="middle" suffix={<button type="button" onClick={addTag} className="text-xs font-normal text-primary">添加</button>} />
               </div>
               <div>
                 <label className="text-xs font-normal text-muted-foreground mb-2 block">商品标记</label>
@@ -361,32 +387,8 @@ const ProductEditPage: React.FC = () => {
             </div>
           </div>
 
-          <div className={`order-3 ${totalStock <= warningStock ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'} rounded-2xl border p-4`}>
-            <div className="flex items-center gap-2 mb-2">
-              <AlertCircle className={`h-4 w-4 ${totalStock <= warningStock ? 'text-amber-600' : 'text-emerald-600'}`} />
-              <span className={`text-xs font-normal ${totalStock <= warningStock ? 'text-amber-700' : 'text-emerald-700'}`}>库存提醒</span>
-            </div>
-            <p className={`text-xs ${totalStock <= warningStock ? 'text-amber-700' : 'text-emerald-700'}`}>当前库存 {totalStock.toLocaleString()} 件，预警值 {warningStock.toLocaleString()} 件。{totalStock <= warningStock ? '库存偏低，请及时补货。' : '当前库存充足。'}</p>
-          </div>
         </div>
       </div>
-
-      {/* Save Confirmation Modal */}
-      {saveConfirmOpen && (
-        <AppModal open title="确认发布" onCancel={() => setSaveConfirmOpen(false)} onOk={doSave} okText="确认发布" cancelText="取消" width={440}>
-            <div className="py-3">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-                  <AlertTriangle className="w-5 h-5 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-normal text-foreground mb-1">即将发布到独立站</p>
-                  <p className="text-sm text-muted-foreground">保存后，商品将立即更新到前台展示。请确认所有信息填写正确。</p>
-                </div>
-              </div>
-            </div>
-        </AppModal>
-      )}
 
       {/* Delete Variant Confirmation Modal */}
       {deleteVariantIndex !== null && (

@@ -6,8 +6,8 @@ interface StatusBadgeProps {
 }
 
 const statusConfig: Record<string, { color: string; label: string }> = {
-  published: { color: 'green', label: '已发布' },
-  draft: { color: 'default', label: '草稿' },
+  published: { color: 'green', label: '已同步' },
+  pending: { color: 'gold', label: '未同步' },
 };
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {

@@ -1,0 +1,66 @@
+:root {
+  --font-size: 14px;
+  --background: #f5f3ff;
+  --foreground: #1e1b35;
+  --border: rgba(108, 80, 220, 0.1);
+  --muted-foreground: #7a74a0;
+  font-size: var(--font-size);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: #fff;
+  color: var(--foreground);
+  font-family: "Inter", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: var(--font-size);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+a {
+  transition: 0.2s ease;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.state {
+  display: grid;
+  min-height: 100vh;
+  place-content: center;
+  gap: 12px;
+  color: var(--muted-foreground);
+  text-align: center;
+}
+
+.loader {
+  width: 38px;
+  height: 38px;
+  margin: auto;
+  border: 3px solid #e5e7eb;
+  border-top-color: #7c6ef5;
+  border-radius: 50%;
+  animation: runtime-spin 1s linear infinite;
+}
+
+@keyframes runtime-spin {
+  to { transform: rotate(360deg); }
+}

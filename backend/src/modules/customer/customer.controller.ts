@@ -1,12 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req } from '@nestjs/common';
 import { AuthUser } from '../../common/types/auth-user';
+import { CustomerQueryDto } from './customer-query.dto';
 import { CustomerService } from './customer.service';
 import { CreateCustomerDto, CreateCustomerLevelDto, UpdateCustomerDto, UpdateCustomerLevelDto, UpdateGuestPricingDto } from './customer.dto';
 
 @Controller('customers')
 export class CustomerController {
   constructor(private readonly service: CustomerService) {}
-  @Get() list(@Req() req: { user: AuthUser }) { return this.service.list(req.user.siteId); }
+  @Get() list(@Query() query: CustomerQueryDto, @Req() req: { user: AuthUser }) { return this.service.list(req.user.siteId, query); }
+  @Get('options/all') options(@Req() req: { user: AuthUser }) { return this.service.options(req.user.siteId); }
   @Post() create(@Body() dto: CreateCustomerDto, @Req() req: { user: AuthUser }) { return this.service.create(dto, req.user.tenantId, req.user.siteId); }
   @Get('levels') levels(@Req() req: { user: AuthUser }) { return this.service.listLevels(req.user.siteId); }
   @Get('pricing-policy') pricingPolicy(@Req() req: { user: AuthUser }) { return this.service.getGuestPricing(req.user.siteId); }

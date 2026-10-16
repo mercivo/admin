@@ -13,7 +13,6 @@ describe('system control DTOs', () => {
       description: '',
       maxProducts: 20,
       maxMembers: 1,
-      maxSites: 1,
       maxWarehouses: 1,
       features: {},
       permissions: ['group.products', 'menu.products', 'page.products'],
@@ -30,7 +29,6 @@ describe('system control DTOs', () => {
       plan: 'trial',
       maxProducts: '20',
       maxMembers: '1',
-      maxSites: '1',
       maxWarehouses: '1',
       permissions: ['group.products', 'menu.products'],
       permissionsCustomized: true,
@@ -38,7 +36,6 @@ describe('system control DTOs', () => {
 
     expect(dto.maxProducts).toBe(20);
     expect(dto.maxMembers).toBe(1);
-    expect(dto.maxSites).toBe(1);
     expect(dto.maxWarehouses).toBe(1);
     expect(await validate(dto, { whitelist: true, forbidNonWhitelisted: true })).toEqual([]);
   });

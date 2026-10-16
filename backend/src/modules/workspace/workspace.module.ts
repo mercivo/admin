@@ -11,6 +11,7 @@ import { SiteDomain } from '../site/site-domain.entity';
 import { SystemModule } from '../system/system.module';
 import { Product } from '../product/product.entity';
 import { Warehouse } from '../inventory/inventory.entity';
+import { StorefrontInquiryLead } from '../storefront/inquiry-lead.entity';
 
-@Module({ imports: [TypeOrmModule.forFeature([AppConfig, TeamMember, User, Tenant, Site, SiteDomain, Product, Warehouse]), SystemModule], controllers: [WorkspaceController], providers: [WorkspaceService] })
+@Module({ imports: [TypeOrmModule.forFeature([AppConfig, TeamMember, User, Tenant, Site, SiteDomain, Product, Warehouse, StorefrontInquiryLead]), SystemModule], controllers: [WorkspaceController], providers: [WorkspaceService] })
 export class WorkspaceModule {}
