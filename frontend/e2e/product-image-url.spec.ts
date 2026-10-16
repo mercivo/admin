@@ -10,5 +10,13 @@ test('uploaded relative image URLs are not rewritten as Unsplash IDs', () => {
   expect(component).toContain('https://images.unsplash.com/');
   expect(component).toContain('https://storage.googleapis.com/mercivo-images-753805870951/');
   expect(storefront).toContain('https://storage.googleapis.com/mercivo-images-753805870951/');
+  expect(component).toContain("objectFit: 'contain'");
+  expect(component).toContain("objectPosition: 'center'");
   expect(adminProxy).toContain('location ^~ /api/');
+});
+
+test('product images stay fully visible and centered in the storefront', () => {
+  const styles = readFileSync(resolve(process.cwd(), '../storefront/src/styles.css'), 'utf8');
+  expect(styles).toContain('.product-image img{object-fit:contain;object-position:center}');
+  expect(styles).toContain('.product:hover .product-image img{transform:none}');
 });

@@ -20,7 +20,7 @@ interface ProductImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageElemen
   fallbackClassName?: string;
 }
 
-export const ProductImage = ({ image, width, height, alt = '商品图片', className = '', fallbackClassName = '', onError, ...props }: ProductImageProps) => {
+export const ProductImage = ({ image, width, height, alt = '商品图片', className = '', fallbackClassName = '', onError, style, ...props }: ProductImageProps) => {
   const src = productImageUrl(image, width, height);
   const [failed, setFailed] = useState(!src);
 
@@ -30,5 +30,5 @@ export const ProductImage = ({ image, width, height, alt = '商品图片', class
     return <div role="img" aria-label={`${alt}（默认图）`} className={`flex items-center justify-center bg-secondary text-muted-foreground/50 ${className} ${fallbackClassName}`}><ImageOff className="h-[38%] w-[38%]" strokeWidth={1.5} /></div>;
   }
 
-  return <img {...props} src={src} alt={alt} className={className} onError={event => { setFailed(true); onError?.(event); }} />;
+  return <img {...props} src={src} alt={alt} className={className} style={{ ...style, objectFit: 'contain', objectPosition: 'center' }} onError={event => { setFailed(true); onError?.(event); }} />;
 };
