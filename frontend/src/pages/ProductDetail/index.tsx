@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Input, Select } from 'antd';
 import { ShoppingCart, Star, CheckCircle, Truck, Shield, ArrowLeft, Globe, MessageCircle } from 'lucide-react';
-import { AppModal, ModalForm, ModalFormField, ModalFormGrid, ProductGallery } from '../../components/shared';
+import { AppModal, ModalForm, ModalFormField, ModalFormGrid, ProductGallery, ProductImage } from '../../components/shared';
 import Toast, { ToastType } from '../../components/shared/Toast';
 import { productApi } from '../../services/api/index';
 import type { Product } from '../../types';
@@ -230,7 +230,7 @@ const ProductDetailPage: React.FC = () => {
             ].map((p, i) => (
               <div key={i} className="group bg-white border border-gray-100 rounded-2xl overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer">
                 <div className="overflow-hidden bg-gray-50 h-36">
-                  <img src={`https://images.unsplash.com/${p.img}?w=200&h=160&fit=crop&auto=format`} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <ProductImage image={p.img} width={200} height={160} alt={p.name} className="h-full w-full object-contain" />
                 </div>
                 <div className="p-4">
                   <h3 className="font-semibold text-sm text-gray-900">{p.name}</h3>
@@ -254,7 +254,7 @@ const ProductDetailPage: React.FC = () => {
         <AppModal open title={<span className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-primary" />{inquiryType === 'inquiry' ? 'Send Inquiry' : 'Request Sample'}</span>} onCancel={() => setInquiryOpen(false)} onOk={handleSendInquiry} okText={inquiryType === 'inquiry' ? 'Send Inquiry' : 'Request Sample'} cancelText="Cancel" width={520}>
             <ModalForm>
               <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
-                <img src="https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=80&h=80&fit=crop&auto=format" alt="" className="w-16 h-16 rounded-xl object-cover" />
+                <ProductImage image="photo-1542601906990-b4d3fb778b09" width={80} height={80} alt="Eco Shopping Bag" className="h-16 w-16 rounded-xl object-contain" />
                 <div>
                   <h4 className="font-bold text-gray-900">Eco Shopping Bag</h4>
                   <p className="text-sm text-gray-500">$0.80 - $1.20 / pcs</p>

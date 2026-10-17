@@ -60,7 +60,7 @@ const imageUrl = (id: string) => id.startsWith(legacyImageOrigin)
   ? `${gcsImageOrigin}${id.slice(legacyImageOrigin.length)}`
   : /^(?:https?:|data:|blob:|\/)/i.test(id)
     ? id
-    : `https://images.unsplash.com/${id}?w=900&h=700&fit=crop&auto=format`;
+    : `https://images.unsplash.com/${id}?w=900&h=700&fit=max&auto=format`;
 const formatPrice = (price: string, currency = 'CNY', configuredSymbol?: string) => {
   if (!price) return '-';
   if (/^[¥$€£]/.test(price) || /[A-Z]{3}/.test(price)) return price;

@@ -10,7 +10,7 @@ export const productImageUrl = (image: string | null | undefined, width: number,
   if (value.startsWith(LEGACY_IMAGE_ORIGIN)) return `${GCS_IMAGE_ORIGIN}${value.slice(LEGACY_IMAGE_ORIGIN.length)}`;
   return /^(?:https?:|data:|blob:|\/)/i.test(value)
     ? value
-    : `https://images.unsplash.com/${value}?w=${width}&h=${height}&fit=crop&auto=format`;
+    : `https://images.unsplash.com/${value}?w=${width}&h=${height}&fit=max&auto=format`;
 };
 
 interface ProductImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> {
