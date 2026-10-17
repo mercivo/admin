@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import type { Request, Response } from 'express';
+import { maintenanceReadOnlyMiddleware } from './common/middleware/maintenance-read-only';
 
 async function bootstrap() {
   const databaseTarget = process.env.DB_SOCKET_PATH
@@ -17,6 +18,7 @@ async function bootstrap() {
   express.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
   app.use(helmet());
   express.get('/healthz', (_request: Request, response: Response) => response.status(200).send('ok'));
+  app.use(maintenanceReadOnlyMiddleware);
 
   app.setGlobalPrefix('api/v1');
 
