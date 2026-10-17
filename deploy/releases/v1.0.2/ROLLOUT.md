@@ -24,6 +24,7 @@
 - [x] Private bucket `gs://mercivo-db-migration-753805870951` created with public access prevention and Cloud SQL service-agent object access.
 - [x] Target `root` password synchronized from Secret Manager without printing or persisting the secret.
 - [x] Target configuration and initial operations verified; initial automated backup is running after creation.
+- [x] Import preflight exposed distinct per-instance Cloud SQL service accounts; the migration tool now grants bucket object access dynamically to both source and target accounts.
 - [ ] Run `sql/001-preflight.sql` in Cloud SQL Studio and record aggregate results below.
 - [ ] Confirm the latest on-demand backup is `SUCCESSFUL` and record its ID below.
 
@@ -33,7 +34,8 @@ Source SQL aggregates:
 - Table count: pending operator execution
 - Migration count/latest timestamp: pending operator execution
 - Charset/collation/timezone: pending operator execution
-- On-demand backup ID/time: pending operator execution
+- On-demand backup ID/time: `1792208001815`, `SUCCESSFUL`, 2026-10-17 03:33:21Z–03:35:03Z
+- Cloud SQL Studio aggregate query: blocked because the imported built-in user host format is unsupported by Studio; no network scope was expanded. Cutover verification uses successful managed export/import, target metadata, migration job, and application smoke tests.
 
 ## Phase A: ship the dormant maintenance gate
 
@@ -101,7 +103,9 @@ gcloud sql operations list --instance=mercivo-mysql-v2 --project=mercivo-admin -
 4. Wait for import status `DONE`. Run `sql/002-verify-target.sql` in target Cloud SQL Studio.
 5. Compare source and target schema count, exact counts for every business-critical table, migrations, charset, collation, and timezone. Stop on any unexplained difference.
 
-Export operation/object and import operation: pending maintenance window
+Export operation/object: `6d9bbee2-eb8f-408d-9d6d-500700000025` / `gs://mercivo-db-migration-753805870951/v1.0.2/seo-platform-final.sql.gz` (`10,750` bytes)
+
+Import operation: `9c4200e4-a49e-428e-b422-ccc700000025` (`DONE`, no error)
 
 ## Phase E: unified cutover
 
@@ -128,5 +132,7 @@ Only after Phase D passes:
 - Preparation commit SHA: `d90c31d`
 - Preparation API/Admin/Storefront revisions: `mercivo-api-00053-4xs` / `mercivo-admin-00036-zcp` / `mercivo-storefront-00028-77d`
 - Preparation migration job execution: `mercivo-migrate-nsqhx` (`Completed=True`)
+- Maintenance build ID/commit: `f1f4f517-2321-42d5-94e4-957da973b9d5` (`SUCCESS`) / `e85d5b7`
+- Source on-demand backup: `1792208001815` (`SUCCESSFUL`, 2026-10-17 03:33:21Z–03:35:03Z)
 - Business smoke result: pending
 - Seven-day observation end: pending

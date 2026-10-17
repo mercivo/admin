@@ -43,12 +43,15 @@ prepare_target() {
   require_production_confirmation
   require_source_runnable
 
+  local source_service_account target_service_account
+  source_service_account="$(gcloud sql instances describe "${SOURCE_INSTANCE}" --project="${PROJECT_ID}" --format='value(serviceAccountEmailAddress)')"
+
   if ! gcloud storage buckets describe "gs://${MIGRATION_BUCKET}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
     gcloud storage buckets create "gs://${MIGRATION_BUCKET}" --project="${PROJECT_ID}" \
       --location="${REGION}" --uniform-bucket-level-access --public-access-prevention
   fi
   gcloud storage buckets add-iam-policy-binding "gs://${MIGRATION_BUCKET}" \
-    --member="serviceAccount:p${PROJECT_NUMBER}-a9wuop@gcp-sa-cloud-sql.iam.gserviceaccount.com" \
+    --member="serviceAccount:${source_service_account}" \
     --role='roles/storage.objectAdmin'
 
   if ! gcloud sql instances describe "${TARGET_INSTANCE}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
@@ -66,6 +69,11 @@ prepare_target() {
     gcloud sql databases create "${DATABASE_NAME}" --instance="${TARGET_INSTANCE}" --project="${PROJECT_ID}" \
       --charset=utf8mb4 --collation=utf8mb4_0900_ai_ci
   fi
+
+  target_service_account="$(gcloud sql instances describe "${TARGET_INSTANCE}" --project="${PROJECT_ID}" --format='value(serviceAccountEmailAddress)')"
+  gcloud storage buckets add-iam-policy-binding "gs://${MIGRATION_BUCKET}" \
+    --member="serviceAccount:${target_service_account}" \
+    --role='roles/storage.objectAdmin'
 
   gcloud sql instances describe "${TARGET_INSTANCE}" --project="${PROJECT_ID}" \
     --format='yaml(name,state,connectionName,region,databaseVersion,settings.tier,settings.dataDiskType,settings.dataDiskSizeGb,settings.availabilityType,settings.backupConfiguration,settings.ipConfiguration,settings.databaseFlags,settings.deletionProtectionEnabled,settings.finalBackupConfig)'
@@ -91,7 +99,7 @@ import_database() {
   [[ "${target_state}" == "RUNNABLE" ]] || { echo "Target instance is ${target_state}, expected RUNNABLE." >&2; exit 5; }
   gcloud storage objects describe "gs://${MIGRATION_BUCKET}/${EXPORT_OBJECT}" >/dev/null
   gcloud sql import sql "${TARGET_INSTANCE}" "gs://${MIGRATION_BUCKET}/${EXPORT_OBJECT}" \
-    --project="${PROJECT_ID}" --database="${DATABASE_NAME}" --async
+    --project="${PROJECT_ID}" --database="${DATABASE_NAME}" --async --quiet
   echo "Import started. Wait for SUCCESS, then execute sql/002-verify-target.sql in Cloud SQL Studio."
 }
 
