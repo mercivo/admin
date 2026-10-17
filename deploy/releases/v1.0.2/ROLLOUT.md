@@ -135,5 +135,9 @@ Only after Phase D passes:
 - Maintenance build ID/commit: `f1f4f517-2321-42d5-94e4-957da973b9d5` (`SUCCESS`) / `e85d5b7`
 - Source on-demand backup: `1792208001815` (`SUCCESSFUL`, 2026-10-17 03:33:21Z–03:35:03Z)
 - First cutover attempt build/commit: `4ab8f3d0-62e1-4ca2-a349-a6a0939bb86c` (`SUCCESS`) / `41843c7`; post-build verification found the trigger-level `_CLOUD_SQL_INSTANCE` override still pointed to the source. The API never switched databases, so no target/source write split occurred.
+- Source refreeze build/commit: `9636964b-7119-40c6-a0cc-cf7df7c96cfa` (`SUCCESS`) / `1909783`; verified source connection plus HTTP 503 maintenance response.
+- Trigger `mercivo-main` override updated through the Cloud Build API to `mercivo-admin:asia-east1:mercivo-mysql-v2` and read back successfully.
+- Corrected source backup: `1792209823552` (`SUCCESSFUL`, 2026-10-17 04:03:43Z–04:05:45Z).
+- Corrected export/import: `4195cb66-8e33-4902-970b-436100000025` / `gs://mercivo-db-migration-753805870951/v1.0.2/seo-platform-final-2.sql.gz` (`10,749` bytes), then `1dc507b2-4271-46c0-87eb-f34100000025`; both `DONE` without errors.
 - Business smoke result: pending
 - Seven-day observation end: pending

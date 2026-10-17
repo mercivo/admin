@@ -12,7 +12,7 @@ substitutions:
   _DB_USER: root
   _DB_NAME: seo_platform
   _DB_SCHEMA_BOOTSTRAP: 'false'
-  _MAINTENANCE_READ_ONLY: 'true'
+  _MAINTENANCE_READ_ONLY: 'false'
   _STOREFRONT_CNAME_TARGET: site.aihubflux.com
 
 steps:

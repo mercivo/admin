@@ -8,7 +8,7 @@ TARGET_INSTANCE="mercivo-mysql-v2"
 DATABASE_NAME="seo_platform"
 PROJECT_NUMBER="753805870951"
 MIGRATION_BUCKET="mercivo-db-migration-${PROJECT_NUMBER}"
-EXPORT_OBJECT="v1.0.2/seo-platform-final.sql.gz"
+EXPORT_OBJECT="v1.0.2/seo-platform-final-2.sql.gz"
 
 usage() {
   echo "Usage: $0 preflight|prepare-target|export|import|verify-target"
