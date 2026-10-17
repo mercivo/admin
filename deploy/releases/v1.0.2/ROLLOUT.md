@@ -124,9 +124,9 @@ Only after Phase D passes:
 
 ## Evidence
 
-- Build IDs: pending
-- Commit SHAs: pending
-- API/Admin/Storefront revisions: pending
-- Migration job execution: pending
+- Preparation build ID: `1e80dfa6-583b-4021-bade-42125c03c550` (`SUCCESS`)
+- Preparation commit SHA: `d90c31d`
+- Preparation API/Admin/Storefront revisions: `mercivo-api-00053-4xs` / `mercivo-admin-00036-zcp` / `mercivo-storefront-00028-77d`
+- Preparation migration job execution: `mercivo-migrate-nsqhx` (`Completed=True`)
 - Business smoke result: pending
 - Seven-day observation end: pending
