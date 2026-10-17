@@ -134,5 +134,6 @@ Only after Phase D passes:
 - Preparation migration job execution: `mercivo-migrate-nsqhx` (`Completed=True`)
 - Maintenance build ID/commit: `f1f4f517-2321-42d5-94e4-957da973b9d5` (`SUCCESS`) / `e85d5b7`
 - Source on-demand backup: `1792208001815` (`SUCCESSFUL`, 2026-10-17 03:33:21Z–03:35:03Z)
+- First cutover attempt build/commit: `4ab8f3d0-62e1-4ca2-a349-a6a0939bb86c` (`SUCCESS`) / `41843c7`; post-build verification found the trigger-level `_CLOUD_SQL_INSTANCE` override still pointed to the source. The API never switched databases, so no target/source write split occurred.
 - Business smoke result: pending
 - Seven-day observation end: pending
