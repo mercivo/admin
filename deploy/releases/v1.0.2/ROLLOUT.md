@@ -139,5 +139,11 @@ Only after Phase D passes:
 - Trigger `mercivo-main` override updated through the Cloud Build API to `mercivo-admin:asia-east1:mercivo-mysql-v2` and read back successfully.
 - Corrected source backup: `1792209823552` (`SUCCESSFUL`, 2026-10-17 04:03:43Z–04:05:45Z).
 - Corrected export/import: `4195cb66-8e33-4902-970b-436100000025` / `gs://mercivo-db-migration-753805870951/v1.0.2/seo-platform-final-2.sql.gz` (`10,749` bytes), then `1dc507b2-4271-46c0-87eb-f34100000025`; both `DONE` without errors.
-- Business smoke result: pending
+- First corrected cutover build `dc1d3671-4897-449c-9db7-f6ff22698288` was stopped by the migration gate because only `root@''` had the synchronized password; no API revision was deployed. `root@%` was then synchronized through a Secret Manager-to-Cloud SQL Admin API stdin pipeline without logging or persisting the secret.
+- Final cutover build `be9a976a-2844-4d34-a10d-4904e13cf265` succeeded. Migration execution `mercivo-migrate-czwxn` completed successfully against the target.
+- Final revisions at 100% traffic: API `mercivo-api-00061-krf`, Admin `mercivo-admin-00040-sdp`, Storefront `mercivo-storefront-00032-hlt`.
+- Runtime verification: API socket is `/cloudsql/mercivo-admin:asia-east1:mercivo-mysql-v2`, maintenance is `false`, Admin and captcha return HTTP 200, and an empty login request returns validation HTTP 400 rather than maintenance HTTP 503.
+- No severity `ERROR` entries were present for the final API revision at verification time. Target is `RUNNABLE`, 10 GB SSD with auto-growth, 7 backups, 7-day transaction logs, deletion protection, 30-day final backup, and a successful automated backup.
+- Temporary `migration_verify` and `aihubflux` database users were removed; only the two original root host records remain.
+- Business smoke result: infrastructure and unauthenticated API smoke passed; authenticated business-flow verification remains part of the seven-day observation gate.
 - Seven-day observation end: pending

@@ -22,6 +22,8 @@ Cloud Storage Standard 在 `asia-east1` 的存储单价约为 **US$0.02/GiB/月*
 
 ## Cloud SQL 现状与预算
 
+> 2026-10-17 更新：生产已通过 `mercivo-main` 切换到 `mercivo-mysql-v2`（MySQL 8.4 Enterprise、1 vCPU / 3.75 GB、10 GB SSD、单可用区）。旧 `mercivo-mysql` 保持删除保护，仅用于 7 天观察与回滚；观察期内会出现两个实例重叠计费，不代表稳态月费。迁移证据和回滚闸门见 `deploy/releases/v1.0.2/`。
+
 已将 `mercivo-mysql` 从 4 vCPU / 16 GB 降为 **1 vCPU / 3.75 GB / 100 GB SSD**，保持单可用区并常开，开启自动备份与 PITR。本月截至 10 月 11 日的历史实际费用为 **US$7.82**，当时的停机状态整月预测为 **US$24.68**：
 
 - 100 GB SSD：本月已产生 US$5.44，按当前速率约 **US$17/月**。
@@ -50,7 +52,7 @@ Cloud Run 当前用量位于免费额内，本月资源原价 US$0.16，抵扣�
 
 | 产品 | 月度预算 |
 | --- | ---: |
-| Cloud SQL（1 vCPU、3.75 GB、100 GB SSD、公网 IP，常开） | US$74–80 |
+| Cloud SQL（1 vCPU、3.75 GB、10 GB SSD、公网 IP，常开） | US$58–63 |
 | Cloud Run（三个服务及一个迁移作业，当前处于免费额） | US$0–2 |
 | Artifact Registry | US$0.01–0.05 |
 | Cloud Storage（不含明显增长的公网图片流量） | US$0–2 |
