@@ -13,7 +13,7 @@ import { normalizeEditorConfig } from '../../frontend/src/pages/SiteEditor/schem
 import type { Product as RendererProduct, ProductCategory as RendererCategory } from '../../frontend/src/types';
 import './tailwind.css';
 
-type Product = { id: string; nameZh: string; description?: string; seoTitle?: string; seoDescription?: string; seoImage?: string; sku?: string; price: string; priceVisible?: boolean; priceSource?: string; moq: number; img: string; hot: boolean; badge?: string; likeCount?: number; tags?: string[]; category: string };
+type Product = { id: string; nameZh: string; description?: string; seoTitle?: string; seoDescription?: string; seoImage?: string; sku?: string; price: string; priceVisible?: boolean; priceSource?: string; moq: number; img: string; images?: string[]; hot: boolean; badge?: string; likeCount?: number; tags?: string[]; category: string };
 type ProductCategory = { code: string; label: string; parentCode?: string | null; sort: number };
 type SeoConfig = { title?: string; description?: string; keywords?: string; shareImage?: string; canonicalUrl?: string; robots?: string };
 type PublishedSite = { siteId: string; versionId: string; version: number; locale?: string; site: { name: string; slug: string; logoUrl?: string; defaultLanguage: string; supportedLanguages?: string[]; defaultCurrency: string; currencySymbol?: string; guestPriceMode?: 'base' | 'hidden' }; config: Record<string, unknown>; seo?: SeoConfig; products: Product[]; categories?: ProductCategory[]; i18n?: { sourceLocale: string; locales: string[]; messages: Record<string, Record<string, string>> } };

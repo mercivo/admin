@@ -98,7 +98,8 @@ const ProductEditPage: React.FC = () => {
   useEffect(() => {
     if (!id) return;
     productApi.getById(id).then(product => {
-      setForm({ ...product, tags: normalizeTags(product.tags), currencyPrices: product.currencyPrices || { [currencyConfig.defaultCurrency]: { basePrice: Number(product.basePrice) || 0, levelPrices: product.levelPrices || {} } } });
+      const images = product.images?.length ? product.images.slice(0, 10) : product.img ? [product.img] : [];
+      setForm({ ...product, img: images[0] || '', images, tags: normalizeTags(product.tags), currencyPrices: product.currencyPrices || { [currencyConfig.defaultCurrency]: { basePrice: Number(product.basePrice) || 0, levelPrices: product.levelPrices || {} } } });
       setTagInput('');
       setVariants(product.variants || []);
       setPublishToSite(product.status === 'published');
@@ -138,7 +139,7 @@ const ProductEditPage: React.FC = () => {
       nameZh: form.nameZh || '未命名商品',
       sku: form.sku || `PRODUCT-${Date.now()}`, basePrice: Number(form.currencyPrices?.[currencyConfig.defaultCurrency]?.basePrice) || 0, currencyPrices: form.currencyPrices || {}, variants, tags: form.tags || [],
       moq: Number(form.moq) || 0,
-      category: form.category, img: form.img || '', hot: form.badge === 'hot' || form.badge === 'bestseller', badge: form.badge || '', likeCount: Math.max(0, Number(form.likeCount) || 0),
+      category: form.category, img: form.images?.[0] || form.img || '', images: (form.images || (form.img ? [form.img] : [])).slice(0, 10), hot: form.badge === 'hot' || form.badge === 'bestseller', badge: form.badge || '', likeCount: Math.max(0, Number(form.likeCount) || 0),
       description: form.description || '',
       levelPrices: form.currencyPrices?.[currencyConfig.defaultCurrency]?.levelPrices || {},
     };
@@ -173,23 +174,38 @@ const ProductEditPage: React.FC = () => {
     setTagInput('');
   };
 
-  const uploadImage = async (file?: File) => {
-    if (!file) return;
-    if (!IMAGE_TYPES.includes(file.type) || file.size > MAX_IMAGE_SIZE) {
+  const uploadImages = async (files?: FileList | null) => {
+    if (!files?.length) return;
+    const currentImages = form.images || (form.img ? [form.img] : []);
+    const selected = Array.from(files).slice(0, Math.max(0, 10 - currentImages.length));
+    if (!selected.length) {
+      showToast('每个商品最多上传 10 张图片', 'error');
+      return;
+    }
+    if (selected.some(file => !IMAGE_TYPES.includes(file.type) || file.size > MAX_IMAGE_SIZE)) {
       showToast('请选择 5MB 以内的 JPG、PNG、WebP 或 GIF 图片', 'error');
       return;
     }
     setUploading(true);
     try {
-      const uploaded = await productApi.uploadImage(file);
-      setForm(current => ({ ...current, img: uploaded.url }));
-      showToast('商品图片上传成功', 'success');
+      const uploaded = await Promise.all(selected.map(file => productApi.uploadImage(file)));
+      setForm(current => {
+        const existing = current.images || (current.img ? [current.img] : []);
+        const images = [...existing, ...uploaded.map(item => item.url)].slice(0, 10);
+        return { ...current, img: images[0] || '', images };
+      });
+      showToast(`${uploaded.length} 张商品图片上传成功`, 'success');
     } catch {
       showToast('图片上传失败，请检查图片格式或存储配置', 'error');
     } finally {
       setUploading(false);
     }
   };
+
+  const removeImage = (index: number) => setForm(current => {
+    const images = (current.images || (current.img ? [current.img] : [])).filter((_, imageIndex) => imageIndex !== index);
+    return { ...current, img: images[0] || '', images };
+  });
 
   const uploadDescriptionImage = async (file: File) => {
     if (!IMAGE_TYPES.includes(file.type) || file.size > MAX_IMAGE_SIZE) {
@@ -252,15 +268,15 @@ const ProductEditPage: React.FC = () => {
                     <RichTextEditor value={form.description || ''} onChange={description => setForm(current => ({ ...current, description }))} onUploadImage={uploadDescriptionImage} />
                   </div>
                   <div>
-                    <label className="block text-sm font-normal text-foreground mb-2">商品图片（拖拽排序）</label>
+                    <label className="block text-sm font-normal text-foreground mb-2">商品图片（最多 10 张，第一张为主图）</label>
                     <div className="grid grid-cols-4 gap-3">
-                      {form.img && <div className="relative overflow-hidden rounded-xl ring-2 ring-primary"><ProductImage image={form.img} width={480} height={480} alt="商品主图" className="aspect-square w-full object-cover" /><div className="absolute left-1 top-1 rounded bg-primary px-1.5 py-0.5 text-xs font-normal text-white">主图</div><button type="button" aria-label="删除商品图片" onClick={() => setForm(current => ({ ...current, img: '' }))} className="absolute right-1 top-1 rounded bg-black/60 p-1 text-white"><Trash2 className="h-4 w-4" /></button></div>}
-                      <label className="border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center aspect-square cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors">
-                        <input data-testid="product-image-input" type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploading} className="hidden" onChange={event => { void uploadImage(event.target.files?.[0]); event.target.value = ''; }} />
+                      {(form.images || (form.img ? [form.img] : [])).map((image, index) => <div key={`${image}-${index}`} className={`relative overflow-hidden rounded-xl bg-white ${index === 0 ? 'ring-2 ring-primary' : 'border border-border'}`}><ProductImage image={image} width={480} height={480} alt={`商品图片 ${index + 1}`} className="aspect-square w-full bg-white" />{index === 0 && <div className="absolute left-1 top-1 rounded bg-primary px-1.5 py-0.5 text-xs font-normal text-white">主图</div>}<button type="button" aria-label={`删除第 ${index + 1} 张商品图片`} onClick={() => removeImage(index)} className="absolute right-1 top-1 rounded bg-black/60 p-1 text-white"><Trash2 className="h-4 w-4" /></button></div>)}
+                      {(form.images || (form.img ? [form.img] : [])).length < 10 && <label className="border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center aspect-square cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors">
+                        <input data-testid="product-image-input" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploading} className="hidden" onChange={event => { void uploadImages(event.target.files); event.target.value = ''; }} />
                         <Upload className="w-5 h-5 text-muted-foreground mb-1" />
                         <span className="text-xs text-muted-foreground">{uploading ? '上传中…' : '上传图片'}</span>
                         <span className="mt-1 text-[10px] text-muted-foreground">JPG/PNG/WebP/GIF，≤5MB</span>
-                      </label>
+                      </label>}
                     </div>
                   </div>
                 </div>

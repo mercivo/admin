@@ -83,7 +83,8 @@ export class ProductService {
     const variants = this.normalizeVariants(dto.variants, [], defaultCurrency);
     const defaultPrice = currencyPrices[defaultCurrency];
     const basePrice = defaultPrice.basePrice;
-    const product = await this.productRepository.save(this.productRepository.create({ ...dto, status: dto.status || 'pending', stock: 0, description: this.sanitizeDescription(dto.description), currencyPrices, basePrice, levelPrices: defaultPrice.levelPrices, variants, tags: this.normalizeTags(dto.tags), price: this.calculatePriceRange(basePrice, variants, defaultCurrency), tenantId, siteId }));
+    const images = this.normalizeImages(dto.images, dto.img);
+    const product = await this.productRepository.save(this.productRepository.create({ ...dto, img: images[0] || '', images, status: dto.status || 'pending', stock: 0, description: this.sanitizeDescription(dto.description), currencyPrices, basePrice, levelPrices: defaultPrice.levelPrices, variants, tags: this.normalizeTags(dto.tags), price: this.calculatePriceRange(basePrice, variants, defaultCurrency), tenantId, siteId }));
     const warehouse = await this.warehouseRepository.findOne({ where: { siteId, isDefault: true, status: 'active' } });
     if (warehouse) {
       const keys = variants.length ? variants.map(item => item.id) : ['BASE'];
@@ -112,7 +113,8 @@ export class ProductService {
     if (dto.currencyPrices === undefined && dto.basePrice !== undefined) currencyPrices[defaultCurrency] = { basePrice: Math.max(0, Number(dto.basePrice) || 0), levelPrices: dto.levelPrices === undefined ? currencyPrices[defaultCurrency].levelPrices : this.normalizeLevelPrices(dto.levelPrices) };
     const defaultPrice = currencyPrices[defaultCurrency];
     const basePrice = defaultPrice.basePrice;
-    Object.assign(product, dto, { stock: product.stock, description: dto.description === undefined ? product.description : this.sanitizeDescription(dto.description), currencyPrices, basePrice, levelPrices: defaultPrice.levelPrices, variants, tags: dto.tags === undefined ? product.tags : this.normalizeTags(dto.tags), price: this.calculatePriceRange(basePrice, variants, defaultCurrency) });
+    const images = dto.images === undefined && dto.img === undefined ? this.normalizeImages(product.images || undefined, product.img) : this.normalizeImages(dto.images, dto.img);
+    Object.assign(product, dto, { img: images[0] || '', images, stock: product.stock, description: dto.description === undefined ? product.description : this.sanitizeDescription(dto.description), currencyPrices, basePrice, levelPrices: defaultPrice.levelPrices, variants, tags: dto.tags === undefined ? product.tags : this.normalizeTags(dto.tags), price: this.calculatePriceRange(basePrice, variants, defaultCurrency) });
     const saved = await this.productRepository.save(product);
     const warehouse = await this.warehouseRepository.findOne({ where: { siteId, isDefault: true } });
     if (warehouse) {
@@ -161,6 +163,11 @@ export class ProductService {
       surcharge: Math.max(0, Number(item.surcharge) || 0),
       surcharges: this.normalizeSurcharges(item.surcharges, defaultCurrency, item.surcharge),
     }));
+  }
+
+  private normalizeImages(images: string[] | undefined, legacyImage?: string): string[] {
+    const values = images === undefined ? [legacyImage || ''] : images;
+    return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))].slice(0, 10);
   }
 
   private calculatePriceRange(basePrice: number, variants: NonNullable<Product['variants']>, currency: string): string {

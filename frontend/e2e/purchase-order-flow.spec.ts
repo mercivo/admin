@@ -77,6 +77,9 @@ test('purchase order creation matches the simplified sales-order flow', async ({
   await expect(lockedWarehouseOption).toHaveClass(/ant-select-item-option-disabled/);
   await expect(lockedWarehouseOption.getByText('盘点中', { exact: true })).toBeVisible();
   await expect(lockedWarehouseOption.locator('svg.lucide-lock-keyhole')).toBeVisible();
+  expect(await modal.locator('.purchase-order-lines-table tbody td').first().evaluate(element => getComputedStyle(element).verticalAlign)).toBe('middle');
+  expect(parseFloat(await modal.locator('.purchase-order-lines-table tbody td').first().evaluate(element => getComputedStyle(element).height))).toBeGreaterThanOrEqual(56);
+  expect(await modal.locator('.purchase-order-lines-table .ant-select-selector').evaluate(element => getComputedStyle(element).alignItems)).toBe('center');
 
   for (const label of ['税额', '运费']) {
     const field = modal.locator('.app-modal-form-field').filter({ hasText: label });

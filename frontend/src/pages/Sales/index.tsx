@@ -744,6 +744,10 @@ const SalesPage: React.FC = () => {
                     className="w-full"
                     showSearch
                     optionFilterProp="label"
+                    popupMatchSelectWidth={false}
+                    popupClassName="product-spec-dropdown"
+                    dropdownStyle={{ minWidth: 520, maxWidth: 'calc(100vw - 32px)' }}
+                    optionRender={(option) => <span title={String(option.label)}>{option.label}</span>}
                     placeholder="请选择商品规格"
                     variant="borderless"
                     size="small"

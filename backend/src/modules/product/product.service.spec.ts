@@ -47,8 +47,8 @@ describe('ProductService', () => {
   });
 
   it('creates a scoped product and derives price, variants and tags', async () => {
-    const result = await service.create(dto, 'tenant-1', 'site-1');
-    expect(result).toMatchObject({ tenantId: 'tenant-1', siteId: 'site-1', status: 'pending', price: '12.00', tags: ['新品', '推荐'] });
+    const result = await service.create({ ...dto, images: [dto.img, 'https://storage.googleapis.com/bucket/second.webp', dto.img] }, 'tenant-1', 'site-1');
+    expect(result).toMatchObject({ tenantId: 'tenant-1', siteId: 'site-1', status: 'pending', price: '12.00', img: dto.img, images: [dto.img, 'https://storage.googleapis.com/bucket/second.webp'], tags: ['新品', '推荐'] });
     expect(result.description).toBe('<p>安全<strong>描述</strong></p>');
     expect(categories.exist).toHaveBeenCalledWith({ where: { siteId: 'site-1', code: 'bags', status: 'enabled' } });
   });
@@ -75,12 +75,21 @@ describe('ProductService', () => {
   });
 
   it('updates only a product belonging to the active site', async () => {
-    const product = { id: 'product-1', siteId: 'site-1', sku: 'P-001', basePrice: 10, variants: [], tags: [] };
+    const product = { id: 'product-1', siteId: 'site-1', sku: 'P-001', basePrice: 10, variants: [], tags: [], img: dto.img, images: null };
     products.findOne.mockResolvedValue(product);
     const result = await service.update('product-1', { basePrice: 20, description: '<img src="javascript:bad"><p>正常</p>' }, 'site-1');
     expect(result.price).toBe('20.00');
     expect(result.description).toContain('<p>正常</p>');
     expect(result.description).not.toContain('javascript:');
+  });
+
+  it('keeps at most ten product images and synchronizes the first image', async () => {
+    const product = { id: 'product-1', siteId: 'site-1', sku: 'P-001', basePrice: 10, variants: [], tags: [], img: dto.img, images: null };
+    products.findOne.mockResolvedValue(product);
+    const images = Array.from({ length: 12 }, (_, index) => `https://storage.googleapis.com/bucket/${index}.webp`);
+    const result = await service.update('product-1', { images }, 'site-1');
+    expect(result.images).toHaveLength(10);
+    expect(result.img).toBe(images[0]);
   });
 
   it('returns not found for products outside the active site', async () => {

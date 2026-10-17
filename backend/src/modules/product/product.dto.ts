@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsNumber, IsIn, IsInt, IsArray, Min, Max, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsNumber, IsIn, IsInt, IsArray, Min, Max, MaxLength, ArrayMaxSize } from 'class-validator';
 
 export class CreateProductDto {
   @IsString()
@@ -56,6 +56,13 @@ export class CreateProductDto {
   @IsString()
   @MaxLength(500)
   img: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  @MaxLength(500, { each: true })
+  images?: string[];
 
   @IsOptional()
   @IsBoolean()
@@ -167,6 +174,13 @@ export class UpdateProductDto {
   @IsString()
   @MaxLength(500)
   img?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  @MaxLength(500, { each: true })
+  images?: string[];
 
   @IsOptional()
   @IsBoolean()

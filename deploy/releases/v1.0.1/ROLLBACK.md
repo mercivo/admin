@@ -10,7 +10,7 @@ Route all three Cloud Run services back to the prior known-good revisions throug
 
 ## Database/data rollback
 
-No schema migration or data correction is included. No database restore is required. Images uploaded during this release remain valid GCS objects and must not be deleted during application rollback.
+The release adds the nullable `products.images` JSON column through a forward migration and includes no data correction. The column is backward-compatible and should remain in place during an application rollback; no database restore is required. Images uploaded during this release remain valid GCS objects and must not be deleted during application rollback.
 
 ## Verification after rollback
 

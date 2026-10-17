@@ -22,6 +22,7 @@ import {
   AppTable,
   createActionColumn,
   ProductImage,
+  ProductGallery,
   ProductTableCell,
   QuotaUsage,
   StatusBadge,
@@ -111,14 +112,8 @@ const ProductPreviewModal: React.FC<{
   >
     <div className="space-y-5">
       <div className="grid gap-5 md:grid-cols-[280px_minmax(0,1fr)]">
-        <div className="relative overflow-hidden rounded-2xl border border-border bg-secondary">
-          <ProductImage
-            image={product.img}
-            width={560}
-            height={560}
-            alt={product.nameZh || '-'}
-            className="aspect-square h-full min-h-64 w-full object-cover"
-          />
+        <div className="relative">
+          <ProductGallery images={product.images} fallbackImage={product.img} alt={product.nameZh || '-'} />
           <div className="absolute right-3 top-3 flex gap-2">
             {product.hot && (
               <span className="rounded-full bg-red-500 px-2.5 py-1 text-xs font-bold text-white shadow">

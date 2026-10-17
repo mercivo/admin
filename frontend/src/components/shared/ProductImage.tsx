@@ -27,8 +27,8 @@ export const ProductImage = ({ image, width, height, alt = '商品图片', class
   useEffect(() => setFailed(!src), [src]);
 
   if (failed) {
-    return <div role="img" aria-label={`${alt}（默认图）`} className={`flex items-center justify-center bg-secondary text-muted-foreground/50 ${className} ${fallbackClassName}`}><ImageOff className="h-[38%] w-[38%]" strokeWidth={1.5} /></div>;
+    return <div role="img" aria-label={`${alt}（默认图）`} className={`flex items-center justify-center bg-white text-muted-foreground/50 ${className} ${fallbackClassName}`}><ImageOff className="h-[38%] w-[38%]" strokeWidth={1.5} /></div>;
   }
 
-  return <img {...props} src={src} alt={alt} className={className} style={{ ...style, objectFit: 'contain', objectPosition: 'center' }} onError={event => { setFailed(true); onError?.(event); }} />;
+  return <img {...props} src={src} alt={alt} className={className} style={{ ...style, backgroundColor: '#fff', objectFit: 'contain', objectPosition: 'center' }} onError={event => { setFailed(true); onError?.(event); }} />;
 };

@@ -1,15 +1,14 @@
 import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
 
-describe("pre-launch schema baseline", () => {
+describe("schema migration history", () => {
   const migrationDirectory = join(__dirname, "..", "migrations");
-  const migrations = readdirSync(migrationDirectory).filter((file) =>
-    file.endsWith(".ts"),
-  );
+  const migrations = readdirSync(migrationDirectory).filter((file) => file.endsWith(".ts")).sort();
 
-  it("keeps a single authoritative initial-schema migration", () => {
-    expect(migrations).toHaveLength(1);
+  it("keeps one authoritative initial migration followed by ordered forward migrations", () => {
     expect(migrations[0]).toMatch(/-InitialSchema\.ts$/);
+    expect(migrations.filter(file => /-InitialSchema\.ts$/.test(file))).toHaveLength(1);
+    expect(migrations.map(file => Number(file.split('-')[0]))).toEqual([...migrations.map(file => Number(file.split('-')[0]))].sort((a, b) => a - b));
   });
 
   it("does not contain historical data patches in the baseline migration", () => {

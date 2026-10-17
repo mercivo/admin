@@ -51,6 +51,9 @@ export class Product {
   @Column({ name: 'img', length: 500 })
   img: string;
 
+  @Column({ type: 'json', nullable: true })
+  images: string[] | null;
+
   @Column({ name: 'hot', type: 'boolean', default: false })
   hot: boolean;
 

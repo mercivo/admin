@@ -70,7 +70,7 @@ export const AppEditableTable = <RecordType,>({
               <th
                 key={index}
                 className={`${column.className || ""} ${String(column.title).includes("商品/规格") ? "app-product-spec-column" : ""}`.trim()}
-                style={{ width: column.width || (String(column.title).includes("商品/规格") ? 260 : undefined) }}
+                style={{ width: column.width || (String(column.title).includes("商品/规格") ? 360 : undefined) }}
               >
                 {column.title}
               </th>

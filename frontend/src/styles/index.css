@@ -247,10 +247,11 @@ html,
   padding: 10px 16px;
   vertical-align: middle;
 }
-.app-editable-table .app-product-spec-column { width: 260px; max-width: 260px; }
-.app-editable-table td.app-product-spec-column > * { min-width: 0; max-width: 228px; }
+.app-editable-table .app-product-spec-column { width: 360px; min-width: 360px; max-width: 360px; }
+.app-editable-table td.app-product-spec-column > * { min-width: 0; max-width: 328px; }
 .app-editable-table td.app-product-spec-column div,
 .app-editable-table td.app-product-spec-column span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.product-spec-dropdown .ant-select-item-option-content { max-width: min(680px, calc(100vw - 80px)); white-space: normal; overflow-wrap: anywhere; }
 .app-editable-table .ant-input,
 .app-editable-table .ant-input-number,
 .app-editable-table .ant-select-selector {
@@ -469,21 +470,27 @@ html,
 .sales-workflow-modal .ant-select-selector {
   min-height: 36px;
 }
-.sales-order-lines-table tbody td {
+.sales-order-lines-table tbody td,
+.purchase-order-lines-table tbody td {
   height: 56px;
   vertical-align: middle;
 }
 .sales-order-lines-table .ant-select-single,
-.sales-order-lines-table .ant-input-number {
+.sales-order-lines-table .ant-input-number,
+.purchase-order-lines-table .ant-select-single,
+.purchase-order-lines-table .ant-input-number {
   display: inline-flex;
   align-items: center;
 }
-.sales-order-lines-table .ant-select-single .ant-select-selector {
+.sales-order-lines-table .ant-select-single .ant-select-selector,
+.purchase-order-lines-table .ant-select-single .ant-select-selector {
   display: flex;
   align-items: center;
 }
 .sales-order-lines-table .ant-select-single .ant-select-selection-item,
-.sales-order-lines-table .ant-select-single .ant-select-selection-placeholder {
+.sales-order-lines-table .ant-select-single .ant-select-selection-placeholder,
+.purchase-order-lines-table .ant-select-single .ant-select-selection-item,
+.purchase-order-lines-table .ant-select-single .ant-select-selection-placeholder {
   line-height: normal;
 }
 .sales-shipment-modal .app-modal-form {

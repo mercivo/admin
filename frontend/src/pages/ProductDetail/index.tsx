@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Input, Select } from 'antd';
 import { ShoppingCart, Star, CheckCircle, Truck, Shield, ArrowLeft, Globe, MessageCircle } from 'lucide-react';
-import { AppModal, ModalForm, ModalFormField, ModalFormGrid, ProductImage } from '../../components/shared';
+import { AppModal, ModalForm, ModalFormField, ModalFormGrid, ProductGallery } from '../../components/shared';
 import Toast, { ToastType } from '../../components/shared/Toast';
 import { productApi } from '../../services/api/index';
 import type { Product } from '../../types';
@@ -11,7 +11,6 @@ const ProductDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const [product, setProduct] = useState<Product | null>(null);
-  const [mainImage, setMainImage] = useState(0);
   const [quantity, setQuantity] = useState(500);
   const [lang, setLang] = useState('EN');
   const [inquiryOpen, setInquiryOpen] = useState(false);
@@ -33,13 +32,6 @@ const ProductDetailPage: React.FC = () => {
     showToast('请通过独立站公开联系方式与外贸团队沟通', 'success');
     setInquiryForm({ name: '', email: '', company: '', requirements: '', bagType: '' });
   };
-
-  const images = [
-    product?.img || '',
-    'photo-1553062407-98eeb64c6a62',
-    'photo-1584917865442-de89df76afd3',
-    'photo-1491637639811-60e2756cc1c7',
-  ];
 
   const specs = [
     { label: '材质', value: '100% 可降解无纺布 / 棉质 / 帆布' },
@@ -90,19 +82,7 @@ const ProductDetailPage: React.FC = () => {
       {/* Product Detail */}
       <div className="max-w-6xl mx-auto px-6 py-2 grid grid-cols-1 lg:grid-cols-2 gap-10">
         {/* Left: Images */}
-        <div>
-          <div className="aspect-square bg-gray-50 rounded-2xl overflow-hidden mb-3">
-            <ProductImage image={images[mainImage]} width={600} height={600} alt={product?.nameZh || '商品主图'} className="h-full w-full object-cover" />
-          </div>
-          <div className="grid grid-cols-4 gap-3">
-            {images.map((img, i) => (
-              <button key={i} onClick={() => setMainImage(i)}
-                className={`aspect-square rounded-xl overflow-hidden border-2 transition-colors ${i === mainImage ? 'border-primary' : 'border-transparent hover:border-gray-300'}`}>
-                <ProductImage image={img} width={120} height={120} alt={`${product?.nameZh || '商品'}图片 ${i + 1}`} className="h-full w-full object-cover" />
-              </button>
-            ))}
-          </div>
-        </div>
+        <ProductGallery images={product?.images} fallbackImage={product?.img} alt={product?.nameZh || '商品主图'} />
 
         {/* Right: Info */}
         <div>

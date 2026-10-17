@@ -13,6 +13,7 @@ export interface Product {
   status: 'published' | 'pending';
   category: string;
   img: string;
+  images?: string[];
   hot: boolean;
   badge?: '' | 'new' | 'hot' | 'bestseller' | 'recommended';
   likeCount?: number;

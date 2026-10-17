@@ -737,6 +737,7 @@ const PurchasePage: React.FC = () => {
             </ModalFormGrid>
             <ModalFormField label="商品明细" required>
               <AppEditableTable
+                className="purchase-order-lines-table"
                 rowKey={(_, index) => index}
                 dataSource={orderDraft.lines}
                 emptyText="暂无商品明细，请添加商品"
@@ -752,6 +753,10 @@ const PurchasePage: React.FC = () => {
                     className="w-full"
                     showSearch
                     optionFilterProp="label"
+                    popupMatchSelectWidth={false}
+                    popupClassName="product-spec-dropdown"
+                    dropdownStyle={{ minWidth: 520, maxWidth: 'calc(100vw - 32px)' }}
+                    optionRender={(option) => <span title={String(option.label)}>{option.label}</span>}
                     variant="borderless"
                     size="small"
                     placeholder="请选择商品"
