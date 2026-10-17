@@ -26,5 +26,7 @@ export { LeadStatusTag, leadStatusMeta } from './LeadStatusTag';
 export { AppEditableTable, AppTable, TableAddRowButton } from './AppTable';
 export type { EditableTableColumn } from './AppTable';
 export { ProductImage, productImageUrl } from './ProductImage';
+export { ProductImagePreview } from './ProductImagePreview';
 export { ProductGallery } from './ProductGallery';
 export { ProductTableCell } from './ProductTableCell';
+export { productBadgeLabel, productBadgeLabels } from './productBadge';

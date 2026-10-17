@@ -11,7 +11,8 @@ const product = {
   moq: 1,
   status: 'pending',
   category: 'bags',
-  img: '',
+  img: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="600"%3E%3Crect width="100" height="600" fill="%237c6ef5"/%3E%3C/svg%3E',
+  images: ['data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="600"%3E%3Crect width="100" height="600" fill="%237c6ef5"/%3E%3C/svg%3E'],
   hot: false,
   badge: 'recommended',
   likeCount: 0,
@@ -67,6 +68,32 @@ test('product create and edit pages do not render the inventory reminder card', 
   await expect(page.getByText('库存提醒', { exact: true })).toHaveCount(0);
   await page.goto('http://localhost:8088/products/product-1/edit');
   await expect(page.getByText('库存提醒', { exact: true })).toHaveCount(0);
+});
+
+test('product list image opens the shared full-height preview and badges use display names', async ({ page }) => {
+  await prepareMerchant(page);
+  await page.goto('/products');
+  await page.locator('button[aria-label="预览重复商品名称"]').click();
+  const imageDialog = page.getByRole('dialog', { name: '重复商品名称' });
+  await expect(imageDialog).toBeVisible();
+  const previewImage = imageDialog.getByRole('img', { name: '重复商品名称 1' });
+  await expect(previewImage).toHaveCSS('object-fit', 'contain');
+  const box = await previewImage.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.y + box!.height).toBeLessThanOrEqual((await page.evaluate(() => window.innerHeight)) + 1);
+  await imageDialog.getByRole('button', { name: '关闭' }).click();
+  await expect(imageDialog).toBeHidden();
+
+  await page.getByTitle('预览').click();
+  const productDialog = page.getByRole('dialog', { name: /\u91cd\u590d\u5546\u54c1\u540d\u79f0/ });
+  await expect(productDialog.getByText('推荐', { exact: true })).toBeVisible();
+  await expect(productDialog.getByText('recommended', { exact: true })).toHaveCount(0);
+  await productDialog.getByRole('button', { name: '关闭' }).click();
+
+  await page.goto('/products/product-1/edit');
+  await page.locator('button[aria-label="预览商品图片 1"]').click();
+  const uploadPreview = page.getByRole('dialog', { name: '商品图片 1' });
+  await expect(uploadPreview.getByRole('img', { name: '商品图片 1 1' })).toHaveCSS('object-fit', 'contain');
 });
 
 test('opening change-password modal does not activate the pagination size selector', async ({ page }) => {

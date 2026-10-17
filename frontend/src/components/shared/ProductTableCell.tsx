@@ -1,6 +1,7 @@
 import React from "react";
 import type { Product } from "../../types";
-import { ProductImage } from "./ProductImage";
+import { ProductImagePreview } from "./ProductImagePreview";
+import { productBadgeLabel } from "./productBadge";
 
 interface ProductTableCellProps {
   product: Product;
@@ -9,11 +10,11 @@ interface ProductTableCellProps {
 
 /** Shared product identity cell used by ERP and storefront product tables. */
 export const ProductTableCell: React.FC<ProductTableCellProps> = ({ product, categoryName }) => {
-  const badge = ({ new: "新品", hot: "爆品", bestseller: "热销", recommended: "推荐" } as Record<string, string>)[product.badge || ""] || (product.hot ? "爆品" : "");
+  const badge = productBadgeLabel(product);
   return (
   <div className="flex w-[300px] max-w-full min-w-0 items-center gap-3">
     <div className="relative shrink-0">
-      <ProductImage image={product.img} width={64} height={64} alt={product.nameZh || '-'} className="h-14 w-14 rounded-xl object-cover" />
+      <ProductImagePreview images={product.images?.length ? product.images : [product.img]} width={64} height={64} alt={product.nameZh || '商品图片'} buttonClassName="h-14 w-14 rounded-xl border border-border" className="h-full w-full object-contain" showHint={false} />
       {product.hot && <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs text-white">🔥</span>}
     </div>
     <div className="min-w-0 flex-1">

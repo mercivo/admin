@@ -21,9 +21,10 @@ import {
   AppModal,
   AppTable,
   createActionColumn,
-  ProductImage,
+  ProductImagePreview,
   ProductGallery,
   ProductTableCell,
+  productBadgeLabel,
   QuotaUsage,
   StatusBadge,
   TableActionButton,
@@ -174,9 +175,9 @@ const ProductPreviewModal: React.FC<{
                 商品标签
               </div>
               <div className="flex flex-wrap gap-2">
-                {product.badge && (
+                {productBadgeLabel(product) && (
                   <span className="rounded-lg bg-amber-50 px-2.5 py-1 text-xs text-amber-700">
-                    {product.badge}
+                    {productBadgeLabel(product)}
                   </span>
                 )}
                 {product.tags?.map((tag) => (
@@ -824,20 +825,21 @@ const ProductsPage: React.FC = () => {
                   onClick={() => setPreviewProduct(product)}
                 >
                   <div className="relative">
-                    <ProductImage
-                      image={product.img}
+                    <ProductImagePreview
+                      images={product.images?.length ? product.images : [product.img]}
                       width={400}
                       height={200}
                       alt={product.nameZh || '-'}
-                      className="h-36 w-full object-cover"
+                      buttonClassName="h-36 w-full"
+                      className="h-full w-full object-contain"
                     />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2 bg-black/0 opacity-0 transition-colors group-hover:bg-black/20 group-hover:opacity-100">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           navigate(`/products/${product.id}/edit`);
                         }}
-                        className="p-2 bg-white rounded-xl shadow text-foreground hover:bg-primary hover:text-white transition-colors"
+                        className="pointer-events-auto p-2 bg-white rounded-xl shadow text-foreground hover:bg-primary hover:text-white transition-colors"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
@@ -846,7 +848,7 @@ const ProductsPage: React.FC = () => {
                           e.stopPropagation();
                           setPreviewProduct(product);
                         }}
-                        className="p-2 bg-white rounded-xl shadow text-foreground hover:bg-primary hover:text-white transition-colors"
+                        className="pointer-events-auto p-2 bg-white rounded-xl shadow text-foreground hover:bg-primary hover:text-white transition-colors"
                       >
                         <Eye className="w-4 h-4" />
                       </button>

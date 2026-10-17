@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button, Descriptions, Empty, Input, Select, Tag, Tree, Upload, message, type UploadProps } from 'antd';
 import { ArrowRight, CheckCircle2, Copy, Eye, Globe2, Heart, ImagePlus, Languages, Link2, MessageSquareText, PackageCheck, Plus, Search, Settings2, ShieldCheck, Trash2, UserCheck, XCircle } from 'lucide-react';
 import { useParams } from 'react-router-dom';
-import { AppModal, AppTable, createActionColumn, LeadStatusTag, leadStatusMeta, PageContent, PageHeader, ProductGallery, ProductTableCell, StatusBadge, TableActionButton, TableActions } from '../../components/shared';
+import { AppModal, AppTable, createActionColumn, LeadStatusTag, leadStatusMeta, PageContent, PageHeader, ProductGallery, ProductTableCell, productBadgeLabels, StatusBadge, TableActionButton, TableActions } from '../../components/shared';
 import { productApi, siteApi, storefrontManageApi, workspaceApi, type SiteDomain, type SiteVersion, type StorefrontLead, type StorefrontOverview, type WorkspaceSettings } from '../../services/api/index';
 import type { Product, ProductCategory } from '../../types';
 import { useTablePagination } from '../../hooks/useTablePagination';
@@ -14,7 +14,6 @@ const languageOptions = ANTD_LOCALE_OPTIONS.map(option => ({ ...option, searchTe
 const selectableLanguageOptions = languageOptions.filter(option => !['en_GB', 'zh_HK'].includes(option.value));
 const preferredLanguageLocale = (value?: string) => ({ en_GB: 'en_US', zh_HK: 'zh_TW' }[normalizeAntdLocale(value)] || normalizeAntdLocale(value));
 const localeOption = (option: typeof ANTD_LOCALE_OPTIONS[number], selected = false) => <span className="flex min-w-0 items-center gap-2"><span className={`grid h-7 min-w-14 place-items-center rounded-md px-1.5 font-mono text-[10px] ${selected ? 'bg-primary/10 text-primary' : 'bg-secondary text-muted-foreground'}`}>{option.value}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm text-foreground">{option.label}</span><span className="block truncate text-[10px] text-muted-foreground">{option.nativeLabel}</span></span></span>;
-const productBadgeLabels: Record<string, string> = { new: '新品', hot: '热销', bestseller: '畅销', recommended: '推荐' };
 const SettingsField = ({ label, children, className = '' }: { label: string; children: React.ReactNode; className?: string }) => <label data-settings-field className={`block space-y-1.5 ${className}`.trim()}><span data-settings-label className="block text-xs font-normal text-muted-foreground">{label}</span>{children}</label>;
 const leadStatus = leadStatusMeta;
 type LeadAction = 'follow' | 'start' | 'convert' | 'close';
