@@ -19,7 +19,8 @@ test('product editing and galleries support up to ten images', () => {
   expect(tableCell).toContain('<ProductImagePreview');
   expect(products).toContain('<ProductImagePreview');
   expect(preview).toContain("maxHeight: 'calc(100vh - 150px)'");
-  expect(preview).toContain('className="h-full w-full object-contain"');
+  expect(preview).toContain('absolute inset-0 h-full w-full min-h-0 min-w-0 object-contain');
+  expect(preview).toContain('className="h-full w-full min-h-0 min-w-0 object-contain"');
   expect(renderer).toContain('onNavigate(String(product.id))');
   expect(renderer).toContain('<ProductGallery images={productDetail.images}');
   expect(entity).toContain('images: string[] | null');

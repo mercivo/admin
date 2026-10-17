@@ -41,13 +41,13 @@ export const ProductImagePreview: React.FC<ProductImagePreviewProps> = ({
   const select = (index: number) => setActive((index + gallery.length) % gallery.length);
 
   return <>
-    <button type="button" onClick={openPreview} disabled={!gallery.length} aria-label={gallery.length ? `预览${alt}` : `${alt}不可预览`} className={`group relative block overflow-hidden bg-white disabled:cursor-default ${buttonClassName}`}>
-      <ProductImage image={gallery[safeIndex]} width={width} height={height} alt={alt} className={className} />
+    <button type="button" onClick={openPreview} disabled={!gallery.length} aria-label={gallery.length ? `预览${alt}` : `${alt}不可预览`} className={`group relative isolate block min-h-0 min-w-0 overflow-hidden bg-white disabled:cursor-default ${buttonClassName}`}>
+      <ProductImage image={gallery[safeIndex]} width={width} height={height} alt={alt} className={`absolute inset-0 h-full w-full min-h-0 min-w-0 object-contain ${className}`} />
       {showHint && gallery.length > 0 && <span className="absolute bottom-2 right-2 grid h-7 w-7 place-items-center rounded-full bg-black/55 text-white opacity-0 shadow transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden="true"><Expand className="h-3.5 w-3.5" /></span>}
     </button>
     <AppModal open={open} title={alt} onCancel={() => setOpen(false)} footer={null} width="min(94vw, 1100px)" className="product-image-preview-modal" styles={{ body: { maxHeight: 'calc(100vh - 150px)', overflow: 'hidden', padding: 0 } }}>
       <div className="relative flex h-[calc(100vh-170px)] min-h-[320px] max-h-[820px] items-center justify-center overflow-hidden bg-white px-14 py-6">
-        <ProductImage image={gallery[active]} width={1600} height={1600} alt={`${alt} ${active + 1}`} className="h-full w-full object-contain" />
+        <ProductImage image={gallery[active]} width={1600} height={1600} alt={`${alt} ${active + 1}`} className="h-full w-full min-h-0 min-w-0 object-contain" />
         {gallery.length > 1 && <>
           <button type="button" aria-label="上一张商品图片" onClick={() => select(active - 1)} className="absolute left-3 grid h-10 w-10 place-items-center rounded-full border border-border bg-white/95 text-foreground shadow hover:bg-secondary"><ChevronLeft className="h-5 w-5" /></button>
           <button type="button" aria-label="下一张商品图片" onClick={() => select(active + 1)} className="absolute right-3 grid h-10 w-10 place-items-center rounded-full border border-border bg-white/95 text-foreground shadow hover:bg-secondary"><ChevronRight className="h-5 w-5" /></button>

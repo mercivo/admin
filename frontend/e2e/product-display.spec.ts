@@ -86,6 +86,15 @@ test('product list image opens the shared full-height preview and badges use dis
 
   await page.getByTitle('预览').click();
   const productDialog = page.getByRole('dialog', { name: /\u91cd\u590d\u5546\u54c1\u540d\u79f0/ });
+  const inlinePreview = productDialog.locator('button[aria-label="预览重复商品名称"] img');
+  await expect(inlinePreview).toHaveCSS('position', 'absolute');
+  await expect(inlinePreview).toHaveCSS('object-fit', 'contain');
+  const inlineContainer = await inlinePreview.locator('..').boundingBox();
+  const inlineImage = await inlinePreview.boundingBox();
+  expect(inlineContainer).not.toBeNull();
+  expect(inlineImage).not.toBeNull();
+  expect(inlineImage!.width).toBeCloseTo(inlineContainer!.width, 0);
+  expect(inlineImage!.height).toBeCloseTo(inlineContainer!.height, 0);
   await expect(productDialog.getByText('推荐', { exact: true })).toBeVisible();
   await expect(productDialog.getByText('recommended', { exact: true })).toHaveCount(0);
   await productDialog.getByRole('button', { name: '关闭' }).click();
