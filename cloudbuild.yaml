@@ -68,7 +68,7 @@ steps:
       - --platform=managed
       - --allow-unauthenticated
       - --service-account=mercivo-runtime@${PROJECT_ID}.iam.gserviceaccount.com
-      - --add-cloudsql-instances=${_CLOUD_SQL_INSTANCE}
+      - --set-cloudsql-instances=${_CLOUD_SQL_INSTANCE}
       - --port=8080
       - --cpu=1
       - --memory=512Mi
