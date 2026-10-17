@@ -6,8 +6,8 @@
 - [x] API `DB_SOCKET_PATH` and migration job point to `mercivo-mysql-v2`.
 - [x] Corrected source backup `1792209823552` is `SUCCESSFUL`.
 - [x] Source has 30-day final backup and retained-backup-on-delete enabled.
-- [ ] Unified deployment replaces the API Cloud SQL attachment list with only `mercivo-mysql-v2`.
-- [ ] Post-deploy health and connection checks pass.
+- [x] Unified deployment replaces the API Cloud SQL attachment list with only `mercivo-mysql-v2`.
+- [x] Post-deploy health and connection checks pass.
 
 ## Ordered actions
 
@@ -21,8 +21,8 @@
 
 ## Evidence
 
-- Build ID: pending
-- Commit SHA: pending
-- API/Admin/Storefront revisions: pending
-- Deletion operation: pending
-- Final smoke: pending
+- Build ID: `9917c1c0-a1f1-450d-9786-a1e946ebdb43` (`SUCCESS`).
+- Commit SHA: `41fede6de2d7aab1021d05d6699c14dc63c7e804`.
+- API/Admin/Storefront revisions: `mercivo-api-00065-m7v`, `mercivo-admin-00042-z8q`, `mercivo-storefront-00034-8pc`; each receives 100% traffic.
+- Deletion operation: completed at 2026-10-17T11:50Z; `mercivo-mysql` was deleted after disabling deletion protection. Source backup `1792209823552` was `SUCCESSFUL`; retained backups and the configured 30-day final backup were preserved.
+- Final smoke: the project instance list contains only deletion-protected `mercivo-mysql-v2` (`RUNNABLE`, 10 GB); the API attachment and `DB_SOCKET_PATH` reference only that instance; captcha returned HTTP 200, invalid login returned validation HTTP 400, and the deployed API revision had no severity `ERROR` logs.

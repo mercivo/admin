@@ -22,7 +22,7 @@ Cloud Storage Standard 在 `asia-east1` 的存储单价约为 **US$0.02/GiB/月*
 
 ## Cloud SQL 现状与预算
 
-> 2026-10-17 更新：生产已通过 `mercivo-main` 切换到 `mercivo-mysql-v2`（MySQL 8.4 Enterprise、1 vCPU / 3.75 GB、10 GB SSD、单可用区）。旧 `mercivo-mysql` 保持删除保护，仅用于 7 天观察与回滚；观察期内会出现两个实例重叠计费，不代表稳态月费。迁移证据和回滚闸门见 `deploy/releases/v1.0.2/`。
+> 2026-10-17 更新：生产已通过 `mercivo-main` 切换到 `mercivo-mysql-v2`（MySQL 8.4 Enterprise、1 vCPU / 3.75 GB、10 GB SSD、单可用区）。旧 `mercivo-mysql` 已按 `deploy/releases/v1.0.3/` 退役并删除，不再产生实例计算、100 GB SSD 和公网 IP 的持续费用。成功的源备份与 30 天最终备份保留，可能产生少量备份存储费。
 
 已将 `mercivo-mysql` 从 4 vCPU / 16 GB 降为 **1 vCPU / 3.75 GB / 100 GB SSD**，保持单可用区并常开，开启自动备份与 PITR。本月截至 10 月 11 日的历史实际费用为 **US$7.82**，当时的停机状态整月预测为 **US$24.68**：
 
@@ -35,8 +35,8 @@ Cloud Storage Standard 在 `asia-east1` 的存储单价约为 **US$0.02/GiB/月*
 
 ### 推荐分阶段方案
 
-1. 当前上线基线：Cloud SQL 保持 1 vCPU / 3.75 GB 常开，单区域、自动备份和 PITR；Cloud Run 使用请求计费、CPU 节流、`min-instances=0` / `max-instances=1`。
-2. 进一步降低固定费用：在确认数据迁移窗口后，新建 10 GB 最小规格实例，完成备份、迁移、校验和切换后再删除旧实例。这是降低 100 GB 固定存储费的唯一可靠方式，不在未验证数据的情况下直接删库重建。
+1. 当前稳态基线：Cloud SQL 仅保留 10 GB 的 `mercivo-mysql-v2`，1 vCPU / 3.75 GB 常开，单区域、自动备份和 PITR；Cloud Run 使用请求计费、CPU 节流、`min-instances=0` / `max-instances=1`。
+2. 旧 100 GB 实例已删除，预计每月减少约 US$74–80 的重叠费用；新实例稳态费用仍预计约 US$58–63/月，实际账单显示可能延迟。
 
 Cloud Run 当前用量位于免费额内，本月资源原价 US$0.16，抵扣后为 US$0.00。
 
