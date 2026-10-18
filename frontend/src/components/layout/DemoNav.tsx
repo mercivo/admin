@@ -169,7 +169,7 @@ const DemoNav: React.FC = () => {
           <button
             type="button"
             aria-label="打开使用手册"
-            onClick={() => navigate('/help')}
+            onClick={() => window.open('/help', '_blank', 'noopener,noreferrer')}
             className={`grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg transition-colors ${location.pathname === '/help' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-secondary hover:text-primary'}`}
           >
             <BookOpen className="h-4.5 w-4.5" />

@@ -227,12 +227,12 @@ const App: React.FC = () => {
               </Route>
               <Route element={<TenantOnly />}>
                 <Route path="site-preview" element={<RequirePermission permission="page.site.editor"><SitePreviewPage /></RequirePermission>} />
+                <Route path="help" element={<HelpPage />} />
                 <Route element={<AppLayout />}>
                   {/* Backend pages with sidebar */}
                   <Route element={<BackendLayout />}>
                     <Route index element={<TenantHome />} />
                     <Route path="no-access" element={<PermissionDenied />} />
-                    <Route path="help" element={<HelpPage />} />
                     <Route
                       path="dashboard"
                       element={

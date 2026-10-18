@@ -1,161 +1,196 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  ArrowLeftRight,
-  BarChart3,
-  BookOpen,
-  Boxes,
-  Building2,
-  CheckCircle2,
-  ChevronRight,
-  CircleDollarSign,
-  ClipboardCheck,
-  ClipboardList,
-  ContactRound,
-  Globe2,
-  HandCoins,
-  History,
-  Languages,
-  LayoutDashboard,
-  LayoutTemplate,
-  MessageSquareText,
-  Package,
-  PackageCheck,
-  Settings,
-  ShoppingCart,
-  Tags,
-  Truck,
-  Users,
-  Warehouse,
-} from 'lucide-react';
+import { ArrowRight, BarChart3, BookOpen, Boxes, CheckCircle2, ChevronRight, CircleDollarSign, Globe2, Menu, Package, Settings, ShoppingCart, Target, X } from 'lucide-react';
+import { BrandMark } from '../../components/shared';
 
-type ManualTopic = {
-  id: string;
-  title: string;
-  summary: string;
-  steps: string[];
-  tips?: string[];
-};
-
-type ManualGroup = {
-  id: string;
-  title: string;
+type TrainingStep = { entry: string; action: string; result: string };
+type TrainingChapter = {
+  id: string; order: string; title: string; subtitle: string; roles: string[]; goal: string;
+  preparation: string[]; steps: TrainingStep[]; completion: string[];
+  issues: Array<{ question: string; answer: string }>;
   icon: React.FC<{ className?: string }>;
-  topics: ManualTopic[];
+  screenshot?: { src: string; alt: string; caption: string; callouts: string[] };
 };
 
-const MANUAL_GROUPS: ManualGroup[] = [
+const chapters: TrainingChapter[] = [
   {
-    id: 'getting-started', title: '快速开始', icon: BookOpen, topics: [
-      { id: 'overview', title: '系统使用概览', summary: '迈犀沃将商品、销售、采购、库存、独立站和财务数据统一在一个工作台中。', steps: ['先在系统设置中维护企业、币种和业务参数。', '建立商品分类、商品、仓库、客户与供应商等基础资料。', '按销售、采购、出入库和收付款的业务顺序录入单据。', '通过经营概览与财务统计查看经营结果。'], tips: ['页面左侧是业务菜单；右上角头像可修改账号信息和密码。', '看不到某个菜单时，请联系管理员检查成员角色、功能权限或套餐权限。'] },
+    id: 'first-setup', order: '01', title: '开通后的首次配置', subtitle: '先搭好经营底座，再让团队开始录单', roles: ['租户老板', '系统管理员'], icon: Settings,
+    goal: '完成企业、币种、仓库和成员权限配置，让商品、采购、销售、库存和财务使用同一套基础规则。',
+    preparation: ['确认企业名称、联系人和常用结算币种。', '整理实际仓库清单及负责人员。', '确认运营、采购、仓管和财务人员的职责边界。'],
+    steps: [
+      { entry: '系统管理 → 系统设置', action: '维护企业基础资料、默认币种和可用业务参数并保存。', result: '新建商品和业务单据时使用统一的企业与币种配置。' },
+      { entry: '库存管理 → 仓库管理', action: '为每个实际收发货地点建立仓库，填写名称、编码和地址。', result: '采购入库、销售出库、调拨和盘点均可选择正确仓库。' },
+      { entry: '系统管理 → 成员与权限', action: '按岗位创建角色，再添加成员并分配角色；老板保留全局查看权限。', result: '成员只看到职责范围内的菜单和操作。' },
+      { entry: '右上角头像 → 账号信息', action: '确认管理员账号和联系方式，要求所有成员首次登录后修改密码。', result: '账号归属清晰且具备基本安全保障。' },
+    ],
+    completion: ['至少有一个启用中的仓库。', '默认币种与实际报价币种一致。', '每位成员可登录，且菜单和操作权限符合岗位。', '老板账号能够查看经营概览和财务统计。'],
+    issues: [
+      { question: '成员看不到某个页面怎么办？', answer: '检查角色是否同时具备对应菜单权限、页面权限和所需操作权限，并让成员重新登录。' },
+      { question: '可以让所有人都使用管理员账号吗？', answer: '不建议。独立账号便于限制权限、识别操作人和后续追溯。' },
     ],
   },
   {
-    id: 'dashboard', title: '经营概览', icon: LayoutDashboard, topics: [
-      { id: 'dashboard-overview', title: '经营概览', summary: '集中查看核心经营指标、趋势和待处理事项。', steps: ['进入“经营概览”查看销售、采购、库存和客户指标。', '切换时间范围观察趋势变化。', '点击异常或待办卡片进入对应业务页面处理。'], tips: ['统计口径以已保存的业务单据及其当前状态为准。'] },
+    id: 'product-foundation', order: '02', title: '建立商品经营基础', subtitle: '一次维护，贯穿采购、销售、库存和独立站', roles: ['运营', '商品管理员', '租户老板'], icon: Package,
+    goal: '建立可交易、可核算、可展示的商品资料，并让规格、价格和库存口径保持一致。',
+    preparation: ['准备商品编码、分类、名称、描述和图片。', '整理规格组合、基础价、客户等级价和最小起订量。', '确认哪些商品需要同步到独立站。'],
+    steps: [
+      { entry: '商品管理 → 商品分类', action: '先建立分类层级并设置排序和启用状态。', result: '后台筛选和独立站商品导航使用同一分类。' },
+      { entry: '商品管理 → 商品列表 → 新建商品', action: '填写名称、描述、商品编码和分类，上传主图及详情图。', result: '形成商品主档，第一张图片作为主图。' },
+      { entry: '商品编辑 → 规格库存', action: '填写基础单价、最小起订量和规格额外加价；库存只在库存业务中变化。', result: '每个规格具备明确价格，避免直接修改库存造成账实不符。' },
+      { entry: '商品编辑 → 客户等级价', action: '为重点客户等级配置专属价，未配置时沿用基础价。', result: '客户识别后展示相应等级价格。' },
+      { entry: '商品编辑 → 同步设置', action: '确认图片、价格和起订量无误后开启“同步到独立站”并保存。', result: '商品进入独立站商品池，供站点页面展示。' },
     ],
+    completion: ['商品编码唯一且可识别。', '主图清晰，规格与额外加价完整。', '基础价、等级价和最小起订量已复核。', '需要对外展示的商品已同步到独立站。'],
+    issues: [
+      { question: '为什么商品页不能直接改规格库存？', answer: '库存由采购入库、销售出库、盘点和调拨汇总，直接修改会破坏库存流水。' },
+      { question: '删除规格有什么影响？', answer: '规格及其库存数据会一并移除。删除前先确认没有仍需追溯的业务数据。' },
+    ],
+    screenshot: { src: '/training-assets/product.webp', alt: '商品资料与规格价格配置示例', caption: '商品资料维护：先完成基础信息和图片，再进入规格库存配置价格。', callouts: ['切换规格库存页签', '配置币种、基础价和规格加价'] },
   },
   {
-    id: 'products', title: '商品管理', icon: Package, topics: [
-      { id: 'product-list', title: '商品列表', summary: '维护商品主数据、图片、价格、多规格、库存展示信息和独立站同步状态。', steps: ['使用名称或商品编码筛选商品。', '点击“新建商品”填写基础信息、图片、价格和规格。', '在列表或详情中编辑、预览、上下架或删除商品。'], tips: ['商品删除前请确认没有仍需保留的业务关联；规格删除会同时移除该规格库存数据。'] },
-      { id: 'product-categories', title: '商品分类', summary: '以树形层级组织商品，便于后台筛选和独立站展示。', steps: ['新建一级分类，按需添加子分类。', '设置分类名称、排序和展示状态。', '回到商品编辑页为商品选择分类。'] },
+    id: 'purchase-to-stock', order: '03', title: '采购到入库', subtitle: '从采购需求到库存增加的标准流程', roles: ['采购', '仓管', '财务'], icon: ShoppingCart,
+    goal: '让每次采购都有供应商、订单、收货和库存记录，确保采购数量与实际入库一致。',
+    preparation: ['商品和规格已经建立。', '供应商资料和收货仓库已经建立。', '采购价格、数量和预计到货时间已经确认。'],
+    steps: [
+      { entry: '采购管理 → 供应商管理', action: '建立供应商档案，维护联系人、联系方式、地址和业务备注。', result: '采购订单可以关联明确的供应商。' },
+      { entry: '采购管理 → 采购订单', action: '选择供应商，添加商品规格、数量和采购价，复核后保存订单。', result: '形成采购依据和预计应付金额。' },
+      { entry: '采购管理 → 采购入库', action: '关联采购订单，选择实际收货仓库并填写本次到货数量。', result: '支持分批到货，实际入库数量有据可查。' },
+      { entry: '采购入库 → 确认入库', action: '仓管核对商品、规格和数量后确认。', result: '对应仓库库存增加，采购订单进度同步更新。' },
+      { entry: '库存管理 → 库存查询', action: '按商品或仓库检查入库后的库存和流水。', result: '采购数量、入库数量和库存增量一致。' },
     ],
+    completion: ['采购订单供应商、商品、数量和价格正确。', '入库仓库与实际收货地点一致。', '采购订单进度与累计到货数量一致。', '库存流水中可查到对应采购入库记录。'],
+    issues: [
+      { question: '供应商分两次到货怎么处理？', answer: '针对同一采购订单分别创建采购入库，每次只填写实际到货数量。' },
+      { question: '入库后库存没有变化怎么办？', answer: '确认入库单是否已完成而非仅保存，并核对查看的仓库和商品规格。' },
+    ],
+    screenshot: { src: '/training-assets/purchase.webp', alt: '采购订单与采购入库页面示例', caption: '采购闭环：供应商建档后建立订单，再按实际到货数量完成入库。', callouts: ['从采购订单建立采购依据', '用状态确认采购已完成'] },
   },
   {
-    id: 'sales', title: '销售管理', icon: ShoppingCart, topics: [
-      { id: 'sales-orders', title: '销售订单', summary: '记录客户订单、商品明细、金额和履约状态。', steps: ['新建订单并选择客户。', '添加商品、规格、数量、价格和必要备注。', '确认订单后，根据实际业务推进状态并创建出库。'] },
-      { id: 'sales-shipments', title: '销售出库', summary: '记录销售订单对应的发货和库存扣减。', steps: ['从销售订单发起出库，或在出库页面创建单据。', '核对仓库、商品、规格和出库数量。', '确认出库后检查库存变化和订单履约状态。'] },
-      { id: 'customers', title: '客户管理', summary: '维护客户档案、联系方式、等级和登录访问能力。', steps: ['新建或编辑客户基础资料。', '按业务价值维护客户等级。', '需要客户访问独立站时，配置对应账号并妥善管理凭据。'] },
+    id: 'sales-to-cash', order: '04', title: '销售到回款', subtitle: '订单、出库和收款三步闭环', roles: ['销售运营', '仓管', '财务'], icon: CircleDollarSign,
+    goal: '把客户需求转成销售订单，按实际发货扣减库存，并登记回款形成完整销售链路。',
+    preparation: ['客户档案和等级已建立。', '商品价格、规格及可用库存已经核对。', '确认结算币种、交付仓库和收款约定。'],
+    steps: [
+      { entry: '销售管理 → 客户管理', action: '建立客户资料并分配客户等级，维护联系人和联系方式。', result: '订单可关联客户，并可应用对应等级价格。' },
+      { entry: '销售管理 → 销售订单', action: '选择客户，添加商品规格、数量和价格，确认币种与金额后保存。', result: '形成销售履约依据和预计应收金额。' },
+      { entry: '销售管理 → 销售出库', action: '关联销售订单，选择发货仓库并填写实际出库数量。', result: '支持分批发货，订单履约进度持续更新。' },
+      { entry: '销售出库 → 确认出库', action: '仓管复核商品、规格、仓库和数量后确认。', result: '对应仓库库存扣减并生成库存流水。' },
+      { entry: '财务管理 → 收款管理', action: '关联客户或销售单据，登记金额、币种、日期和收款方式。', result: '应收余额和收款状态得到更新。' },
     ],
+    completion: ['销售订单金额与客户约定一致。', '实际出库数量没有超过订单数量和可用库存。', '库存流水可追溯到销售出库单。', '收款记录与银行或第三方到账记录一致。'],
+    issues: [
+      { question: '客户分批付款怎么处理？', answer: '按每次实际到账分别登记收款，持续核对订单应收余额。' },
+      { question: '出库时提示库存不足怎么办？', answer: '核对仓库和规格是否正确；确实不足时先完成采购入库或库存调拨。' },
+    ],
+    screenshot: { src: '/training-assets/sales.webp', alt: '销售订单与销售出库页面示例', caption: '销售履约：订单确认后按实际发货创建出库，再由财务登记回款。', callouts: ['核对客户和订单金额', '跟踪订单履约状态'] },
   },
   {
-    id: 'purchase', title: '采购管理', icon: ClipboardList, topics: [
-      { id: 'purchase-orders', title: '采购订单', summary: '记录向供应商采购的商品、数量、价格和交付信息。', steps: ['选择供应商并添加采购商品。', '核对数量、采购价、预计到货时间和备注。', '保存后根据实际到货情况创建采购入库。'] },
-      { id: 'purchase-receipts', title: '采购入库', summary: '登记采购到货并增加对应仓库库存。', steps: ['关联采购订单并选择收货仓库。', '核对实际到货规格和数量。', '确认入库后检查采购订单与库存状态。'] },
-      { id: 'suppliers', title: '供应商管理', summary: '统一管理供应商资料和采购协作信息。', steps: ['新建供应商并填写名称与联系方式。', '补充地址、业务备注等资料。', '创建采购订单时选择已维护的供应商。'] },
+    id: 'inventory-operations', order: '05', title: '库存日常管理', subtitle: '让账面库存始终能够解释实际库存', roles: ['仓管', '运营', '租户老板'], icon: Boxes,
+    goal: '通过查询、调拨、盘点和流水核查，及时发现缺货、错仓和账实差异。',
+    preparation: ['仓库及商品规格已经建立。', '采购入库和销售出库均按实际业务录入。', '明确盘点日期和暂停收发货的时间窗口。'],
+    steps: [
+      { entry: '库存管理 → 库存查询', action: '按商品、编码、规格或仓库筛选，关注可用库存和低库存商品。', result: '快速判断采购、销售和调拨需求。' },
+      { entry: '库存管理 → 库存调拨', action: '选择调出仓、调入仓和商品规格，填写调拨数量并确认。', result: '库存从一个仓库转移到另一个仓库，总库存不变。' },
+      { entry: '库存管理 → 库存盘点', action: '选择仓库并录入实际数量，复核系统自动计算的差异。', result: '确认后以盘点结果修正账面库存并保留调整记录。' },
+      { entry: '库存查询 → 库存流水', action: '出现异常时按时间追溯采购入库、销售出库、调拨和盘点记录。', result: '能够定位每一次库存变化的来源。' },
     ],
+    completion: ['高频商品每日检查，其他商品按固定周期盘点。', '调拨的调出仓和调入仓与实物流向一致。', '盘点差异已经说明原因并由负责人复核。', '负库存、异常增长和长期无变化库存已处理。'],
+    issues: [
+      { question: '盘点可以用来代替采购入库吗？', answer: '不可以。盘点用于修正账实差异，正常采购必须通过采购订单和采购入库形成完整记录。' },
+      { question: '调拨后总库存为什么没变？', answer: '调拨只改变库存所在仓库，不改变企业总库存。' },
+    ],
+    screenshot: { src: '/training-assets/inventory.webp', alt: '库存查询与调拨盘点页面示例', caption: '库存管理：先筛选仓库和规格，再通过流水解释每次库存变化。', callouts: ['按仓库和商品筛选库存', '从库存结果进入流水核查'] },
   },
   {
-    id: 'inventory', title: '库存管理', icon: Boxes, topics: [
-      { id: 'inventory-stocks', title: '库存查询', summary: '按仓库、商品和规格查看当前库存及库存流水。', steps: ['使用商品、编码、规格或仓库筛选。', '查看可用库存与各仓库库存。', '进入明细核对相关入库、出库、盘点和调拨记录。'] },
-      { id: 'inventory-counts', title: '库存盘点', summary: '通过盘点修正账面库存与实际库存的差异。', steps: ['创建盘点单并选择仓库。', '录入商品规格的实际盘点数量。', '复核差异后确认盘点，使库存调整生效。'], tips: ['确认前务必复核差异；盘点结果会直接影响库存。'] },
-      { id: 'inventory-transfers', title: '库存调拨', summary: '在不同仓库之间转移库存。', steps: ['选择调出仓库和调入仓库。', '添加商品规格及调拨数量。', '确认单据并在完成后核对两端库存。'] },
-      { id: 'warehouses', title: '仓库管理', summary: '维护库存业务使用的仓库基础资料。', steps: ['新建仓库并填写名称、编码和地址。', '设置仓库状态。', '停用前确认没有未完成的出入库或调拨业务。'] },
+    id: 'storefront-launch', order: '06', title: '独立站上线', subtitle: '从品牌资料到可公开访问的网站', roles: ['独立站运营', '内容运营', '租户老板'], icon: Globe2,
+    goal: '完成站点资料、商品、页面、多语言、SEO、域名和发布检查，正式承接海外访问与询盘。',
+    preparation: ['品牌名称、Logo、企业介绍和联系方式已经确认。', '准备高质量商品图、站点横幅、目标语言文案和域名。', '商品已经开启独立站同步。'],
+    steps: [
+      { entry: '独立站 → 站点设置', action: '维护品牌信息、联系资料、默认语言、SEO 标题与描述。', result: '站点具备统一品牌信息和搜索引擎展示文案。' },
+      { entry: '独立站 → 商品池', action: '检查同步商品的图片、价格、起订量、分类和展示状态。', result: '对外商品内容准确且完整。' },
+      { entry: '独立站 → 站点设计', action: '编辑页头、横幅、商品区块、企业介绍、询盘表单和页脚，并检查按钮跳转。', result: '形成桌面端与移动端结构完整的站点页面。' },
+      { entry: '独立站 → 多语言内容', action: '选择目标语言，完成页面、商品和公共文案翻译，处理未翻译和已过期项。', result: '访客切换语言后看到完整一致的内容。' },
+      { entry: '独立站 → 站点设置 → 自定义域名', action: '按提示添加 DNS 记录并完成验证。', result: '自定义域名可访问并由系统提供 HTTPS。' },
+      { entry: '站点设计 → 预览 / 发布', action: '分别检查桌面和移动端，再发布并到发版历史确认成功。', result: '最新站点版本正式对外可访问。' },
     ],
+    completion: ['图片清晰且未拉伸，商品价格和起订量准确。', '导航、按钮、语言切换和询盘表单可用。', 'SEO 信息、联系方式、隐私相关文案已经复核。', '域名和 HTTPS 正常，发版历史显示发布成功。'],
+    issues: [
+      { question: '修改内容后前台为什么没有变化？', answer: '保存编辑并不等于发布。完成预览后重新发布，并在发版历史确认结果。' },
+      { question: '域名一直显示待验证怎么办？', answer: '核对 DNS 记录类型、主机记录和值是否完全一致，并等待 DNS 生效后再次验证。' },
+    ],
+    screenshot: { src: '/training-assets/site-design.webp', alt: '独立站可视化设计页面示例', caption: '站点设计：逐区块维护内容，并同时检查桌面端和移动端预览。', callouts: ['从左侧组织页面区块', '在画布检查页面效果', '在右侧配置内容与交互'] },
   },
   {
-    id: 'storefront', title: '独立站', icon: Globe2, topics: [
-      { id: 'storefront-leads', title: '线索池', summary: '处理独立站访客提交的询盘和采购需求。', steps: ['按状态筛选新线索、跟进中线索和已完成线索。', '查看联系人、联系方式和采购需求。', '指派跟进人并持续更新处理状态，最终标记转化或关闭。'] },
-      { id: 'storefront-products', title: '商品池', summary: '查看已同步到独立站的商品和分类信息。', steps: ['按分类或关键词筛选商品。', '预览商品图片、价格、起订量和展示状态。', '如需修改商品，返回商品管理完成后重新同步。'] },
-      { id: 'site-design', title: '站点设计', summary: '以可视化方式编辑独立站页面结构、内容、样式和交互。', steps: ['选择页面和区块，在编辑面板修改文案、图片与样式。', '调整区块顺序、显示状态和导航指向。', '使用预览检查桌面与移动端效果，保存后进入发布流程。'], tips: ['发布前请检查图片清晰度、按钮链接、联系表单和多语言内容。'] },
-      { id: 'translations', title: '多语言内容', summary: '维护独立站各语言的页面、商品与公共文案翻译。', steps: ['先在站点设置中启用目标语言。', '选择语言和内容类型，筛选未翻译或已过期字段。', '填写译文并保存，完成后预览对应语言页面。'] },
-      { id: 'site-settings', title: '站点设置', summary: '配置站点基础资料、语言、域名、询盘和展示参数。', steps: ['维护站点名称、品牌与联系资料。', '添加支持语言并设置默认语言。', '按提示配置自定义域名 DNS，验证通过后启用 HTTPS。'] },
-      { id: 'release-history', title: '发版历史', summary: '查看独立站发布记录、发布状态和版本结果。', steps: ['发布前确认站点设计和翻译内容已保存。', '在发版历史查看处理进度与结果。', '遇到失败时查看错误信息，修正后重新发布。'] },
+    id: 'lead-to-deal', order: '07', title: '询盘到成交', subtitle: '让每条独立站线索都有负责人和结果', roles: ['独立站运营', '销售', '租户老板'], icon: Target,
+    goal: '及时承接独立站询盘，明确跟进责任和结果，并把有效商机转入客户与销售流程。',
+    preparation: ['独立站询盘表单已经发布并完成测试提交。', '销售成员及线索分配权限已经配置。', '团队已约定首次响应时限和关闭原因规范。'],
+    steps: [
+      { entry: '独立站 → 线索池', action: '每天筛选“新线索”，查看联系人、公司、关联商品和采购需求。', result: '新增询盘被及时识别。' },
+      { entry: '线索详情 → 跟进并指派', action: '选择负责人，补充首次沟通记录并把状态改为跟进中。', result: '线索有明确负责人和下一步动作。' },
+      { entry: '线索池 → 跟进中', action: '持续更新沟通结果；有效商机标记转化，无效线索填写原因后关闭。', result: '所有线索都有可统计的最终状态。' },
+      { entry: '销售管理 → 客户管理 / 销售订单', action: '为已转化线索建立客户档案，并根据报价结果创建销售订单。', result: '线上询盘进入正式销售和回款闭环。' },
     ],
+    completion: ['新线索在团队约定时限内首次响应。', '跟进中线索均有负责人和最新记录。', '转化与关闭状态真实，关闭原因可分析。', '成交线索已经建立客户和销售订单。'],
+    issues: [
+      { question: '普通成员无法指派线索怎么办？', answer: '由拥有指派权限的负责人完成分配；普通跟进人员可在权限范围内更新自己的线索。' },
+      { question: '老板应该关注什么？', answer: '重点看新线索积压、首次响应时长、跟进中数量、转化率和主要关闭原因。' },
+    ],
+    screenshot: { src: '/training-assets/leads.webp', alt: '独立站线索池页面示例', caption: '线索池：优先处理新线索，及时指派负责人并记录跟进结果。', callouts: ['优先筛选新线索', '查看负责人和当前状态'] },
   },
   {
-    id: 'finance', title: '财务管理', icon: CircleDollarSign, topics: [
-      { id: 'receipts', title: '收款管理', summary: '登记客户回款并关联销售业务。', steps: ['新建收款并选择客户或关联单据。', '填写金额、币种、日期和收款方式。', '保存后核对未收款金额和收款状态。'] },
-      { id: 'payments', title: '付款管理', summary: '登记供应商付款并关联采购业务。', steps: ['新建付款并选择供应商或关联单据。', '填写金额、币种、日期和付款方式。', '保存后核对未付款金额和付款状态。'] },
-      { id: 'finance-statistics', title: '财务统计', summary: '汇总收入、支出、应收和应付数据。', steps: ['选择统计时间范围和币种。', '查看收支趋势及应收应付汇总。', '结合销售、采购和财务明细核对异常数据。'] },
+    id: 'owner-review', order: '08', title: '老板经营复盘', subtitle: '用固定节奏发现经营问题，而不只看单笔业务', roles: ['租户老板', '运营负责人', '财务负责人'], icon: BarChart3,
+    goal: '用经营概览、财务统计、库存和线索数据形成每日、每周、每月的管理节奏。',
+    preparation: ['采购、销售、出入库和收付款均按实际业务及时录入。', '团队使用统一状态和关闭原因。', '明确需要重点跟踪的商品、客户和市场。'],
+    steps: [
+      { entry: '每日 → 经营概览 / 线索池', action: '检查新订单、新线索、待处理事项、库存不足和异常单据。', result: '当天问题当天分配负责人。' },
+      { entry: '每周 → 财务统计 / 库存查询', action: '分析销售与采购趋势、应收应付、库存周转和缺货风险。', result: '形成下周采购、销售和催收动作。' },
+      { entry: '每月 → 经营概览 / 财务统计', action: '核对收入、支出、应收、应付、客户和线索转化，并与业务明细抽样复核。', result: '形成月度经营结论和改进计划。' },
+      { entry: '每月 → 成员与权限', action: '复核离职成员、岗位变化和高风险权限。', result: '账号与权限始终符合当前组织职责。' },
     ],
-  },
-  {
-    id: 'system', title: '系统管理', icon: Settings, topics: [
-      { id: 'system-settings', title: '系统设置', summary: '维护企业信息、业务参数和系统级偏好。', steps: ['填写企业及业务基础资料。', '配置币种、编号或其他可用业务参数。', '保存后重新进入相关页面确认设置生效。'] },
-      { id: 'team', title: '成员与权限', summary: '邀请成员、设置角色并控制菜单和操作权限。', steps: ['创建角色并勾选所需菜单、页面和功能权限。', '添加成员并分配合适角色。', '成员重新登录后，确认可见菜单和可执行操作符合预期。'], tips: ['遵循最小权限原则；使用手册页面对所有已登录商户成员开放，不受功能权限控制。'] },
+    completion: ['每日异常均有负责人和截止时间。', '每周形成采购、销售、库存和催收行动清单。', '每月统计能与订单、库存和收付款明细相互核对。', '权限与实际在岗人员一致。'],
+    issues: [
+      { question: '统计数据和预期不一致怎么办？', answer: '先确认时间、币种和单据状态，再从对应订单、库存流水和收付款明细逐层核对。' },
+      { question: '只看销售额够吗？', answer: '不够。需要同时关注回款、应付、库存占用、线索转化和异常单据，避免有收入无现金或库存积压。' },
     ],
+    screenshot: { src: '/training-assets/dashboard.webp', alt: '经营概览与财务复盘页面示例', caption: '经营复盘：从概览发现异常，再进入财务、库存和业务明细核对。', callouts: ['先看经营金额和待办', '再看趋势、品类和库存风险'] },
   },
 ];
 
-const topicIcon: Record<string, React.FC<{ className?: string }>> = {
-  'product-categories': Tags, 'sales-orders': ShoppingCart, 'sales-shipments': PackageCheck, customers: ContactRound,
-  'purchase-orders': ClipboardList, 'purchase-receipts': Truck, suppliers: Building2, 'inventory-stocks': Boxes,
-  'inventory-counts': ClipboardCheck, 'inventory-transfers': ArrowLeftRight, warehouses: Warehouse,
-  'storefront-leads': MessageSquareText, 'storefront-products': Package, 'site-design': LayoutTemplate,
-  translations: Languages, 'site-settings': Settings, 'release-history': History, receipts: CircleDollarSign,
-  payments: HandCoins, 'finance-statistics': BarChart3, 'system-settings': Settings, team: Users,
-};
-
 const HelpPage: React.FC = () => {
-  const allTopics = useMemo(() => MANUAL_GROUPS.flatMap(group => group.topics), []);
   const initialHash = window.location.hash.slice(1);
-  const [activeId, setActiveId] = useState(allTopics.some(topic => topic.id === initialHash) ? initialHash : allTopics[0].id);
+  const [activeId, setActiveId] = useState(chapters.some(chapter => chapter.id === initialHash) ? initialHash : chapters[0].id);
+  const [directoryOpen, setDirectoryOpen] = useState(false);
+  const activeChapter = useMemo(() => chapters.find(chapter => chapter.id === activeId) || chapters[0], [activeId]);
 
   useEffect(() => {
+    document.title = '租户运营培训手册 · 迈犀沃';
     if (!initialHash) return;
     requestAnimationFrame(() => document.getElementById(initialHash)?.scrollIntoView({ block: 'start' }));
   }, [initialHash]);
 
-  const openTopic = (id: string) => {
+  const openChapter = (id: string) => {
     setActiveId(id);
+    setDirectoryOpen(false);
     window.history.replaceState(null, '', `#${id}`);
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   return (
-    <div className="mx-auto max-w-[1440px]">
-      <header className="mb-5 rounded-2xl bg-gradient-to-r from-primary/12 via-primary/5 to-transparent px-6 py-5">
-        <div className="flex items-center gap-3">
-          <span className="grid h-11 w-11 place-items-center rounded-xl bg-primary text-white"><BookOpen className="h-5 w-5" /></span>
-          <div><h1 className="text-xl font-bold text-foreground">使用手册</h1><p className="mt-1 text-sm text-muted-foreground">迈犀沃 ERP 与独立站平台简易操作指南</p></div>
-        </div>
-      </header>
+    <div data-testid="standalone-help" className="min-h-screen bg-[#f7f7fc] text-foreground">
+      <header className="border-b border-border bg-white"><div className="mx-auto flex max-w-[1480px] items-center gap-3 px-4 py-4 sm:px-6 lg:px-8"><BrandMark size={34} /><div className="min-w-0"><div className="text-sm font-bold">迈犀沃</div><div className="truncate text-xs text-muted-foreground">租户运营培训手册</div></div><div className="ml-auto hidden items-center gap-2 rounded-full bg-primary/8 px-3 py-1.5 text-xs text-primary sm:flex"><BookOpen className="h-3.5 w-3.5" />进销存与独立站实操指南</div><button type="button" aria-label="打开培训目录" onClick={() => setDirectoryOpen(true)} className="ml-auto grid h-9 w-9 place-items-center rounded-lg border border-border bg-white lg:hidden"><Menu className="h-4 w-4" /></button></div></header>
 
-      <div className="grid min-h-[calc(100vh-190px)] gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <aside className="h-fit overflow-hidden rounded-2xl border border-border bg-card lg:sticky lg:top-0">
-          <div className="border-b border-border px-4 py-3 text-sm font-semibold">手册目录</div>
-          <nav aria-label="使用手册目录" className="max-h-[calc(100vh-230px)] overflow-y-auto p-2">
-            {MANUAL_GROUPS.map(group => {
-              const GroupIcon = group.icon;
-              return <div key={group.id} className="mb-3 last:mb-0"><div className="flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-muted-foreground"><GroupIcon className="h-3.5 w-3.5" />{group.title}</div>{group.topics.map(topic => <button key={topic.id} type="button" onClick={() => openTopic(topic.id)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${activeId === topic.id ? 'bg-primary/10 text-primary' : 'text-foreground/80 hover:bg-secondary'}`}><span className="min-w-0 flex-1 truncate">{topic.title}</span><ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50" /></button>)}</div>;
-            })}
-          </nav>
-        </aside>
+      <section className="border-b border-primary/10 bg-gradient-to-br from-primary/12 via-white to-violet-50"><div className="mx-auto grid max-w-[1480px] gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8 lg:py-14"><div><div className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-primary">Mercivo Training Guide</div><h1 className="max-w-3xl text-3xl font-bold leading-tight sm:text-4xl">把系统真正用进业务里</h1><p className="mt-4 max-w-3xl text-sm leading-7 text-muted-foreground sm:text-base">这不是菜单说明书，而是一套面向租户老板和运营团队的实操培训。按照八个阶段完成配置、进货、销售、库存、独立站获客与经营复盘。</p></div><div className="grid grid-cols-2 gap-3 rounded-2xl border border-white/80 bg-white/70 p-4 shadow-sm backdrop-blur"><div><div className="text-2xl font-bold text-primary">8</div><div className="mt-1 text-xs text-muted-foreground">业务培训阶段</div></div><div><div className="text-2xl font-bold text-primary">5</div><div className="mt-1 text-xs text-muted-foreground">核心岗位协作</div></div><div className="col-span-2 border-t border-border pt-3 text-xs leading-5 text-muted-foreground">建议首次由老板和各岗位负责人共同学习，再按职责完成对应章节。</div></div></div></section>
 
-        <main className="min-w-0 space-y-5">
-          {MANUAL_GROUPS.map(group => <section key={group.id} aria-labelledby={`${group.id}-title`} className="overflow-hidden rounded-2xl border border-border bg-card"><div className="border-b border-border bg-secondary/25 px-5 py-4"><h2 id={`${group.id}-title`} className="text-base font-bold">{group.title}</h2></div><div className="divide-y divide-border">{group.topics.map(topic => { const TopicIcon = topicIcon[topic.id] || group.icon; return <article id={topic.id} key={topic.id} className="scroll-mt-6 px-5 py-5"><div className="flex items-start gap-3"><span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><TopicIcon className="h-4 w-4" /></span><div className="min-w-0"><h3 className="text-[15px] font-semibold">{topic.title}</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">{topic.summary}</p></div></div><div className="mt-4 rounded-xl bg-secondary/30 p-4"><div className="mb-2 text-xs font-semibold text-foreground">操作步骤</div><ol className="space-y-2">{topic.steps.map((step, index) => <li key={step} className="flex gap-3 text-sm leading-6 text-foreground/80"><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">{index + 1}</span><span>{step}</span></li>)}</ol></div>{topic.tips?.length ? <div className="mt-3 space-y-1.5">{topic.tips.map(tip => <p key={tip} className="flex gap-2 text-xs leading-5 text-muted-foreground"><CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" /><span>{tip}</span></p>)}</div> : null}</article>; })}</div></section>)}
-        </main>
+      <div className="mx-auto grid max-w-[1480px] gap-6 px-4 py-7 sm:px-6 lg:grid-cols-[270px_minmax(0,1fr)] lg:px-8">
+        <aside data-testid="manual-directory" className="hidden h-fit overflow-hidden rounded-2xl border border-border bg-white lg:sticky lg:top-6 lg:block"><div className="border-b border-border px-4 py-3"><div className="text-sm font-semibold">培训目录</div><div className="mt-0.5 text-xs text-muted-foreground">按业务顺序逐章完成</div></div><nav aria-label="培训手册目录" className="max-h-[calc(100vh-150px)] overflow-y-auto p-2">{chapters.map(chapter => <button key={chapter.id} type="button" onClick={() => openChapter(chapter.id)} className={`mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${activeId === chapter.id ? 'bg-primary/10 text-primary' : 'text-foreground/80 hover:bg-secondary'}`}><span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[11px] font-bold ${activeId === chapter.id ? 'bg-primary text-white' : 'bg-secondary text-muted-foreground'}`}>{chapter.order}</span><span className="min-w-0 flex-1 truncate text-sm">{chapter.title}</span><ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50" /></button>)}</nav></aside>
+
+        {directoryOpen && <div className="fixed inset-0 z-50 lg:hidden"><button type="button" aria-label="关闭培训目录遮罩" onClick={() => setDirectoryOpen(false)} className="absolute inset-0 bg-black/35" /><aside className="absolute inset-y-0 left-0 w-[min(86vw,320px)] overflow-y-auto bg-white p-4 shadow-2xl"><div className="mb-4 flex items-center justify-between"><div><div className="font-semibold">培训目录</div><div className="text-xs text-muted-foreground">当前：{activeChapter.title}</div></div><button type="button" aria-label="关闭培训目录" onClick={() => setDirectoryOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg hover:bg-secondary"><X className="h-4 w-4" /></button></div><nav aria-label="移动端培训手册目录" className="space-y-1">{chapters.map(chapter => <button key={chapter.id} type="button" onClick={() => openChapter(chapter.id)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left ${activeId === chapter.id ? 'bg-primary/10 text-primary' : 'hover:bg-secondary'}`}><span className="text-xs font-bold">{chapter.order}</span><span className="text-sm">{chapter.title}</span></button>)}</nav></aside></div>}
+
+        <main className="min-w-0 space-y-6">{chapters.map(chapter => { const Icon = chapter.icon; return <article id={chapter.id} key={chapter.id} className="scroll-mt-6 overflow-hidden rounded-2xl border border-border bg-white shadow-sm"><div className="border-b border-border bg-gradient-to-r from-primary/8 to-transparent px-5 py-5 sm:px-7"><div className="flex items-start gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary text-white"><Icon className="h-5 w-5" /></span><div className="min-w-0"><div className="text-xs font-bold tracking-widest text-primary">阶段 {chapter.order}</div><h2 className="mt-1 text-xl font-bold">{chapter.title}</h2><p className="mt-1 text-sm text-muted-foreground">{chapter.subtitle}</p></div></div><div className="mt-4 flex flex-wrap gap-2">{chapter.roles.map(role => <span key={role} className="rounded-full border border-primary/15 bg-white px-3 py-1 text-xs text-primary">适用角色 · {role}</span>)}</div></div>
+          <div className="space-y-6 px-5 py-6 sm:px-7"><section><div className="mb-2 flex items-center gap-2 text-sm font-semibold"><Target className="h-4 w-4 text-primary" />培训目标</div><p className="rounded-xl bg-primary/5 px-4 py-3 text-sm leading-6 text-foreground/80">{chapter.goal}</p></section><section><h3 className="mb-3 text-sm font-semibold">开始前准备</h3><div className="grid gap-2 sm:grid-cols-2">{chapter.preparation.map(item => <div key={item} className="flex gap-2 rounded-xl border border-border px-3 py-2.5 text-sm leading-5"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /><span>{item}</span></div>)}</div></section>
+            <section><h3 className="mb-3 text-sm font-semibold">标准操作流程</h3><div className="overflow-hidden rounded-xl border border-border">{chapter.steps.map((step, index) => <div key={`${step.entry}-${index}`} className="grid gap-3 border-b border-border p-4 last:border-b-0 md:grid-cols-[44px_190px_minmax(0,1fr)]"><span className="grid h-8 w-8 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary">{index + 1}</span><div><div className="text-[11px] font-semibold uppercase text-muted-foreground">操作入口</div><div className="mt-1 text-sm font-medium text-primary">{step.entry}</div></div><div><p className="text-sm leading-6">{step.action}</p><p className="mt-1 flex gap-1.5 text-xs leading-5 text-muted-foreground"><ArrowRight className="mt-1 h-3 w-3 shrink-0" /><span>完成结果：{step.result}</span></p></div></div>)}</div></section>
+            {chapter.screenshot && <figure className="overflow-hidden rounded-2xl border border-border bg-secondary/20"><div className="relative aspect-[16/9] overflow-hidden bg-secondary"><img src={chapter.screenshot.src} alt={chapter.screenshot.alt} loading="lazy" className="h-full w-full object-cover object-top" onError={event => { event.currentTarget.hidden = true; event.currentTarget.nextElementSibling?.classList.remove('hidden'); }} /><div className="absolute inset-0 hidden place-items-center p-8 text-center text-sm text-muted-foreground"><div><BookOpen className="mx-auto mb-2 h-7 w-7" />截图暂不可用，请按上方操作入口进入系统。</div></div>{chapter.screenshot.callouts.map((label, index) => <span key={label} aria-label={`${index + 1}. ${label}`} className="absolute grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-primary text-xs font-bold text-white shadow-lg" style={{ left: `${18 + index * 30}%`, top: `${24 + index * 20}%` }}>{index + 1}</span>)}</div><figcaption className="px-4 py-3 text-xs leading-5 text-muted-foreground"><p>{chapter.screenshot.caption}</p><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">{chapter.screenshot.callouts.map((label, index) => <span key={label} className="inline-flex items-center gap-1.5"><b className="text-primary">{index + 1}</b>{label}</span>)}</div></figcaption></figure>}
+            <section className="grid gap-4 xl:grid-cols-2"><div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4"><h3 className="mb-3 text-sm font-semibold text-emerald-800">完成标志</h3><ul className="space-y-2">{chapter.completion.map(item => <li key={item} className="flex gap-2 text-sm leading-5 text-emerald-900/80"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /><span>{item}</span></li>)}</ul></div><div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4"><h3 className="mb-3 text-sm font-semibold text-amber-900">常见问题</h3><div className="space-y-3">{chapter.issues.map(issue => <div key={issue.question}><div className="text-sm font-medium text-amber-950">{issue.question}</div><p className="mt-1 text-xs leading-5 text-amber-900/75">{issue.answer}</p></div>)}</div></div></section></div></article>; })}</main>
       </div>
+      <footer className="border-t border-border bg-white px-4 py-6 text-center text-xs text-muted-foreground">迈犀沃 · 外贸 ERP 与独立站平台 · 培训内容以当前系统功能为准</footer>
     </div>
   );
 };
