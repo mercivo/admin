@@ -70,6 +70,7 @@ const PATH_PAGE_MAP: Record<string, string> = {
   "/storefront/settings": "storefront-settings",
   "/storefront-translations": "storefront-translations",
   "/site-editor": "storefront-design",
+  "/help": "help",
 };
 
 const PAGE_ROUTES: Record<string, string> = {

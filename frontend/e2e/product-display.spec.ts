@@ -70,6 +70,23 @@ test('product create and edit pages do not render the inventory reminder card', 
   await expect(page.getByText('库存提醒', { exact: true })).toHaveCount(0);
 });
 
+test('delete variant confirmation centers its icon above the copy', async ({ page }) => {
+  await prepareMerchant(page);
+  await page.goto('/products/product-1/edit');
+  await page.getByRole('button', { name: '规格库存', exact: true }).click();
+  await page.getByRole('button', { name: '添加规格行' }).click();
+  await page.getByTitle('删除规格').click();
+
+  const dialog = page.getByRole('dialog', { name: '删除规格' });
+  await expect(dialog).toBeVisible();
+  const confirmation = dialog.locator('.flex.flex-col.items-center');
+  await expect(confirmation).toBeVisible();
+  await expect(confirmation.getByText('确认删除此规格？', { exact: true })).toBeVisible();
+  await expect(confirmation.getByText('删除后不可恢复，该规格的库存数据将一并移除。', { exact: true })).toBeVisible();
+  await expect(confirmation).toHaveCSS('flex-direction', 'column');
+  await expect(confirmation).toHaveCSS('align-items', 'center');
+});
+
 test('product list image opens the shared full-height preview and badges use display names', async ({ page }) => {
   await prepareMerchant(page);
   await page.goto('/products');

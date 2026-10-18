@@ -32,6 +32,7 @@ const LoginPage = lazy(() => import("./pages/Login"));
 const SystemAdminPage = lazy(() => import("./pages/SystemAdmin"));
 const StorefrontPage = lazy(() => import("./pages/Storefront"));
 const TranslationsPage = lazy(() => import("./pages/Translations"));
+const HelpPage = lazy(() => import("./pages/Help"));
 
 const AppLayout: React.FC = () => (
   <div className="h-screen flex flex-col bg-background overflow-hidden">
@@ -231,6 +232,7 @@ const App: React.FC = () => {
                   <Route element={<BackendLayout />}>
                     <Route index element={<TenantHome />} />
                     <Route path="no-access" element={<PermissionDenied />} />
+                    <Route path="help" element={<HelpPage />} />
                     <Route
                       path="dashboard"
                       element={

@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Input, Dropdown } from 'antd';
+import { Dropdown, Tooltip } from 'antd';
 import type { MenuProps } from 'antd';
 import {
-  Search,
+  BookOpen,
   ChevronDown,
   Settings,
   KeyRound,
@@ -127,7 +127,7 @@ const DemoNav: React.FC = () => {
   return (
     <div className="flex-shrink-0 bg-white border-b border-border select-none" style={{ boxShadow: '0 1px 0 rgba(91,68,232,0.07)' }}>
 
-      {/* Row 1: Brand | divider | Group switcher | spacer | Search + Utilities */}
+      {/* Row 1: Brand | divider | Group switcher | spacer | Help + Utilities */}
       <div className="flex h-16 items-center gap-5 border-b border-border px-5">
 
         {/* Brand */}
@@ -164,15 +164,17 @@ const DemoNav: React.FC = () => {
 
         <div className="flex-1" />
 
-        {/* Global Search */}
-        <div style={{ width: 320 }}>
-          <Input
-            placeholder="搜索商品、客户或站点..."
-            prefix={<Search className="w-4 h-4 text-muted-foreground" />}
-            suffix={<kbd className="text-[10px] bg-white border border-border px-1.5 py-0.5 rounded text-muted-foreground">⌘K</kbd>}
-            variant="filled" size="middle"
-          />
-        </div>
+        {/* Help manual */}
+        <Tooltip title="使用手册">
+          <button
+            type="button"
+            aria-label="打开使用手册"
+            onClick={() => navigate('/help')}
+            className={`grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg transition-colors ${location.pathname === '/help' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-secondary hover:text-primary'}`}
+          >
+            <BookOpen className="h-4.5 w-4.5" />
+          </button>
+        </Tooltip>
 
         {/* User Avatar */}
         <Dropdown menu={{ items: userMenuItems, onClick: ({ key }) => { if (key === 'logout') { localStorage.removeItem('mercivo_access_token'); localStorage.removeItem('mercivo_user'); localStorage.removeItem('mercivo_tenant'); window.location.assign('/login'); } else if (key === 'change-password') setPasswordModalOpen(true); else handleNav(key); } }} trigger={['click']} placement="bottomRight">

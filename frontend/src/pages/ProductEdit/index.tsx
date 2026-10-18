@@ -409,13 +409,13 @@ const ProductEditPage: React.FC = () => {
       {/* Delete Variant Confirmation Modal */}
       {deleteVariantIndex !== null && (
         <AppModal open title="删除规格" onCancel={() => setDeleteVariantIndex(null)} onOk={() => handleDeleteVariant(deleteVariantIndex)} okText="确认删除" cancelText="取消" okButtonProps={{ danger: true }} width={440}>
-            <div className="py-3">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+            <div className="py-4 text-center">
+              <div className="flex flex-col items-center">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-red-100">
                   <AlertTriangle className="w-5 h-5 text-red-500" />
                 </div>
-                <div>
-                  <p className="text-sm font-normal text-foreground mb-1">确认删除此规格？</p>
+                <div className="mt-3">
+                  <p className="mb-1 text-sm font-medium text-foreground">确认删除此规格？</p>
                   <p className="text-sm text-muted-foreground">删除后不可恢复，该规格的库存数据将一并移除。</p>
                 </div>
               </div>
