@@ -73,7 +73,7 @@ const FinancePage: React.FC = () => {
   const [rows, setRows] = useState<FinanceTransaction[]>([]);
   const [summary, setSummary] = useState({ confirmedAmount: 0, pendingAmount: 0, totalCount: 0 });
   const [statistics, setStatistics] = useState<FinanceStatistics | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [status, setStatus] = useState<string>();

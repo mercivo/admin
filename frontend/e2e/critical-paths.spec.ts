@@ -61,7 +61,7 @@ test('product creation uses real rich text and cloud image controls', async ({ p
     expect(await locator.evaluate(element => getComputedStyle(element).fontWeight)).toBe('400');
   };
   await expectNormalWeight(page.getByRole('button', { name: '基本信息' }));
-  for (const label of ['商品名称', '商品描述', '商品图片（拖拽排序）', '同步设置', '同步到独立站', '商品分类', '商品标记', '点赞数量']) {
+  for (const label of ['商品名称', '商品描述', '商品图片（最多 10 张，第一张为主图）', '同步设置', '同步到独立站', '商品分类', '商品标记', '点赞数量']) {
     await expectNormalWeight(page.getByText(label, { exact: true }).first());
   }
   await expect(page.getByText('库存提醒', { exact: true })).toHaveCount(0);
@@ -218,12 +218,13 @@ test('product management renders an Ant Design category tree in the customer-lev
   await page.goto('http://localhost:8088/products');
 
   await expect(page.getByRole('heading', { name: '商品列表', exact: true })).toBeVisible();
+  await expect(page.getByTestId('admin-table-skeleton')).toHaveCount(0);
   expect(await page.getByRole('button', { name: '商品管理', exact: true }).evaluate(element => getComputedStyle(element).fontWeight)).toBe('400');
   expect(await page.getByRole('button', { name: '商品列表', exact: true }).evaluate(element => getComputedStyle(element).fontWeight)).toBe('400');
   const sidebar = page.locator('aside').filter({ has: page.getByRole('heading', { name: '商品分类' }) });
   await expect(sidebar).toBeVisible();
   const sidebarBox = await sidebar.boundingBox();
-  const productPanelBox = await page.locator('main section').boundingBox();
+  const productPanelBox = await page.locator('main section').filter({ has: page.locator('.ant-table') }).boundingBox();
   expect(Math.round(sidebarBox?.width || 0)).toBe(240);
   expect(Math.abs((sidebarBox?.height || 0) - (productPanelBox?.height || 0))).toBeLessThanOrEqual(1);
   expect(productPanelBox?.x || 0).toBeGreaterThan((sidebarBox?.x || 0) + (sidebarBox?.width || 0));
@@ -328,7 +329,7 @@ test('storefront product pool is a read-only category tree and synced product ta
   const productDialog = page.getByRole('dialog', { name: '商品详情' });
   await expect(productDialog).toBeVisible();
   await expect(productDialog.getByText('已同步托特包', { exact: true })).toHaveCount(1);
-  await expect(productDialog.getByText('畅销', { exact: true })).toBeVisible();
+  await expect(productDialog.getByText('热销', { exact: true })).toBeVisible();
   await expect(productDialog.getByText('可定制', { exact: true })).toBeVisible();
   await expect(productDialog.getByText('128', { exact: true })).toBeVisible();
   const richDescription = productDialog.getByTestId('storefront-product-description');

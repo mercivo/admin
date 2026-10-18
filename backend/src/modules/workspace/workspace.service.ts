@@ -119,29 +119,34 @@ export class WorkspaceService {
     return (saved.value as Record<string, unknown>).siteInfo || {};
   }
 
+  private async createConfigIfMissing(key: string, value: Record<string, unknown>) {
+    await this.configRepo.createQueryBuilder().insert().into(AppConfig).values({ key, value } as any).orIgnore().execute();
+    return this.configRepo.findOne({ where: { key } });
+  }
+
   async getConfig(key: string, siteId: string) {
     if (!['seo', 'siteEditor', 'sales', 'currency', 'system'].includes(key)) throw new BadRequestException('不支持的配置项');
     const scopedKey = `${siteId}:${key}`;
     let config = await this.configRepo.findOne({ where: { key: scopedKey } });
     if (!config) {
       const legacy = await this.configRepo.findOne({ where: { key } });
-      if (legacy) config = await this.configRepo.save({ key: scopedKey, value: legacy.value });
+      if (legacy) config = await this.createConfigIfMissing(scopedKey, legacy.value as Record<string, unknown>);
     }
     if (!config && key === 'currency') {
       const legacySales = await this.configRepo.findOne({ where: { key: `${siteId}:sales` } });
-      if (legacySales) config = await this.configRepo.save({ key: scopedKey, value: legacySales.value });
+      if (legacySales) config = await this.createConfigIfMissing(scopedKey, legacySales.value as Record<string, unknown>);
     }
     if (!config && key === 'seo') {
-      config = await this.configRepo.save({ key: scopedKey, value: { title: '', description: '', keywords: '' } });
+      config = await this.createConfigIfMissing(scopedKey, { title: '', description: '', keywords: '' });
     }
     if (!config && key === 'siteEditor') {
-      config = await this.configRepo.save({ key: scopedKey, value: {} });
+      config = await this.createConfigIfMissing(scopedKey, {});
     }
     if (!config && (key === 'sales' || key === 'currency')) {
-      config = await this.configRepo.save({ key: scopedKey, value: { defaultCurrency: 'CNY', purchaseDefaultCurrency: 'CNY', salesDefaultCurrency: 'BAM', currencies: [{ code: 'CNY', name: '人民币', symbol: '¥', enabled: true }, { code: 'BAM', name: '波黑可兑换马克', symbol: 'KM', enabled: true }, { code: 'USD', name: '美元', symbol: '$', enabled: true }, { code: 'EUR', name: '欧元', symbol: '€', enabled: true }] } });
+      config = await this.createConfigIfMissing(scopedKey, { defaultCurrency: 'CNY', purchaseDefaultCurrency: 'CNY', salesDefaultCurrency: 'BAM', currencies: [{ code: 'CNY', name: '人民币', symbol: '¥', enabled: true }, { code: 'BAM', name: '波黑可兑换马克', symbol: 'KM', enabled: true }, { code: 'USD', name: '美元', symbol: '$', enabled: true }, { code: 'EUR', name: '欧元', symbol: '€', enabled: true }] });
     }
     if (!config && key === 'system') {
-      config = await this.configRepo.save({ key: scopedKey, value: { inventoryWarning: { enabled: true, threshold: 10 }, storefront: { guestAccessEnabled: true, guestPriceMode: 'base', guestPricePercentage: 100 } } });
+      config = await this.createConfigIfMissing(scopedKey, { inventoryWarning: { enabled: true, threshold: 10 }, storefront: { guestAccessEnabled: true, guestPriceMode: 'base', guestPricePercentage: 100 } });
     }
     if (!config) throw new NotFoundException(`Config ${key} not found`);
     if (key === 'currency' || key === 'sales') {

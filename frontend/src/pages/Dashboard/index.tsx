@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowRight, Banknote, Boxes, CircleDollarSign, ClipboardList, MessageSquareText, PackageCheck, ShoppingCart, Truck, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { dashboardApi, storefrontManageApi, type DashboardStats, type StorefrontOverview } from '../../services/api/index';
-import { AppTable, CurrencySelect, LeadStatusTag, PageContent, PageHeader, SalesOrderStatusTag } from '../../components/shared';
+import { AdminLoadError, AdminModuleSkeleton, AdminPageSkeleton, AppTable, CurrencySelect, LeadStatusTag, PageContent, PageHeader, SalesOrderStatusTag } from '../../components/shared';
+import { useAdminAsyncState } from '../../hooks/useAdminAsyncState';
 import CategoryDonutChart from './CategoryDonutChart';
 import OrderTrendChart from './OrderTrendChart';
 
@@ -13,14 +14,18 @@ const DashboardPage: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats>();
   const [storefront, setStorefront] = useState<StorefrontOverview>();
   const [currency, setCurrency] = useState('');
+  const statsState = useAdminAsyncState();
+  const storefrontState = useAdminAsyncState();
 
-  useEffect(() => {
-    dashboardApi.getStats().then((data) => {
-      setStats(data);
-      setCurrency(data.defaultCurrency || data.currencies[0]?.code || data.financials[0]?.currency || 'CNY');
-    }).catch(() => setStats(undefined));
-  }, []);
-  useEffect(() => { storefrontManageApi.overview().then(setStorefront).catch(() => setStorefront(undefined)); }, []);
+  const loadStats = useCallback(() => statsState.execute(() => dashboardApi.getStats()).then(({ value, current }) => {
+    if (!current) return;
+    const data = { ...value, currencies: value.currencies || [], financials: value.financials || [], orders: value.orders || { salesTotal: 0, salesOpen: 0, purchaseTotal: 0, purchaseOpen: 0 }, risks: value.risks || { pendingFunds: 0, lowStock: 0, pendingProducts: 0 }, monthlyOrders: value.monthlyOrders || [], topSellingProducts: value.topSellingProducts || [], categoryDistribution: value.categoryDistribution || [], lowStockProducts: value.lowStockProducts || [], latestSalesOrders: value.latestSalesOrders || [] };
+    setStats(data);
+    setCurrency(data.defaultCurrency || data.currencies[0]?.code || data.financials[0]?.currency || 'CNY');
+  }).catch(() => undefined), [statsState.execute]);
+  const loadStorefront = useCallback(() => storefrontState.execute(() => storefrontManageApi.overview()).then(({ value, current }) => { if (current) setStorefront(value); }).catch(() => undefined), [storefrontState.execute]);
+  useEffect(() => { void loadStats(); }, [loadStats]);
+  useEffect(() => { void loadStorefront(); }, [loadStorefront]);
 
   const currencyOptions = useMemo(() => {
     const configured = stats?.currencies || [];
@@ -60,6 +65,8 @@ const DashboardPage: React.FC = () => {
   return <PageContent>
     <PageHeader title="经营概览" description="快速了解销售、采购、库存与资金经营状态" action={<button onClick={() => navigate('/sales/orders')} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white">处理销售订单 <ArrowRight size={15}/></button>}/>
 
+    {statsState.isInitialLoading ? <AdminPageSkeleton variant="dashboard"/> : statsState.isError ? <AdminLoadError title="经营数据加载失败" onRetry={loadStats}/> : <>
+
     <section className={`${card} p-4 sm:p-5`}><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold">经营金额</h2><p className="mt-1 text-xs text-muted-foreground">金额按原币独立统计，币种切换仅影响本区域</p></div><CurrencySelect value={currency} onChange={setCurrency} currencies={currencyOptions}/></div><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{kpis.map(({ label, value, note, icon: Icon, tone }) => <div key={label} className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${tone} p-5 text-white shadow-sm`}><div className="absolute -right-5 -top-5 h-24 w-24 rounded-full bg-white/10"/><div className="relative flex items-start justify-between"><div><div className="text-sm text-white/80">{label}</div><div className="mt-3 text-2xl font-bold">{formatMoney(value)}</div><div className="mt-3 text-xs text-white/70">{note}</div></div><Icon size={24} className="text-white/85"/></div></div>)}</div></section>
 
     <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">{signals.map(({ label, value, path, icon: Icon, tone }) => <button key={label} onClick={() => navigate(path)} className={`${card} flex items-center gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md`}><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${tone}`}><Icon size={18}/></span><span><b className="text-xl">{value}</b><span className="mt-0.5 block text-xs text-muted-foreground">{label}</span></span></button>)}</div>
@@ -76,7 +83,8 @@ const DashboardPage: React.FC = () => {
 
     <section className={`${card} overflow-hidden p-5`}><div className="mb-4 flex items-center gap-3"><ClipboardList size={20} className="text-indigo-600"/><div><h2 className="font-bold">最新销售订单</h2><p className="mt-1 text-xs text-muted-foreground">保留订单原币展示，左右滑动可查看完整列</p></div></div><AppTable size="middle" pagination={false} rowKey="id" scroll={{ x: 900 }} dataSource={stats?.latestSalesOrders || []} columns={[{ title: '订单号', dataIndex: 'orderNo', width: 220, render: (value) => <span className="font-mono font-medium text-indigo-600">{value || '-'}</span> }, { title: '客户', dataIndex: 'customerName', width: 180, render: (value) => value || '-' }, { title: '金额', dataIndex: 'amount', width: 170, align: 'right', render: (value, row) => <b className="text-indigo-600">{row.currency} {Number(value || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b> }, { title: '状态', dataIndex: 'status', width: 130, align: 'center', render: (value) => <SalesOrderStatusTag status={value}/> }, { title: '日期', dataIndex: 'createdAt', width: 180, render: (value) => value ? new Date(value).toLocaleString('zh-CN') : '-' }]}/></section>
 
-    <section className={`${card} overflow-hidden p-5`}><div className="mb-4 flex items-center justify-between gap-3"><div className="flex items-center gap-3"><MessageSquareText size={20} className="text-violet-600"/><div><h2 className="font-bold">最新询盘线索</h2><p className="mt-1 text-xs text-muted-foreground">独立站访客最新提交的需求</p></div></div><button onClick={() => navigate('/storefront/leads')} className="text-sm font-semibold text-primary">进入线索池</button></div><AppTable size="middle" pagination={false} rowKey="id" dataSource={storefront?.recentLeads || []} columns={[{ title: '客户', render: (_, row) => <div><span>{row.name || '-'}</span><div className="text-xs text-muted-foreground">{row.company || '-'}</div></div> }, { title: '联系方式', render: (_, row) => row.contact || row.email || row.phone || '-' }, { title: '采购需求', dataIndex: 'requirements', width: 320, ellipsis: true, render: value => value || '-' }, { title: '状态', dataIndex: 'status', width: 100, render: value => <LeadStatusTag status={value}/> }, { title: '提交时间', dataIndex: 'createdAt', render: value => value ? new Date(value).toLocaleString('zh-CN') : '-' }]}/></section>
+    {storefrontState.isInitialLoading ? <AdminModuleSkeleton rows={5} minHeight={300}/> : storefrontState.isError ? <AdminLoadError title="询盘线索加载失败" onRetry={loadStorefront}/> : <section className={`${card} overflow-hidden p-5`}><div className="mb-4 flex items-center justify-between gap-3"><div className="flex items-center gap-3"><MessageSquareText size={20} className="text-violet-600"/><div><h2 className="font-bold">最新询盘线索</h2><p className="mt-1 text-xs text-muted-foreground">独立站访客最新提交的需求</p></div></div><button onClick={() => navigate('/storefront/leads')} className="text-sm font-semibold text-primary">进入线索池</button></div><AppTable size="middle" pagination={false} rowKey="id" dataSource={storefront?.recentLeads || []} columns={[{ title: '客户', render: (_, row) => <div><span>{row.name || '-'}</span><div className="text-xs text-muted-foreground">{row.company || '-'}</div></div> }, { title: '联系方式', render: (_, row) => row.contact || row.email || row.phone || '-' }, { title: '采购需求', dataIndex: 'requirements', width: 320, ellipsis: true, render: value => value || '-' }, { title: '状态', dataIndex: 'status', width: 100, render: value => <LeadStatusTag status={value}/> }, { title: '提交时间', dataIndex: 'createdAt', render: value => value ? new Date(value).toLocaleString('zh-CN') : '-' }]}/></section>}
+    </>}
   </PageContent>;
 };
 

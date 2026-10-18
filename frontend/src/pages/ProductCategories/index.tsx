@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Input, Select, Switch as AntSwitch } from 'antd';
 import { Search, Plus, ChevronRight, Edit, Trash2, Tags, AlertCircle } from 'lucide-react';
-import { AppModal, ModalForm, ModalFormField, ModalFormGrid, TableActionButton, TableActions, Toast } from '../../components/shared';
+import { AdminLoadError, AdminPageSkeleton, AppModal, ModalForm, ModalFormField, ModalFormGrid, TableActionButton, TableActions, Toast } from '../../components/shared';
+import { useAdminAsyncState } from '../../hooks/useAdminAsyncState';
 import { productCategoryApi } from '../../services/api/index';
 
 type ProductCategoryChild = { code: string; label: string; sort: number; status: string; remark: string };
@@ -43,13 +44,14 @@ const ProductCategoriesPage: React.FC = () => {
   const [editingEntry, setEditingEntry] = useState<{ level: number; code: string; data: CategoryFormData } | null>(null);
   const [collapsedRows, setCollapsedRows] = useState<Set<string>>(new Set());
   const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const loadState = useAdminAsyncState();
 
-  useEffect(() => {
-    productCategoryApi.list().then(items => {
+  const loadCategories = useCallback(() => loadState.execute(() => productCategoryApi.list()).then(({ value: items, current }) => {
+      if (!current) return;
       setCategories(items);
       setCollapsedRows(new Set());
-    }).catch(() => setToast({ message: '商品分类加载失败', type: 'error' }));
-  }, []);
+    }).catch(() => setToast({ message: '商品分类加载失败', type: 'error' })), [loadState.execute]);
+  useEffect(() => { void loadCategories(); }, [loadCategories]);
 
   const [showAddLevel1, setShowAddLevel1] = useState(false);
   const [showAddLevel2, setShowAddLevel2] = useState<{ parentCode: string; parentLabel: string } | null>(null);
@@ -175,6 +177,8 @@ const ProductCategoriesPage: React.FC = () => {
         <button onClick={() => setShowAddLevel1(true)} className="flex h-9 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary/90"><Plus className="h-4 w-4" />新增一级分类</button>
       </div>
 
+      {loadState.isInitialLoading ? <AdminPageSkeleton variant="table"/> : loadState.isError ? <AdminLoadError title="商品分类加载失败" onRetry={loadCategories}/> : <>
+
       <div className="flex min-h-[560px] flex-col overflow-hidden rounded-2xl border border-white/60 bg-white/80 shadow-sm backdrop-blur-xl">
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex items-center gap-3">
@@ -194,6 +198,7 @@ const ProductCategoriesPage: React.FC = () => {
           </div>
         )}
       </div>
+      </>}
 
       {showAddLevel1 && <CategoryFormModal title="新增一级分类" onClose={() => setShowAddLevel1(false)} onSave={handleAddLevel1} />}
       {showAddLevel2 && <CategoryFormModal title={`为“${showAddLevel2.parentLabel}”添加二级分类`} onClose={() => setShowAddLevel2(null)} onSave={handleAddLevel2} />}

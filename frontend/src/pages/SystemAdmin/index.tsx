@@ -10,7 +10,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import api from '../../services/api';
 import type { PermissionItem, PlanItem } from '../../services/api/index';
-import { AppModal, AppTable, BrandMark, createActionColumn, ModalForm, ModalFormField, ModalFormGrid, PageContent, PageHeader as SharedPageHeader, PermissionTreePicker, TableActionButton, TableActions } from '../../components/shared';
+import { AdminLoadError, AdminPageSkeleton, AppModal, AppTable, BrandMark, createActionColumn, ModalForm, ModalFormField, ModalFormGrid, PageContent, PageHeader as SharedPageHeader, PermissionTreePicker, TableActionButton, TableActions } from '../../components/shared';
 import { useTablePagination } from '../../hooks/useTablePagination';
 import type { Paged } from '../../services/api/index';
 import TenantGrowthChart from './TenantGrowthChart';
@@ -21,6 +21,16 @@ type Analytics = { lifecycle: { total: number; active: number; suspended: number
 type PlatformOrder = { id: string; orderNo: string; planName: string; amount: number; currency: string; status: string; createdAt: string };
 type ModuleId = 'overview' | 'merchants' | 'quotas' | 'plans' | 'orders';
 type TenantEditorMode = 'profile' | 'quota';
+
+const EMPTY_ANALYTICS: Analytics = {
+  lifecycle: { total: 0, active: 0, suspended: 0, expired: 0, expiring: 0, atRisk: 0, paidTenants: 0 },
+  business: { sites: 0, publishedSites: 0, verifiedDomains: 0, products: 0, customers: 0, members: 0, warehouses: 0, confirmedOrders: 0 },
+  utilization: { products: 0, members: 0, quotaWarningTenants: 0 },
+  customization: { customQuotaTenants: 0, customPermissionTenants: 0 },
+  tenantGrowth: [],
+  planDistribution: [],
+  topTenants: [],
+};
 
 const MENU_GROUPS: Array<{ id: string; label: string; items: Array<{ id: ModuleId; label: string; icon: React.ElementType }> }> = [
   { id: 'platform', label: '运营概览', items: [{ id: 'overview', label: '运营概览', icon: LayoutDashboard }] },
@@ -54,7 +64,7 @@ const SystemAdminPage: React.FC = () => {
   const navigate = useNavigate();
   const { module: rawModule } = useParams<{ module: string }>();
   const module = rawModule as ModuleId;
-  const [analytics, setAnalytics] = useState<Analytics>();
+  const [analytics, setAnalytics] = useState<Analytics>(EMPTY_ANALYTICS);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [plans, setPlans] = useState<PlanItem[]>([]);
   const [orders, setOrders] = useState<PlatformOrder[]>([]);
@@ -66,6 +76,8 @@ const SystemAdminPage: React.FC = () => {
   const [keyword, setKeyword] = useState('');
   const [tenantStatus, setTenantStatus] = useState<'all' | Tenant['status']>('all');
   const [loading, setLoading] = useState(true);
+  const [loadedModule, setLoadedModule] = useState<ModuleId | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const tenantPagination = useTablePagination();
@@ -78,9 +90,21 @@ const SystemAdminPage: React.FC = () => {
   };
   const loadPage = async () => {
     setLoading(true);
+    setLoadFailed(false);
     try {
       if (module === 'overview') {
-        setAnalytics(await api.get<unknown, Analytics>('/system/analytics'));
+        const result = await api.get<unknown, Partial<Analytics>>('/system/analytics');
+        setAnalytics({
+          ...EMPTY_ANALYTICS,
+          ...result,
+          lifecycle: { ...EMPTY_ANALYTICS.lifecycle, ...result.lifecycle },
+          business: { ...EMPTY_ANALYTICS.business, ...result.business },
+          utilization: { ...EMPTY_ANALYTICS.utilization, ...result.utilization },
+          customization: { ...EMPTY_ANALYTICS.customization, ...result.customization },
+          tenantGrowth: Array.isArray(result.tenantGrowth) ? result.tenantGrowth : [],
+          planDistribution: Array.isArray(result.planDistribution) ? result.planDistribution : [],
+          topTenants: Array.isArray(result.topTenants) ? result.topTenants : [],
+        });
       } else if (module === 'merchants' || module === 'quotas') {
         await loadTenants();
       } else if (module === 'plans') {
@@ -89,7 +113,8 @@ const SystemAdminPage: React.FC = () => {
         const result = await api.get<unknown, Paged<PlatformOrder>>('/system/orders', { params: { page: orderPagination.current, pageSize: orderPagination.pageSize } });
         setOrders(result.items); orderPagination.reconcile(result.total);
       }
-    } catch { message.error('系统管理数据加载失败'); }
+      setLoadedModule(module);
+    } catch { setLoadFailed(true); message.error('系统管理数据加载失败'); }
     finally { setLoading(false); }
   };
   useEffect(() => { const timer = window.setTimeout(() => void loadPage(), 250); return () => window.clearTimeout(timer); }, [module, tenantPagination.current, tenantPagination.pageSize, orderPagination.current, orderPagination.pageSize, keyword, tenantStatus]);
@@ -279,6 +304,7 @@ const SystemAdminPage: React.FC = () => {
       </aside>
 
       <main className="min-w-0 flex-1 overflow-auto p-6"><PageContent>
+        {loading && loadedModule !== module ? <><PageHeader module={module}/><AdminPageSkeleton variant={module === 'overview' ? 'dashboard' : module === 'plans' ? 'cards' : 'table'}/></> : loadFailed && loadedModule !== module ? <><PageHeader module={module}/><AdminLoadError title="系统管理数据加载失败" onRetry={() => void loadPage()}/></> : <>
         {module === 'overview' && <><PageHeader module={module}/>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><MetricCard label="租户运营" value={`${analytics?.lifecycle.active || 0} / ${analytics?.lifecycle.total || 0}`} icon={Building2} tone="bg-emerald-50 text-emerald-600" note={`${analytics?.lifecycle.paidTenants || 0} 家付费套餐租户`}/><MetricCard label="ERP 业务资产" value={(analytics?.business.products || 0) + (analytics?.business.customers || 0)} icon={Package} tone="bg-indigo-50 text-indigo-600" note={`${analytics?.business.products || 0} 商品 · ${analytics?.business.customers || 0} 客户`}/><MetricCard label="独立站发布率" value={`${analytics?.business.sites ? Math.round(analytics.business.publishedSites / analytics.business.sites * 100) : 0}%`} icon={Globe2} tone="bg-sky-50 text-sky-600" note={`${analytics?.business.publishedSites || 0} / ${analytics?.business.sites || 0} 已发布`}/><MetricCard label="运营风险租户" value={analytics?.lifecycle.atRisk || 0} icon={AlertTriangle} tone="bg-red-50 text-red-600" note="停用、已过期或 7 天内到期（已去重）"/></div>
 
@@ -299,6 +325,7 @@ const SystemAdminPage: React.FC = () => {
         {module === 'plans' && <><PageHeader module={module} action={<button onClick={() => void openNewPlan()} className={actionClass}><Plus size={16}/>新增套餐</button>}/><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{plans.map(plan=><article key={plan.id} className={`${cardClass} p-5`}><div className="flex items-start justify-between"><div className="font-bold">{plan.name}</div><Tag color={plan.enabled?'green':'default'}>{plan.enabled?'已启用':'已停用'}</Tag></div><div className="mt-5"><span className="text-3xl font-bold">¥{Number(plan.price).toLocaleString()}</span><span className="ml-1 text-xs text-muted-foreground">/{plan.billingCycle==='year'?'年':'月'}</span></div><p className="mt-3 min-h-10 text-sm leading-5 text-muted-foreground">{plan.description||'暂无套餐说明'}</p><div className="mt-4 grid grid-cols-3 divide-x rounded-xl bg-secondary/50 py-3 text-center"><div><b>{plan.maxProducts}</b><small className="mt-1 block text-muted-foreground">商品</small></div><div><b>{plan.maxMembers}</b><small className="mt-1 block text-muted-foreground">成员</small></div><div><b>{plan.maxWarehouses}</b><small className="mt-1 block text-muted-foreground">仓库</small></div></div><button onClick={()=>void openPlanEditor(plan)} className={`${subtleButtonClass} mt-4 w-full`}><SlidersHorizontal size={15}/>编辑套餐</button></article>)}{!loading&&!plans.length&&<div className={`${cardClass} col-span-full py-16`}><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无套餐"/></div>}</div></>}
 
         {module === 'orders' && <><PageHeader module={module}/><section className={cardClass}><AppTable rowKey="id" loading={loading} dataSource={orders} pagination={orderPagination.config} locale={{emptyText:<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无订阅订单"/>}} columns={[{title:'订单号',dataIndex:'orderNo',render:v=><span className="font-mono text-xs">{v}</span>},{title:'套餐',dataIndex:'planName',render:v=><b>{v}</b>},{title:'金额',render:(_,r)=>`${r.currency} ${Number(r.amount).toLocaleString()}`},{title:'状态',dataIndex:'status',render:v=><Tag color={v==='active'||v==='paid'?'green':'blue'}>{v}</Tag>},{title:'创建时间',render:(_,r)=>new Date(r.createdAt).toLocaleString('zh-CN')}]}/></section></>}
+        </>}
       </PageContent></main>
     </div>
 

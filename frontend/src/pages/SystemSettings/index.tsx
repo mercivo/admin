@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Input, InputNumber, Select, Switch, message } from "antd";
 import { BellRing, Coins, Store, Trash2 } from "lucide-react";
-import { AppEditableTable, PageContent, PageHeader, TableActionButton, TableAddRowButton } from "../../components/shared";
+import { AdminLoadError, AdminPageSkeleton, AppEditableTable, PageContent, PageHeader, TableActionButton, TableAddRowButton } from "../../components/shared";
 import { workspaceApi } from "../../services/api/index";
 import { DEFAULT_SALES_CONFIG, DEFAULT_SYSTEM_CONFIG, type CurrencyOption, type SalesConfig, type SystemConfig } from "../../config/sales";
 
@@ -13,29 +13,32 @@ const SystemSettingsPage: React.FC = () => {
   const [saveState, setSaveState] = useState<SaveState>("loading");
   const salesSaved = useRef("");
   const systemSaved = useRef("");
+  const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => {
+  const loadSettings = useCallback(() => {
+    setLoaded(false); setSaveState("loading");
     void Promise.all([workspaceApi.getConfig<Partial<SalesConfig>>("currency"), workspaceApi.getConfig<Partial<SystemConfig>>("system")])
       .then(([salesValue, systemValue]) => {
         const nextSales = { ...DEFAULT_SALES_CONFIG, ...salesValue, currencies: salesValue.currencies?.length ? salesValue.currencies : DEFAULT_SALES_CONFIG.currencies };
         const nextSystem = { inventoryWarning: { ...DEFAULT_SYSTEM_CONFIG.inventoryWarning, ...systemValue.inventoryWarning }, storefront: { ...DEFAULT_SYSTEM_CONFIG.storefront, ...systemValue.storefront } };
         salesSaved.current = JSON.stringify(nextSales); systemSaved.current = JSON.stringify(nextSystem);
-        setSales(nextSales); setSystem(nextSystem); setSaveState("saved");
+        setSales(nextSales); setSystem(nextSystem); setLoaded(true); setSaveState("saved");
       }).catch(() => { setSaveState("error"); message.error("系统设置加载失败"); });
   }, []);
+  useEffect(() => { loadSettings(); }, [loadSettings]);
 
   useEffect(() => {
-    if (saveState === "loading" || JSON.stringify(system) === systemSaved.current) return;
+    if (!loaded || saveState === "loading" || JSON.stringify(system) === systemSaved.current) return;
     const timer = window.setTimeout(async () => {
       setSaveState("saving");
       try { const saved = await workspaceApi.updateConfig<SystemConfig>("system", system); systemSaved.current = JSON.stringify(saved); setSystem(saved); setSaveState("saved"); }
       catch { setSaveState("error"); }
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [system]);
+  }, [system, loaded]);
 
   useEffect(() => {
-    if (saveState === "loading" || JSON.stringify(sales) === salesSaved.current) return;
+    if (!loaded || saveState === "loading" || JSON.stringify(sales) === salesSaved.current) return;
     const normalized = sales.currencies.map(item => ({ ...item, code: item.code.trim().toUpperCase(), name: item.name.trim(), symbol: item.symbol.trim() }));
     const valid = normalized.length > 0 && normalized.every(item => /^[A-Z]{3}$/.test(item.code) && item.name && item.symbol) && new Set(normalized.map(item => item.code)).size === normalized.length && normalized.some(item => item.enabled);
     if (!valid) return;
@@ -49,7 +52,7 @@ const SystemSettingsPage: React.FC = () => {
       catch { setSaveState("error"); }
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [sales]);
+  }, [sales, loaded]);
 
   const updateCurrency = (index: number, value: Partial<CurrencyOption>) => setSales(current => ({ ...current, currencies: current.currencies.map((item, i) => i === index ? { ...item, ...value } : item) }));
   const section = "rounded-2xl border border-border bg-card p-4 shadow-sm";
@@ -58,6 +61,7 @@ const SystemSettingsPage: React.FC = () => {
 
   return <PageContent>
     <PageHeader title="系统设置" description="修改后自动保存" action={<span className={`text-xs ${saveState === "error" ? "text-red-500" : "text-muted-foreground"}`}>{saveState === "saving" ? "正在保存…" : saveState === "error" ? "自动保存失败，请重试" : saveState === "saved" ? "已自动保存" : "加载中…"}</span>} />
+    {!loaded && saveState === "loading" ? <AdminPageSkeleton variant="settings"/> : !loaded && saveState === "error" ? <AdminLoadError title="系统设置加载失败" onRetry={loadSettings}/> : <>
     <div className="grid items-start gap-4 xl:grid-cols-2">
     <section className={section}>
       {heading(<BellRing size={19} />, "库存预警", "设置低库存提醒")}
@@ -91,6 +95,7 @@ const SystemSettingsPage: React.FC = () => {
       </div>
     </section>
     </div>
+    </>}
   </PageContent>;
 };
 export default SystemSettingsPage;

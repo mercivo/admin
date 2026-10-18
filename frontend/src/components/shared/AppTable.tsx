@@ -1,15 +1,20 @@
-import React, { type Key, type ReactNode } from "react";
-import { Empty, Table } from "antd";
+import React, { type Key, type ReactNode, useEffect, useRef } from "react";
+import { Empty, Skeleton, Table } from "antd";
 import type { TableProps } from "antd";
 import { Plus } from "lucide-react";
 import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "../../hooks/useTablePagination";
+
+type AppTableProps<RecordType extends object> = TableProps<RecordType> & { initialSkeleton?: boolean };
 
 export const AppTable = <RecordType extends object>({
   className = "",
   locale,
   pagination,
+  initialSkeleton = true,
   ...props
-}: TableProps<RecordType>) => {
+}: AppTableProps<RecordType>) => {
+  const hasResolved = useRef(!props.loading);
+  useEffect(() => { if (!props.loading) hasResolved.current = true; }, [props.loading]);
   const normalizedPagination = pagination === false ? false : {
     pageSize: DEFAULT_PAGE_SIZE,
     size: "small" as const,
@@ -18,6 +23,12 @@ export const AppTable = <RecordType extends object>({
     showTotal: (total: number) => `共 ${total} 条`,
     ...pagination,
   };
+  if (initialSkeleton && props.loading && !hasResolved.current) return (
+    <section data-testid="admin-table-skeleton" aria-busy="true" aria-label="表格加载中" className={`app-data-table rounded-2xl bg-card p-5 ${className}`.trim()}>
+      <div className="mb-5 grid grid-cols-4 gap-5 border-b border-border pb-4">{Array.from({ length: 4 }, (_, index) => <Skeleton.Input key={index} active size="small" block/>)}</div>
+      <Skeleton active title={false} paragraph={{ rows: Math.min(10, Number(typeof pagination === 'object' ? pagination.pageSize : 8) || 8), width: Array.from({ length: 10 }, (_, index) => index % 3 === 2 ? '82%' : '100%') }}/>
+    </section>
+  );
   return (
   <Table<RecordType>
     {...props}

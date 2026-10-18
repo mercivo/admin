@@ -83,7 +83,7 @@ test('product preview, delete and batch dialogs render through the unified shell
   });
   await page.goto('http://localhost:8088/products');
 
-  await page.getByRole('button', { name: '预览' }).click();
+  await page.getByRole('button', { name: '预览', exact: true }).click();
   const preview = page.getByRole('dialog', { name: /\u7edf\u4e00弹窗验收商品/ });
   const previewShell = page.locator('.ant-modal.app-modal');
   await expect(previewShell).toBeVisible();

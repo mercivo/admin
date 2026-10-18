@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Input, Select } from 'antd';
 import { ShoppingCart, Star, CheckCircle, Truck, Shield, ArrowLeft, Globe, MessageCircle } from 'lucide-react';
-import { AppModal, ModalForm, ModalFormField, ModalFormGrid, ProductGallery, ProductImage } from '../../components/shared';
+import { AdminLoadError, AdminPageSkeleton, AppModal, ModalForm, ModalFormField, ModalFormGrid, ProductGallery, ProductImage } from '../../components/shared';
 import Toast, { ToastType } from '../../components/shared/Toast';
 import { productApi } from '../../services/api/index';
 import type { Product } from '../../types';
@@ -17,8 +17,14 @@ const ProductDetailPage: React.FC = () => {
   const [inquiryType, setInquiryType] = useState<'inquiry' | 'sample'>('inquiry');
   const [inquiryForm, setInquiryForm] = useState({ name: '', email: '', company: '', requirements: '', bagType: '' });
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
 
-  useEffect(() => { if (id) productApi.getById(id).then(setProduct).catch(() => showToast('商品加载失败', 'error')); }, [id]);
+  const loadProduct = useCallback(() => {
+    if (!id) { setLoadState('error'); return; }
+    setLoadState('loading');
+    productApi.getById(id).then(value => { setProduct(value); setLoadState('ready'); }).catch(() => { setLoadState('error'); showToast('商品加载失败', 'error'); });
+  }, [id]);
+  useEffect(() => { loadProduct(); }, [loadProduct]);
 
   const showToast = (message: string, type: ToastType) => setToast({ message, type });
 
@@ -42,6 +48,9 @@ const ProductDetailPage: React.FC = () => {
     { label: '样品', value: '3-5 天打样' },
     { label: '交期', value: '15-25 天批量生产' },
   ];
+
+  if (loadState === 'loading') return <div className="mx-auto w-full max-w-6xl p-6"><AdminPageSkeleton variant="detail"/></div>;
+  if (loadState === 'error') return <div className="mx-auto w-full max-w-6xl p-6"><AdminLoadError title="商品加载失败" onRetry={loadProduct}/>{toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)}/>}</div>;
 
   return (
     <div className="min-h-full bg-white font-sans">

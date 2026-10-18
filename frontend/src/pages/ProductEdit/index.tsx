@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Input, InputNumber, Select, Checkbox, Tooltip } from 'antd';
 import {
   ArrowLeft,
@@ -11,7 +11,7 @@ import {
   CircleHelp,
   Info,
 } from 'lucide-react';
-import { AppEditableTable, AppModal, ProductImagePreview, QuotaUsage, RichTextEditor, StatusBadge, TableActionButton } from '../../components/shared';
+import { AdminLoadError, AdminPageSkeleton, AppEditableTable, AppModal, ProductImagePreview, QuotaUsage, RichTextEditor, StatusBadge, TableActionButton } from '../../components/shared';
 import Toast, { ToastType } from '../../components/shared/Toast';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { customerApi, productApi, productCategoryApi, workspaceApi } from '../../services/api/index';
@@ -62,6 +62,7 @@ const ProductEditPage: React.FC = () => {
   const [customerLevels, setCustomerLevels] = useState<CustomerLevel[]>([]);
   const [guestPricingMode, setGuestPricingMode] = useState<GuestPricingPolicy['mode']>('base');
   const [productQuota, setProductQuota] = useState<{ used: number; limit: number } | null>(null);
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
 
   const priceRange = () => {
     const basePrice = Math.max(0, Number(form.currencyPrices?.[currency]?.basePrice) || 0);
@@ -77,36 +78,38 @@ const ProductEditPage: React.FC = () => {
     return level.discountRate == null ? basePrice : basePrice * Number(level.discountRate) / 100;
   };
 
-  useEffect(() => {
-    Promise.all([workspaceApi.getSettings(), workspaceApi.getConfig<Partial<CurrencyConfig>>('currency').catch(() => DEFAULT_CURRENCY_CONFIG)]).then(([settings, currencyConfig]) => {
+  const loadInitialData = useCallback(() => {
+    setLoadState('loading');
+    const workspaceRequest = Promise.all([workspaceApi.getSettings(), workspaceApi.getConfig<Partial<CurrencyConfig>>('currency').catch(() => DEFAULT_CURRENCY_CONFIG)]);
+    const categoriesRequest = productCategoryApi.list();
+    const levelsRequest = customerApi.levels().catch(() => [] as CustomerLevel[]);
+    const policyRequest = customerApi.pricingPolicy().catch(() => ({ mode: 'base' as const }));
+    const productRequest = id ? productApi.getById(id) : Promise.resolve(null);
+    Promise.all([workspaceRequest, categoriesRequest, levelsRequest, policyRequest, productRequest]).then(([[settings, currencyConfig], categoryItems, levels, policy, product]) => {
       const resolved = { ...DEFAULT_CURRENCY_CONFIG, ...currencyConfig, currencies: currencyConfig.currencies?.length ? currencyConfig.currencies : DEFAULT_CURRENCY_CONFIG.currencies } as CurrencyConfig;
       setCurrencyConfig(resolved); setCurrency(resolved.defaultCurrency || settings.site.defaultCurrency || 'CNY');
-      setProductQuota({ used: settings.billing.usage.products, limit: settings.billing.limits.products });
-    }).catch(() => undefined);
-    productCategoryApi.list().then((categories: ProductCategory[]) => {
-      const options = categories.flatMap(parent => [
+      setProductQuota(settings.billing?.usage && settings.billing?.limits ? { used: settings.billing.usage.products, limit: settings.billing.limits.products } : null);
+      const options = (categoryItems as ProductCategory[]).flatMap(parent => [
         ...(parent.status === 'enabled' ? [{ code: parent.code, label: parent.label }] : []),
         ...parent.children.filter(child => child.status === 'enabled').map(child => ({ code: child.code, label: `${parent.label} / ${child.label}` })),
       ]);
       setCategories(options);
       setForm(current => ({ ...current, category: current.category || options[0]?.code || '' }));
-    }).catch(() => setCategories([]));
-    customerApi.levels().then(setCustomerLevels).catch(() => setCustomerLevels([]));
-    customerApi.pricingPolicy().then(policy => setGuestPricingMode(policy.mode)).catch(() => undefined);
-  }, []);
-
-  useEffect(() => {
-    if (!id) return;
-    productApi.getById(id).then(product => {
+      setCustomerLevels(levels); setGuestPricingMode(policy.mode);
+      if (product) {
       const images = product.images?.length ? product.images.slice(0, 10) : product.img ? [product.img] : [];
-      setForm({ ...product, img: images[0] || '', images, tags: normalizeTags(product.tags), currencyPrices: product.currencyPrices || { [currencyConfig.defaultCurrency]: { basePrice: Number(product.basePrice) || 0, levelPrices: product.levelPrices || {} } } });
+      setForm({ ...product, img: images[0] || '', images, tags: normalizeTags(product.tags), currencyPrices: product.currencyPrices || { [resolved.defaultCurrency]: { basePrice: Number(product.basePrice) || 0, levelPrices: product.levelPrices || {} } } });
       setTagInput('');
       setVariants(product.variants || []);
       setPublishToSite(product.status === 'published');
+      }
+      setLoadState('ready');
     }).catch(() => {
+      setLoadState('error');
       showToast('商品加载失败，请返回列表重试', 'error');
     });
   }, [id]);
+  useEffect(() => { loadInitialData(); }, [loadInitialData]);
 
   const showToast = (message: string, type: ToastType) => setToast({ message, type });
 
@@ -221,6 +224,9 @@ const ProductEditPage: React.FC = () => {
       throw error;
     }
   };
+
+  if (loadState === 'loading') return <div className="space-y-5"><AdminPageSkeleton variant="form"/></div>;
+  if (loadState === 'error') return <div className="space-y-5"><AdminLoadError title={id ? '商品加载失败' : '商品配置加载失败'} onRetry={loadInitialData}/>{toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)}/>}</div>;
 
   return (
     <div className="space-y-5">

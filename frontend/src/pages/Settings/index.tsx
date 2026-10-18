@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Empty, Input, Select, Table } from 'antd';
 import {
   User,
@@ -12,7 +12,7 @@ import {
   AlertCircle,
   Search,
 } from 'lucide-react';
-import { AppModal, ModalForm, ModalFormField, ModalFormGrid, PermissionTreePicker, QuotaUsage, Toast } from '../../components/shared';
+import { AdminLoadError, AdminPageSkeleton, AppModal, ModalForm, ModalFormField, ModalFormGrid, PermissionTreePicker, QuotaUsage, Toast } from '../../components/shared';
 import { siteApi, workspaceApi } from '../../services/api/index';
 import type { PermissionItem, PlanItem, SiteDomain, SubscriptionOrder, TeamMember, WorkspaceSettings } from '../../services/api/index';
 import { currentPermissions } from '../../utils/permissions';
@@ -84,31 +84,38 @@ const SettingsPage: React.FC = () => {
   const [newDomain, setNewDomain] = useState('');
   const [domainSaving, setDomainSaving] = useState(false);
   const [effectivePermissions, setEffectivePermissions] = useState<string[]>(currentPermissions);
+  const [workspaceLoad, setWorkspaceLoad] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [tabLoad, setTabLoad] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const hasPermission = (permission: string) => effectivePermissions.includes(permission);
   const currentRole = (() => { try { return JSON.parse(localStorage.getItem('mercivo_user') || '{}').role as string; } catch { return ''; } })();
   const canManageMembers = currentRole === 'admin' && hasPermission('settings.team');
 
-  useEffect(() => {
+  const loadWorkspace = useCallback(() => {
+    setWorkspaceLoad('loading');
     workspaceApi.getSettings().then(currentWorkspace => {
       setWorkspace(currentWorkspace);
       setEffectivePermissions(currentPermissions());
-    }).catch(() => setToast({ message: '设置数据加载失败', type: 'error' }));
+      setWorkspaceLoad('ready');
+    }).catch(() => { setWorkspaceLoad('error'); setToast({ message: '设置数据加载失败', type: 'error' }); });
   }, []);
+  useEffect(() => { loadWorkspace(); }, [loadWorkspace]);
 
   useEffect(() => {
+    setTabLoad('loading');
     if (activeTab === 'team') {
-      void workspaceApi.listTeam().then(setMembers).catch(() => setToast({ message: '成员列表加载失败', type: 'error' }));
+      void workspaceApi.listTeam().then(value => { setMembers(value); setTabLoad('ready'); }).catch(() => { setTabLoad('error'); setToast({ message: '成员列表加载失败', type: 'error' }); });
     } else if (activeTab === 'billing') {
       void Promise.all([workspaceApi.listPlans(), workspaceApi.listSubscriptionOrders()])
-        .then(([planItems, orderItems]) => { setPlans(planItems); setOrders(orderItems); })
-        .catch(() => setToast({ message: '套餐账单加载失败', type: 'error' }));
+        .then(([planItems, orderItems]) => { setPlans(planItems); setOrders(orderItems); setTabLoad('ready'); })
+        .catch(() => { setTabLoad('error'); setToast({ message: '套餐账单加载失败', type: 'error' }); });
     } else if (activeTab === 'seo') {
-      void workspaceApi.getConfig<Partial<typeof DEFAULT_SEO>>('seo').then(seo => setSeoConfig({ ...DEFAULT_SEO, ...seo })).catch(() => setSeoConfig(DEFAULT_SEO));
-    }
+      void workspaceApi.getConfig<Partial<typeof DEFAULT_SEO>>('seo').then(seo => { setSeoConfig({ ...DEFAULT_SEO, ...seo }); setTabLoad('ready'); }).catch(() => setTabLoad('error'));
+    } else setTabLoad('ready');
   }, [activeTab]);
   useEffect(() => {
     if (activeTab === 'site' && workspace && hasPermission('site.domain')) {
-      void siteApi.domains(workspace.site.id).then(setDomains).catch(() => setToast({ message: '域名列表加载失败', type: 'error' }));
+      setTabLoad('loading');
+      void siteApi.domains(workspace.site.id).then(value => { setDomains(value); setTabLoad('ready'); }).catch(() => { setTabLoad('error'); setToast({ message: '域名列表加载失败', type: 'error' }); });
     }
   }, [activeTab, workspace?.site.id]);
 
@@ -239,6 +246,7 @@ const SettingsPage: React.FC = () => {
         })}
       </div>}
 
+      {workspaceLoad === 'loading' ? <AdminPageSkeleton variant="settings"/> : workspaceLoad === 'error' ? <AdminLoadError title="设置数据加载失败" onRetry={loadWorkspace}/> : tabLoad === 'loading' ? <AdminPageSkeleton variant="settings"/> : tabLoad === 'error' ? <AdminLoadError title={`${pageMeta[activeTab]?.title || '设置'}加载失败`} onRetry={() => { setTabLoad('idle'); setActiveTab(''); window.setTimeout(() => setActiveTab(requestedTab || 'account'), 0); }}/> : <>
       <div className="backdrop-blur-xl bg-white/80 rounded-2xl border border-white/60 shadow-sm p-6">
         {activeTab === 'account' && (
           <div className="space-y-6">
@@ -347,6 +355,7 @@ const SettingsPage: React.FC = () => {
           </div>
         )}
       </div>
+      </>}
 
       {showInvite && <InviteModal catalog={permissionCatalog} onClose={() => setShowInvite(false)} onInvite={handleInvite} />}
       <AppModal open={!!editingMember} title={`配置成员${editingMember ? ` · ${editingMember.name}` : ''}`} width={880} okText="保存" cancelText="取消" onCancel={() => setEditingMember(null)} onOk={async () => { if (!editingMember) return; try { const updated = await workspaceApi.updateMember(editingMember.id, { name: editingMember.name, email: editingMember.email || '', phone: editingMember.phone || undefined, permissions: editingMember.permissions || [] }); setMembers(items => items.map(item => item.id === updated.id ? updated : item)); setEditingMember(null); setToast({ message: '成员信息与权限已更新', type: 'success' }); } catch { setToast({ message: '成员信息或权限更新失败', type: 'error' }); } }}>{editingMember && <ModalForm><ModalFormGrid><ModalFormField label="成员姓名" required><Input value={editingMember.name} onChange={event => setEditingMember({ ...editingMember, name: event.target.value })}/></ModalFormField><ModalFormField label="手机号（登录账号）" required><Input value={editingMember.phone || ''} onChange={event => setEditingMember({ ...editingMember, phone: event.target.value })}/></ModalFormField><ModalFormField label="邮箱（选填）"><Input value={editingMember.email || ''} onChange={event => setEditingMember({ ...editingMember, email: event.target.value })}/></ModalFormField></ModalFormGrid><ModalFormField label="功能权限" composite><PermissionTreePicker catalog={permissionCatalog} value={editingMember.permissions || []} onChange={permissions => setEditingMember({ ...editingMember, permissions })} title="" /></ModalFormField></ModalForm>}</AppModal>

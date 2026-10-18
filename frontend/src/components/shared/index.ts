@@ -30,3 +30,5 @@ export { ProductImagePreview } from './ProductImagePreview';
 export { ProductGallery } from './ProductGallery';
 export { ProductTableCell } from './ProductTableCell';
 export { productBadgeLabel, productBadgeLabels } from './productBadge';
+export { AdminLoadError, AdminModuleSkeleton, AdminPageSkeleton } from './AdminLoadingState';
+export type { AdminSkeletonVariant } from './AdminLoadingState';

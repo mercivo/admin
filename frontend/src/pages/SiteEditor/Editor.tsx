@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Checkbox, ColorPicker, ConfigProvider, Empty, Input, Pagination, Segmented, Select, Slider, Tree, Upload } from 'antd';
 import { closestCenter, DndContext, DragEndEvent, DragOverlay, DragStartEvent, KeyboardSensor, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -12,7 +12,7 @@ import { currentPermissions } from '../../utils/permissions';
 import { openPublishedStorefront } from '../../utils/storefront';
 import { EditorModal, EditorSwitch, SiteEditorDesignProvider } from './controls';
 import SiteRenderer, { SiteContactModal } from './SiteRenderer';
-import { AppModal, ModalFormField, ProductImage } from '../../components/shared';
+import { AdminLoadError, AdminModuleSkeleton, AppModal, ModalFormField, ProductImage } from '../../components/shared';
 import { DEFAULT_CURRENCY_CONFIG, type CurrencyConfig } from '../../config/sales';
 import { ANTD_LOCALE_OPTIONS, DEFAULT_ANTD_LOCALE, antdLocaleLabel, normalizeAntdLocale } from '../../config/antdLocales';
 import { antdLocaleFor } from '../../config/antdLocaleRuntime';
@@ -89,6 +89,7 @@ const Editor: React.FC = () => {
   const initialLoad = useRef(true);
   const canvasRef = useRef<HTMLDivElement>(null);
   const [canvasHeight, setCanvasHeight] = useState(0);
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const sections = config.pages[activePage]?.sections || [];
   const selected = sections.find(s => s.id === selectedId) || null;
   const sortableSectionIds = useMemo(() => sections.filter(section => !isFixedSection(section.type) && section.type !== 'contactModal').map(section => section.id), [sections]);
@@ -100,7 +101,8 @@ const Editor: React.FC = () => {
 
   useEffect(() => { if (selectedId) { setRightTab('content'); setSelectedGlobal(null); } }, [selectedId]);
 
-  useEffect(() => {
+  const loadEditor = useCallback(() => {
+    setLoadState('loading');
     Promise.all([workspaceApi.getConfig<Record<string, unknown>>('siteEditor').catch(() => defaultConfig() as unknown as Record<string, unknown>), loadStorefrontProductPool().catch(() => ({ items: [] as Product[], categories: [] as ProductCategory[] })), siteApi.list(), workspaceApi.getSettings(), workspaceApi.getConfig<Partial<CurrencyConfig>>('currency').catch(() => DEFAULT_CURRENCY_CONFIG)]).then(([raw, productPool, ss, workspace, currencies]) => {
       const next = normalizeEditorConfig(raw); const currentId = JSON.parse(localStorage.getItem('mercivo_user') || '{}').siteId; const current = ss.find(s => s.id === currentId) || ss[0] || null;
       setEffectivePermissions(currentPermissions());
@@ -111,8 +113,10 @@ const Editor: React.FC = () => {
       setConfig(next); setActivePage(next.page || 'home'); setProducts(productPool.items); setProductCategories(productPool.categories); setSite(current); setSelectedId(next.pages[next.page || 'home']?.sections[0]?.id || '');
       if (current) { const defaultLanguage = normalizeAntdLocale(current.defaultLanguage); const supported = [...new Set((current.supportedLanguages || [defaultLanguage]).map(normalizeAntdLocale))]; const supportedLanguages = supported.includes(defaultLanguage) ? supported : [defaultLanguage, ...supported]; setLanguage({ defaultLanguage, supportedLanguages }); setPreviewLanguage(defaultLanguage); }
       initialLoad.current = false;
-    }).catch(() => notify('站点配置加载失败', 'error'));
+      setLoadState('ready');
+    }).catch(() => { setLoadState('error'); setToast({ message: '站点配置加载失败', type: 'error' }); });
   }, []);
+  useEffect(() => { loadEditor(); }, [loadEditor]);
   useEffect(() => {
     const syncWorkspaceLogo = () => { void workspaceApi.getSettings().then(workspace => { setWorkspaceSite(workspace.site); setBrandLogoUrl(workspace.site.logoUrl || ''); }); };
     window.addEventListener('focus', syncWorkspaceLogo);
@@ -176,6 +180,8 @@ const Editor: React.FC = () => {
   const rendered = useMemo(() => sections.filter(s => s.visible && s.type !== 'contactModal'), [sections]);
   const canvasWidth = view === 'mobile' ? 390 : 1024;
   const zoomScale = zoom / 100;
+  if (loadState === 'loading') return <div data-testid="site-editor-loading" aria-busy="true" className="flex h-full flex-col gap-4 bg-[#f3f4f1] p-4"><AdminModuleSkeleton rows={1} minHeight={72}/><div className="grid min-h-0 flex-1 grid-cols-[260px_minmax(0,1fr)_300px] gap-4"><AdminModuleSkeleton rows={10} minHeight={620}/><AdminModuleSkeleton rows={14} minHeight={620}/><AdminModuleSkeleton rows={10} minHeight={620}/></div></div>;
+  if (loadState === 'error') return <div className="grid h-full place-items-center bg-[#f3f4f1] p-6"><div className="w-full max-w-2xl"><AdminLoadError title="站点编辑器加载失败" description="站点配置未加载完成，编辑和发布功能已暂停。" onRetry={loadEditor}/>{toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)}/>}</div></div>;
   return <SiteEditorDesignProvider primaryColor={config.themeColor}><div className="site-editor-controls flex h-full flex-col bg-[#f3f4f1]" style={{ '--editor-primary': config.themeColor, '--editor-primary-soft': `${config.themeColor}12`, '--editor-primary-contrast': contrastColor(config.themeColor) } as React.CSSProperties}>
     <header className="editor-topbar flex h-[72px] flex-shrink-0 items-center gap-4 border-b bg-white px-5">
       <div className="editor-brand-mark"><LayoutPanelLeft className="h-5 w-5" /></div>
