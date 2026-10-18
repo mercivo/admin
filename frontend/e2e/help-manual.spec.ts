@@ -15,7 +15,9 @@ test('standalone training manual is accessible without feature permissions', asy
 
   await expect(page).toHaveURL(/\/help$/);
   await expect(page.getByTestId('standalone-help')).toBeVisible();
-  await expect(page.getByRole('heading', { name: '把系统真正用进业务里' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '老板看得懂，运营做得成' })).toBeVisible();
+  await expect(page.getByText('老板重点看').first()).toBeVisible();
+  await expect(page.getByText('运营重点做').first()).toBeVisible();
   await expect(page.getByText('ERP 管理', { exact: true })).toHaveCount(0);
   await expect(page.getByText('站点设计', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /普通成员/ })).toHaveCount(0);
@@ -44,6 +46,25 @@ test('standalone training manual is accessible without feature permissions', asy
     await expect(screenshot).toHaveAttribute('alt', /.+/);
     await expect.poll(() => screenshot.evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
     await expect(screenshot).toHaveCSS('object-fit', 'cover');
+  }
+
+  const expectedCallouts = [
+    { alt: '商品资料与规格价格配置示例', positions: [[25, 16], [37, 27]] },
+    { alt: '采购订单与采购入库页面示例', positions: [[92, 11], [80, 33]] },
+    { alt: '销售订单与销售出库页面示例', positions: [[92, 11], [76, 33]] },
+    { alt: '库存查询与调拨盘点页面示例', positions: [[47, 21], [45, 37], [94, 11]] },
+    { alt: '独立站可视化设计页面示例', positions: [[12, 34], [54, 49], [88, 35]] },
+    { alt: '独立站线索池页面示例', positions: [[58, 20], [47, 33], [92, 55]] },
+    { alt: '经营概览与财务复盘页面示例', positions: [[58, 27], [58, 43], [63, 67]] },
+  ];
+  for (const expected of expectedCallouts) {
+    const figure = page.getByRole('img', { name: expected.alt }).locator('..').locator('..');
+    const callouts = figure.getByTestId('screenshot-callout');
+    await expect(callouts).toHaveCount(expected.positions.length);
+    for (let index = 0; index < expected.positions.length; index += 1) {
+      const [left, top] = expected.positions[index];
+      await expect(callouts.nth(index)).toHaveAttribute('style', `left: ${left}%; top: ${top}%;`);
+    }
   }
 });
 

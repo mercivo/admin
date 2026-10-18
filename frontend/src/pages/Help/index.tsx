@@ -5,16 +5,18 @@ import { BrandMark } from '../../components/shared';
 type TrainingStep = { entry: string; action: string; result: string };
 type TrainingChapter = {
   id: string; order: string; title: string; subtitle: string; roles: string[]; goal: string;
+  ownerFocus: string; operatorFocus: string;
   preparation: string[]; steps: TrainingStep[]; completion: string[];
   issues: Array<{ question: string; answer: string }>;
   icon: React.FC<{ className?: string }>;
-  screenshot?: { src: string; alt: string; caption: string; callouts: string[] };
+  screenshot?: { src: string; alt: string; caption: string; callouts: Array<{ label: string; left: number; top: number }> };
 };
 
 const chapters: TrainingChapter[] = [
   {
-    id: 'first-setup', order: '01', title: '开通后的首次配置', subtitle: '先搭好经营底座，再让团队开始录单', roles: ['租户老板', '系统管理员'], icon: Settings,
-    goal: '完成企业、币种、仓库和成员权限配置，让商品、采购、销售、库存和财务使用同一套基础规则。',
+    id: 'first-setup', order: '01', title: '开通后的首次配置', subtitle: '老板定规则，运营搭好日常经营底座', roles: ['老板', '运营负责人'], icon: Settings,
+    goal: '由老板确认经营规则，运营完成企业、币种、仓库和团队权限配置，让后续业务从第一天就使用统一口径。',
+    ownerFocus: '确定谁负责商品、采购、销售、仓库和财务，并保留经营数据的全局查看权。', operatorFocus: '把企业资料、默认币种、仓库和成员账号一次配置正确，正式录单前完成自检。',
     preparation: ['确认企业名称、联系人和常用结算币种。', '整理实际仓库清单及负责人员。', '确认运营、采购、仓管和财务人员的职责边界。'],
     steps: [
       { entry: '系统管理 → 系统设置', action: '维护企业基础资料、默认币种和可用业务参数并保存。', result: '新建商品和业务单据时使用统一的企业与币种配置。' },
@@ -29,8 +31,9 @@ const chapters: TrainingChapter[] = [
     ],
   },
   {
-    id: 'product-foundation', order: '02', title: '建立商品经营基础', subtitle: '一次维护，贯穿采购、销售、库存和独立站', roles: ['运营', '商品管理员', '租户老板'], icon: Package,
-    goal: '建立可交易、可核算、可展示的商品资料，并让规格、价格和库存口径保持一致。',
+    id: 'product-foundation', order: '02', title: '建立商品经营基础', subtitle: '老板管定价逻辑，运营管资料质量', roles: ['老板', '商品运营'], icon: Package,
+    goal: '建立既能内部核算又能对外展示的商品资料，让分类、规格、价格、起订量和库存口径保持一致。',
+    ownerFocus: '确认商品定位、报价策略、客户等级价和毛利空间。', operatorFocus: '维护统一商品编码、清晰图片、完整规格和独立站展示信息。',
     preparation: ['准备商品编码、分类、名称、描述和图片。', '整理规格组合、基础价、客户等级价和最小起订量。', '确认哪些商品需要同步到独立站。'],
     steps: [
       { entry: '商品管理 → 商品分类', action: '先建立分类层级并设置排序和启用状态。', result: '后台筛选和独立站商品导航使用同一分类。' },
@@ -44,11 +47,12 @@ const chapters: TrainingChapter[] = [
       { question: '为什么商品页不能直接改规格库存？', answer: '库存由采购入库、销售出库、盘点和调拨汇总，直接修改会破坏库存流水。' },
       { question: '删除规格有什么影响？', answer: '规格及其库存数据会一并移除。删除前先确认没有仍需追溯的业务数据。' },
     ],
-    screenshot: { src: '/training-assets/product.webp', alt: '商品资料与规格价格配置示例', caption: '商品资料维护：先完成基础信息和图片，再进入规格库存配置价格。', callouts: ['切换规格库存页签', '配置币种、基础价和规格加价'] },
+    screenshot: { src: '/training-assets/product.webp', alt: '商品资料与规格价格配置示例', caption: '商品资料维护：先完成基础信息和图片，再进入规格库存配置价格。', callouts: [{ label: '切换到规格库存页签', left: 25, top: 16 }, { label: '配置币种、基础价和规格加价', left: 37, top: 27 }] },
   },
   {
-    id: 'purchase-to-stock', order: '03', title: '采购到入库', subtitle: '从采购需求到库存增加的标准流程', roles: ['采购', '仓管', '财务'], icon: ShoppingCart,
-    goal: '让每次采购都有供应商、订单、收货和库存记录，确保采购数量与实际入库一致。',
+    id: 'purchase-to-stock', order: '03', title: '采购到入库', subtitle: '老板掌握采购投入，运营保证货物入账', roles: ['老板', '采购运营', '仓储运营'], icon: ShoppingCart,
+    goal: '让每次采购都有供应商、订单、到货和库存记录，老板能看清资金投入，运营能核对实际到货。',
+    ownerFocus: '关注采购金额、供应商交付、到货进度和预计付款。', operatorFocus: '按实际业务建立采购订单，分批收货时逐次入库，并核对库存增量。',
     preparation: ['商品和规格已经建立。', '供应商资料和收货仓库已经建立。', '采购价格、数量和预计到货时间已经确认。'],
     steps: [
       { entry: '采购管理 → 供应商管理', action: '建立供应商档案，维护联系人、联系方式、地址和业务备注。', result: '采购订单可以关联明确的供应商。' },
@@ -62,11 +66,12 @@ const chapters: TrainingChapter[] = [
       { question: '供应商分两次到货怎么处理？', answer: '针对同一采购订单分别创建采购入库，每次只填写实际到货数量。' },
       { question: '入库后库存没有变化怎么办？', answer: '确认入库单是否已完成而非仅保存，并核对查看的仓库和商品规格。' },
     ],
-    screenshot: { src: '/training-assets/purchase.webp', alt: '采购订单与采购入库页面示例', caption: '采购闭环：供应商建档后建立订单，再按实际到货数量完成入库。', callouts: ['从采购订单建立采购依据', '用状态确认采购已完成'] },
+    screenshot: { src: '/training-assets/purchase.webp', alt: '采购订单与采购入库页面示例', caption: '采购闭环：供应商建档后建立订单，再按实际到货数量完成入库。', callouts: [{ label: '新建采购订单并录入采购需求', left: 92, top: 11 }, { label: '根据订单状态核对到货进度', left: 80, top: 33 }] },
   },
   {
-    id: 'sales-to-cash', order: '04', title: '销售到回款', subtitle: '订单、出库和收款三步闭环', roles: ['销售运营', '仓管', '财务'], icon: CircleDollarSign,
-    goal: '把客户需求转成销售订单，按实际发货扣减库存，并登记回款形成完整销售链路。',
+    id: 'sales-to-cash', order: '04', title: '销售到回款', subtitle: '老板看收入与回款，运营推进订单履约', roles: ['老板', '销售运营', '财务运营'], icon: CircleDollarSign,
+    goal: '把客户需求转成销售订单，按实际发货扣减库存，并登记回款，让收入、履约和现金状态能够相互核对。',
+    ownerFocus: '关注销售额、毛利空间、交付进度、已回款和应收余额。', operatorFocus: '准确录入客户、商品和成交价，按发货进度出库，并让财务及时登记到账。',
     preparation: ['客户档案和等级已建立。', '商品价格、规格及可用库存已经核对。', '确认结算币种、交付仓库和收款约定。'],
     steps: [
       { entry: '销售管理 → 客户管理', action: '建立客户资料并分配客户等级，维护联系人和联系方式。', result: '订单可关联客户，并可应用对应等级价格。' },
@@ -80,11 +85,12 @@ const chapters: TrainingChapter[] = [
       { question: '客户分批付款怎么处理？', answer: '按每次实际到账分别登记收款，持续核对订单应收余额。' },
       { question: '出库时提示库存不足怎么办？', answer: '核对仓库和规格是否正确；确实不足时先完成采购入库或库存调拨。' },
     ],
-    screenshot: { src: '/training-assets/sales.webp', alt: '销售订单与销售出库页面示例', caption: '销售履约：订单确认后按实际发货创建出库，再由财务登记回款。', callouts: ['核对客户和订单金额', '跟踪订单履约状态'] },
+    screenshot: { src: '/training-assets/sales.webp', alt: '销售订单与销售出库页面示例', caption: '销售履约：订单确认后按实际发货创建出库，再由财务登记回款。', callouts: [{ label: '新建销售订单并确认客户需求', left: 92, top: 11 }, { label: '从订单状态跟踪履约进度', left: 76, top: 33 }] },
   },
   {
-    id: 'inventory-operations', order: '05', title: '库存日常管理', subtitle: '让账面库存始终能够解释实际库存', roles: ['仓管', '运营', '租户老板'], icon: Boxes,
-    goal: '通过查询、调拨、盘点和流水核查，及时发现缺货、错仓和账实差异。',
+    id: 'inventory-operations', order: '05', title: '库存日常管理', subtitle: '老板控制库存占用，运营守住账实一致', roles: ['老板', '仓储运营'], icon: Boxes,
+    goal: '通过查询、调拨、盘点和流水核查，及时发现缺货、积压、错仓和账实差异。',
+    ownerFocus: '关注库存资金占用、低库存预警、积压风险和仓库分布。', operatorFocus: '每天核对异常库存，按实物流向调拨，定期盘点并说明差异原因。',
     preparation: ['仓库及商品规格已经建立。', '采购入库和销售出库均按实际业务录入。', '明确盘点日期和暂停收发货的时间窗口。'],
     steps: [
       { entry: '库存管理 → 库存查询', action: '按商品、编码、规格或仓库筛选，关注可用库存和低库存商品。', result: '快速判断采购、销售和调拨需求。' },
@@ -97,11 +103,12 @@ const chapters: TrainingChapter[] = [
       { question: '盘点可以用来代替采购入库吗？', answer: '不可以。盘点用于修正账实差异，正常采购必须通过采购订单和采购入库形成完整记录。' },
       { question: '调拨后总库存为什么没变？', answer: '调拨只改变库存所在仓库，不改变企业总库存。' },
     ],
-    screenshot: { src: '/training-assets/inventory.webp', alt: '库存查询与调拨盘点页面示例', caption: '库存管理：先筛选仓库和规格，再通过流水解释每次库存变化。', callouts: ['按仓库和商品筛选库存', '从库存结果进入流水核查'] },
+    screenshot: { src: '/training-assets/inventory.webp', alt: '库存查询与调拨盘点页面示例', caption: '库存管理：先筛选仓库和规格，再通过流水解释每次库存变化。', callouts: [{ label: '查看现存、可用和预警库存', left: 47, top: 21 }, { label: '按商品、仓库和状态筛选', left: 45, top: 37 }, { label: '进入库存流水追溯变化', left: 94, top: 11 }] },
   },
   {
-    id: 'storefront-launch', order: '06', title: '独立站上线', subtitle: '从品牌资料到可公开访问的网站', roles: ['独立站运营', '内容运营', '租户老板'], icon: Globe2,
-    goal: '完成站点资料、商品、页面、多语言、SEO、域名和发布检查，正式承接海外访问与询盘。',
+    id: 'storefront-launch', order: '06', title: '独立站上线', subtitle: '老板确认品牌方向，运营完成上线交付', roles: ['老板', '独立站运营'], icon: Globe2,
+    goal: '完成站点资料、商品、页面、多语言、SEO、域名和发布检查，让独立站能够稳定承接海外访问与询盘。',
+    ownerFocus: '确认品牌定位、核心产品、目标市场、对外承诺和最终上线效果。', operatorFocus: '完成内容搭建、商品同步、多语言、SEO、域名配置、移动端检查和正式发布。',
     preparation: ['品牌名称、Logo、企业介绍和联系方式已经确认。', '准备高质量商品图、站点横幅、目标语言文案和域名。', '商品已经开启独立站同步。'],
     steps: [
       { entry: '独立站 → 站点设置', action: '维护品牌信息、联系资料、默认语言、SEO 标题与描述。', result: '站点具备统一品牌信息和搜索引擎展示文案。' },
@@ -116,11 +123,12 @@ const chapters: TrainingChapter[] = [
       { question: '修改内容后前台为什么没有变化？', answer: '保存编辑并不等于发布。完成预览后重新发布，并在发版历史确认结果。' },
       { question: '域名一直显示待验证怎么办？', answer: '核对 DNS 记录类型、主机记录和值是否完全一致，并等待 DNS 生效后再次验证。' },
     ],
-    screenshot: { src: '/training-assets/site-design.webp', alt: '独立站可视化设计页面示例', caption: '站点设计：逐区块维护内容，并同时检查桌面端和移动端预览。', callouts: ['从左侧组织页面区块', '在画布检查页面效果', '在右侧配置内容与交互'] },
+    screenshot: { src: '/training-assets/site-design.webp', alt: '独立站可视化设计页面示例', caption: '站点设计：逐区块维护内容，并同时检查桌面端和移动端预览。', callouts: [{ label: '从左侧组织页面区块', left: 12, top: 34 }, { label: '在中间画布检查页面效果', left: 54, top: 49 }, { label: '在右侧配置内容与交互', left: 88, top: 35 }] },
   },
   {
-    id: 'lead-to-deal', order: '07', title: '询盘到成交', subtitle: '让每条独立站线索都有负责人和结果', roles: ['独立站运营', '销售', '租户老板'], icon: Target,
-    goal: '及时承接独立站询盘，明确跟进责任和结果，并把有效商机转入客户与销售流程。',
+    id: 'lead-to-deal', order: '07', title: '询盘到成交', subtitle: '老板看转化效率，运营推进每条商机', roles: ['老板', '独立站运营', '销售运营'], icon: Target,
+    goal: '及时承接独立站询盘，明确跟进责任和结果，并把有效商机转入客户、订单和回款流程。',
+    ownerFocus: '关注线索数量、首次响应速度、跟进积压、转化率和关闭原因。', operatorFocus: '每天清理新线索，及时分配负责人，持续记录跟进，并把成交机会转成客户和订单。',
     preparation: ['独立站询盘表单已经发布并完成测试提交。', '销售成员及线索分配权限已经配置。', '团队已约定首次响应时限和关闭原因规范。'],
     steps: [
       { entry: '独立站 → 线索池', action: '每天筛选“新线索”，查看联系人、公司、关联商品和采购需求。', result: '新增询盘被及时识别。' },
@@ -133,11 +141,12 @@ const chapters: TrainingChapter[] = [
       { question: '普通成员无法指派线索怎么办？', answer: '由拥有指派权限的负责人完成分配；普通跟进人员可在权限范围内更新自己的线索。' },
       { question: '老板应该关注什么？', answer: '重点看新线索积压、首次响应时长、跟进中数量、转化率和主要关闭原因。' },
     ],
-    screenshot: { src: '/training-assets/leads.webp', alt: '独立站线索池页面示例', caption: '线索池：优先处理新线索，及时指派负责人并记录跟进结果。', callouts: ['优先筛选新线索', '查看负责人和当前状态'] },
+    screenshot: { src: '/training-assets/leads.webp', alt: '独立站线索池页面示例', caption: '线索池：优先处理新线索，及时指派负责人并记录跟进结果。', callouts: [{ label: '查看新增、跟进中和已转化数量', left: 58, top: 20 }, { label: '按状态筛选并安排跟进', left: 47, top: 33 }, { label: '核对负责人、状态和操作', left: 92, top: 55 }] },
   },
   {
-    id: 'owner-review', order: '08', title: '老板经营复盘', subtitle: '用固定节奏发现经营问题，而不只看单笔业务', roles: ['租户老板', '运营负责人', '财务负责人'], icon: BarChart3,
-    goal: '用经营概览、财务统计、库存和线索数据形成每日、每周、每月的管理节奏。',
+    id: 'owner-review', order: '08', title: '老板经营复盘', subtitle: '老板做判断，运营拿出行动结果', roles: ['老板', '运营负责人', '财务负责人'], icon: BarChart3,
+    goal: '用经营概览、财务、库存和线索数据建立每日、每周、每月的复盘节奏，把数据转成明确的经营动作。',
+    ownerFocus: '判断销售、采购、现金、库存和获客是否健康，并决定资源投向。', operatorFocus: '保证数据及时准确，解释异常原因，并形成带负责人和截止时间的行动清单。',
     preparation: ['采购、销售、出入库和收付款均按实际业务及时录入。', '团队使用统一状态和关闭原因。', '明确需要重点跟踪的商品、客户和市场。'],
     steps: [
       { entry: '每日 → 经营概览 / 线索池', action: '检查新订单、新线索、待处理事项、库存不足和异常单据。', result: '当天问题当天分配负责人。' },
@@ -150,7 +159,7 @@ const chapters: TrainingChapter[] = [
       { question: '统计数据和预期不一致怎么办？', answer: '先确认时间、币种和单据状态，再从对应订单、库存流水和收付款明细逐层核对。' },
       { question: '只看销售额够吗？', answer: '不够。需要同时关注回款、应付、库存占用、线索转化和异常单据，避免有收入无现金或库存积压。' },
     ],
-    screenshot: { src: '/training-assets/dashboard.webp', alt: '经营概览与财务复盘页面示例', caption: '经营复盘：从概览发现异常，再进入财务、库存和业务明细核对。', callouts: ['先看经营金额和待办', '再看趋势、品类和库存风险'] },
+    screenshot: { src: '/training-assets/dashboard.webp', alt: '经营概览与财务复盘页面示例', caption: '经营复盘：从概览发现异常，再进入财务、库存和业务明细核对。', callouts: [{ label: '先看销售、采购、收款和付款', left: 58, top: 27 }, { label: '再看待办和风险预警', left: 58, top: 43 }, { label: '最后分析趋势和商品结构', left: 63, top: 67 }] },
   },
 ];
 
@@ -161,7 +170,7 @@ const HelpPage: React.FC = () => {
   const activeChapter = useMemo(() => chapters.find(chapter => chapter.id === activeId) || chapters[0], [activeId]);
 
   useEffect(() => {
-    document.title = '租户运营培训手册 · 迈犀沃';
+    document.title = '老板与运营实战手册 · 迈犀沃';
     if (!initialHash) return;
     requestAnimationFrame(() => document.getElementById(initialHash)?.scrollIntoView({ block: 'start' }));
   }, [initialHash]);
@@ -175,20 +184,20 @@ const HelpPage: React.FC = () => {
 
   return (
     <div data-testid="standalone-help" className="min-h-screen bg-[#f7f7fc] text-foreground">
-      <header className="border-b border-border bg-white"><div className="mx-auto flex max-w-[1480px] items-center gap-3 px-4 py-4 sm:px-6 lg:px-8"><BrandMark size={34} /><div className="min-w-0"><div className="text-sm font-bold">迈犀沃</div><div className="truncate text-xs text-muted-foreground">租户运营培训手册</div></div><div className="ml-auto hidden items-center gap-2 rounded-full bg-primary/8 px-3 py-1.5 text-xs text-primary sm:flex"><BookOpen className="h-3.5 w-3.5" />进销存与独立站实操指南</div><button type="button" aria-label="打开培训目录" onClick={() => setDirectoryOpen(true)} className="ml-auto grid h-9 w-9 place-items-center rounded-lg border border-border bg-white lg:hidden"><Menu className="h-4 w-4" /></button></div></header>
+      <header className="border-b border-border bg-white"><div className="mx-auto flex max-w-[1480px] items-center gap-3 px-4 py-4 sm:px-6 lg:px-8"><BrandMark size={34} /><div className="min-w-0"><div className="text-sm font-bold">迈犀沃</div><div className="truncate text-xs text-muted-foreground">老板与运营实战手册</div></div><div className="ml-auto hidden items-center gap-2 rounded-full bg-primary/8 px-3 py-1.5 text-xs text-primary sm:flex"><BookOpen className="h-3.5 w-3.5" />从经营判断到运营落地</div><button type="button" aria-label="打开培训目录" onClick={() => setDirectoryOpen(true)} className="ml-auto grid h-9 w-9 place-items-center rounded-lg border border-border bg-white lg:hidden"><Menu className="h-4 w-4" /></button></div></header>
 
-      <section className="border-b border-primary/10 bg-gradient-to-br from-primary/12 via-white to-violet-50"><div className="mx-auto grid max-w-[1480px] gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8 lg:py-14"><div><div className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-primary">Mercivo Training Guide</div><h1 className="max-w-3xl text-3xl font-bold leading-tight sm:text-4xl">把系统真正用进业务里</h1><p className="mt-4 max-w-3xl text-sm leading-7 text-muted-foreground sm:text-base">这不是菜单说明书，而是一套面向租户老板和运营团队的实操培训。按照八个阶段完成配置、进货、销售、库存、独立站获客与经营复盘。</p></div><div className="grid grid-cols-2 gap-3 rounded-2xl border border-white/80 bg-white/70 p-4 shadow-sm backdrop-blur"><div><div className="text-2xl font-bold text-primary">8</div><div className="mt-1 text-xs text-muted-foreground">业务培训阶段</div></div><div><div className="text-2xl font-bold text-primary">5</div><div className="mt-1 text-xs text-muted-foreground">核心岗位协作</div></div><div className="col-span-2 border-t border-border pt-3 text-xs leading-5 text-muted-foreground">建议首次由老板和各岗位负责人共同学习，再按职责完成对应章节。</div></div></div></section>
+      <section className="border-b border-primary/10 bg-gradient-to-br from-primary/12 via-white to-violet-50"><div className="mx-auto grid max-w-[1480px] gap-6 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_360px] lg:px-8 lg:py-14"><div><div className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-primary">Mercivo Business Playbook</div><h1 className="max-w-3xl text-3xl font-bold leading-tight sm:text-4xl">老板看得懂，运营做得成</h1><p className="mt-4 max-w-3xl text-sm leading-7 text-muted-foreground sm:text-base">从经营目标出发，把商品、采购、销售、库存、独立站和财务串成一条业务闭环。老板用它抓结果，运营团队照着步骤把工作落到系统里。</p></div><div className="grid grid-cols-2 gap-3 rounded-2xl border border-white/80 bg-white/70 p-4 shadow-sm backdrop-blur"><div><div className="text-2xl font-bold text-primary">8</div><div className="mt-1 text-xs text-muted-foreground">经营实战阶段</div></div><div><div className="text-2xl font-bold text-primary">2</div><div className="mt-1 text-xs text-muted-foreground">老板与运营视角</div></div><div className="col-span-2 border-t border-border pt-3 text-xs leading-5 text-muted-foreground">建议老板先理解每章的经营重点，再由运营负责人带团队完成操作和验收。</div></div></div></section>
 
       <div className="mx-auto grid max-w-[1480px] gap-6 px-4 py-7 sm:px-6 lg:grid-cols-[270px_minmax(0,1fr)] lg:px-8">
-        <aside data-testid="manual-directory" className="hidden h-fit overflow-hidden rounded-2xl border border-border bg-white lg:sticky lg:top-6 lg:block"><div className="border-b border-border px-4 py-3"><div className="text-sm font-semibold">培训目录</div><div className="mt-0.5 text-xs text-muted-foreground">按业务顺序逐章完成</div></div><nav aria-label="培训手册目录" className="max-h-[calc(100vh-150px)] overflow-y-auto p-2">{chapters.map(chapter => <button key={chapter.id} type="button" onClick={() => openChapter(chapter.id)} className={`mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${activeId === chapter.id ? 'bg-primary/10 text-primary' : 'text-foreground/80 hover:bg-secondary'}`}><span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[11px] font-bold ${activeId === chapter.id ? 'bg-primary text-white' : 'bg-secondary text-muted-foreground'}`}>{chapter.order}</span><span className="min-w-0 flex-1 truncate text-sm">{chapter.title}</span><ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50" /></button>)}</nav></aside>
+        <aside data-testid="manual-directory" className="hidden h-fit overflow-hidden rounded-2xl border border-border bg-white lg:sticky lg:top-6 lg:block"><div className="border-b border-border px-4 py-3"><div className="text-sm font-semibold">实战目录</div><div className="mt-0.5 text-xs text-muted-foreground">从经营准备到复盘决策</div></div><nav aria-label="培训手册目录" className="max-h-[calc(100vh-150px)] overflow-y-auto p-2">{chapters.map(chapter => <button key={chapter.id} type="button" onClick={() => openChapter(chapter.id)} className={`mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${activeId === chapter.id ? 'bg-primary/10 text-primary' : 'text-foreground/80 hover:bg-secondary'}`}><span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[11px] font-bold ${activeId === chapter.id ? 'bg-primary text-white' : 'bg-secondary text-muted-foreground'}`}>{chapter.order}</span><span className="min-w-0 flex-1 truncate text-sm">{chapter.title}</span><ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50" /></button>)}</nav></aside>
 
         {directoryOpen && <div className="fixed inset-0 z-50 lg:hidden"><button type="button" aria-label="关闭培训目录遮罩" onClick={() => setDirectoryOpen(false)} className="absolute inset-0 bg-black/35" /><aside className="absolute inset-y-0 left-0 w-[min(86vw,320px)] overflow-y-auto bg-white p-4 shadow-2xl"><div className="mb-4 flex items-center justify-between"><div><div className="font-semibold">培训目录</div><div className="text-xs text-muted-foreground">当前：{activeChapter.title}</div></div><button type="button" aria-label="关闭培训目录" onClick={() => setDirectoryOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg hover:bg-secondary"><X className="h-4 w-4" /></button></div><nav aria-label="移动端培训手册目录" className="space-y-1">{chapters.map(chapter => <button key={chapter.id} type="button" onClick={() => openChapter(chapter.id)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left ${activeId === chapter.id ? 'bg-primary/10 text-primary' : 'hover:bg-secondary'}`}><span className="text-xs font-bold">{chapter.order}</span><span className="text-sm">{chapter.title}</span></button>)}</nav></aside></div>}
 
-        <main className="min-w-0 space-y-6">{chapters.map(chapter => { const Icon = chapter.icon; return <article id={chapter.id} key={chapter.id} className="scroll-mt-6 overflow-hidden rounded-2xl border border-border bg-white shadow-sm"><div className="border-b border-border bg-gradient-to-r from-primary/8 to-transparent px-5 py-5 sm:px-7"><div className="flex items-start gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary text-white"><Icon className="h-5 w-5" /></span><div className="min-w-0"><div className="text-xs font-bold tracking-widest text-primary">阶段 {chapter.order}</div><h2 className="mt-1 text-xl font-bold">{chapter.title}</h2><p className="mt-1 text-sm text-muted-foreground">{chapter.subtitle}</p></div></div><div className="mt-4 flex flex-wrap gap-2">{chapter.roles.map(role => <span key={role} className="rounded-full border border-primary/15 bg-white px-3 py-1 text-xs text-primary">适用角色 · {role}</span>)}</div></div>
-          <div className="space-y-6 px-5 py-6 sm:px-7"><section><div className="mb-2 flex items-center gap-2 text-sm font-semibold"><Target className="h-4 w-4 text-primary" />培训目标</div><p className="rounded-xl bg-primary/5 px-4 py-3 text-sm leading-6 text-foreground/80">{chapter.goal}</p></section><section><h3 className="mb-3 text-sm font-semibold">开始前准备</h3><div className="grid gap-2 sm:grid-cols-2">{chapter.preparation.map(item => <div key={item} className="flex gap-2 rounded-xl border border-border px-3 py-2.5 text-sm leading-5"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /><span>{item}</span></div>)}</div></section>
-            <section><h3 className="mb-3 text-sm font-semibold">标准操作流程</h3><div className="overflow-hidden rounded-xl border border-border">{chapter.steps.map((step, index) => <div key={`${step.entry}-${index}`} className="grid gap-3 border-b border-border p-4 last:border-b-0 md:grid-cols-[44px_190px_minmax(0,1fr)]"><span className="grid h-8 w-8 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary">{index + 1}</span><div><div className="text-[11px] font-semibold uppercase text-muted-foreground">操作入口</div><div className="mt-1 text-sm font-medium text-primary">{step.entry}</div></div><div><p className="text-sm leading-6">{step.action}</p><p className="mt-1 flex gap-1.5 text-xs leading-5 text-muted-foreground"><ArrowRight className="mt-1 h-3 w-3 shrink-0" /><span>完成结果：{step.result}</span></p></div></div>)}</div></section>
-            {chapter.screenshot && <figure className="overflow-hidden rounded-2xl border border-border bg-secondary/20"><div className="relative aspect-[16/9] overflow-hidden bg-secondary"><img src={chapter.screenshot.src} alt={chapter.screenshot.alt} loading="lazy" className="h-full w-full object-cover object-top" onError={event => { event.currentTarget.hidden = true; event.currentTarget.nextElementSibling?.classList.remove('hidden'); }} /><div className="absolute inset-0 hidden place-items-center p-8 text-center text-sm text-muted-foreground"><div><BookOpen className="mx-auto mb-2 h-7 w-7" />截图暂不可用，请按上方操作入口进入系统。</div></div>{chapter.screenshot.callouts.map((label, index) => <span key={label} aria-label={`${index + 1}. ${label}`} className="absolute grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-primary text-xs font-bold text-white shadow-lg" style={{ left: `${18 + index * 30}%`, top: `${24 + index * 20}%` }}>{index + 1}</span>)}</div><figcaption className="px-4 py-3 text-xs leading-5 text-muted-foreground"><p>{chapter.screenshot.caption}</p><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">{chapter.screenshot.callouts.map((label, index) => <span key={label} className="inline-flex items-center gap-1.5"><b className="text-primary">{index + 1}</b>{label}</span>)}</div></figcaption></figure>}
-            <section className="grid gap-4 xl:grid-cols-2"><div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4"><h3 className="mb-3 text-sm font-semibold text-emerald-800">完成标志</h3><ul className="space-y-2">{chapter.completion.map(item => <li key={item} className="flex gap-2 text-sm leading-5 text-emerald-900/80"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /><span>{item}</span></li>)}</ul></div><div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4"><h3 className="mb-3 text-sm font-semibold text-amber-900">常见问题</h3><div className="space-y-3">{chapter.issues.map(issue => <div key={issue.question}><div className="text-sm font-medium text-amber-950">{issue.question}</div><p className="mt-1 text-xs leading-5 text-amber-900/75">{issue.answer}</p></div>)}</div></div></section></div></article>; })}</main>
+        <main className="min-w-0 space-y-6">{chapters.map(chapter => { const Icon = chapter.icon; return <article id={chapter.id} key={chapter.id} className="scroll-mt-6 overflow-hidden rounded-2xl border border-border bg-white shadow-sm"><div className="border-b border-border bg-gradient-to-r from-primary/8 to-transparent px-5 py-5 sm:px-7"><div className="flex items-start gap-4"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary text-white"><Icon className="h-5 w-5" /></span><div className="min-w-0"><div className="text-xs font-bold tracking-widest text-primary">经营阶段 {chapter.order}</div><h2 className="mt-1 text-xl font-bold">{chapter.title}</h2><p className="mt-1 text-sm text-muted-foreground">{chapter.subtitle}</p></div></div><div className="mt-4 flex flex-wrap gap-2">{chapter.roles.map(role => <span key={role} className="rounded-full border border-primary/15 bg-white px-3 py-1 text-xs text-primary">建议参与 · {role}</span>)}</div></div>
+          <div className="space-y-6 px-5 py-6 sm:px-7"><section><div className="mb-2 flex items-center gap-2 text-sm font-semibold"><Target className="h-4 w-4 text-primary" />本章要解决什么</div><p className="rounded-xl bg-primary/5 px-4 py-3 text-sm leading-6 text-foreground/80">{chapter.goal}</p></section><section className="grid gap-3 md:grid-cols-2"><div className="rounded-xl border border-violet-200 bg-violet-50/70 p-4"><div className="text-xs font-bold text-violet-700">老板重点看</div><p className="mt-2 text-sm leading-6 text-violet-950/80">{chapter.ownerFocus}</p></div><div className="rounded-xl border border-sky-200 bg-sky-50/70 p-4"><div className="text-xs font-bold text-sky-700">运营重点做</div><p className="mt-2 text-sm leading-6 text-sky-950/80">{chapter.operatorFocus}</p></div></section><section><h3 className="mb-3 text-sm font-semibold">开始操作前</h3><div className="grid gap-2 sm:grid-cols-2">{chapter.preparation.map(item => <div key={item} className="flex gap-2 rounded-xl border border-border px-3 py-2.5 text-sm leading-5"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /><span>{item}</span></div>)}</div></section>
+            <section><h3 className="mb-3 text-sm font-semibold">运营落地步骤</h3><div className="overflow-hidden rounded-xl border border-border">{chapter.steps.map((step, index) => <div key={`${step.entry}-${index}`} className="grid gap-3 border-b border-border p-4 last:border-b-0 md:grid-cols-[44px_190px_minmax(0,1fr)]"><span className="grid h-8 w-8 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary">{index + 1}</span><div><div className="text-[11px] font-semibold uppercase text-muted-foreground">从这里进入</div><div className="mt-1 text-sm font-medium text-primary">{step.entry}</div></div><div><p className="text-sm leading-6">{step.action}</p><p className="mt-1 flex gap-1.5 text-xs leading-5 text-muted-foreground"><ArrowRight className="mt-1 h-3 w-3 shrink-0" /><span>做完以后：{step.result}</span></p></div></div>)}</div></section>
+            {chapter.screenshot && <figure className="overflow-hidden rounded-2xl border border-border bg-secondary/20"><div className="relative aspect-[16/9] overflow-hidden bg-secondary"><img src={chapter.screenshot.src} alt={chapter.screenshot.alt} loading="lazy" className="h-full w-full object-cover object-top" onError={event => { event.currentTarget.hidden = true; event.currentTarget.nextElementSibling?.classList.remove('hidden'); }} /><div className="absolute inset-0 hidden place-items-center p-8 text-center text-sm text-muted-foreground"><div><BookOpen className="mx-auto mb-2 h-7 w-7" />截图暂不可用，请按上方操作入口进入系统。</div></div>{chapter.screenshot.callouts.map((callout, index) => <span key={callout.label} aria-label={`${index + 1}. ${callout.label}`} data-testid="screenshot-callout" className="absolute grid h-7 w-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-white bg-primary text-xs font-bold text-white shadow-lg" style={{ left: `${callout.left}%`, top: `${callout.top}%` }}>{index + 1}</span>)}</div><figcaption className="px-4 py-3 text-xs leading-5 text-muted-foreground"><p>{chapter.screenshot.caption}</p><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">{chapter.screenshot.callouts.map((callout, index) => <span key={callout.label} className="inline-flex items-center gap-1.5"><b className="text-primary">{index + 1}</b>{callout.label}</span>)}</div></figcaption></figure>}
+            <section className="grid gap-4 xl:grid-cols-2"><div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4"><h3 className="mb-3 text-sm font-semibold text-emerald-800">老板如何验收</h3><ul className="space-y-2">{chapter.completion.map(item => <li key={item} className="flex gap-2 text-sm leading-5 text-emerald-900/80"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /><span>{item}</span></li>)}</ul></div><div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4"><h3 className="mb-3 text-sm font-semibold text-amber-900">运营常见问题</h3><div className="space-y-3">{chapter.issues.map(issue => <div key={issue.question}><div className="text-sm font-medium text-amber-950">{issue.question}</div><p className="mt-1 text-xs leading-5 text-amber-900/75">{issue.answer}</p></div>)}</div></div></section></div></article>; })}</main>
       </div>
       <footer className="border-t border-border bg-white px-4 py-6 text-center text-xs text-muted-foreground">迈犀沃 · 外贸 ERP 与独立站平台 · 培训内容以当前系统功能为准</footer>
     </div>
