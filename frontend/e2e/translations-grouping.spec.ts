@@ -38,6 +38,66 @@ const prepare = async (page: Page, itemsByType: Record<string, ReturnType<typeof
   return requestedTypes;
 };
 
+test('translation loading states prevent empty content from flashing', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
+    localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: ['page.site.editor', 'page.site.translations'] }));
+  });
+  let releaseSettings!: () => void;
+  let releaseTranslations!: () => void;
+  const settingsGate = new Promise<void>(resolve => { releaseSettings = resolve; });
+  const translationsGate = new Promise<void>(resolve => { releaseTranslations = resolve; });
+  await page.route('**/api/v1/**', async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/workspace/settings')) {
+      await settingsGate;
+      return route.fulfill({ json: { data: { site: { name: '测试站点', defaultLanguage: 'zh_CN', supportedLanguages: ['zh_CN', 'en_US'] } } } });
+    }
+    if (url.pathname.endsWith('/translations')) {
+      await translationsGate;
+      return route.fulfill({ json: { data: { items: [], total: 0, page: 1, pageSize: 200, locale: 'en_US', summary: [] } } });
+    }
+    return route.fulfill({ json: { data: {} } });
+  });
+
+  await page.goto(`${process.env.FRONTEND_BASE_URL || 'http://localhost:8088'}/storefront-translations`);
+  await expect(page.getByTestId('translations-settings-loading')).toBeVisible();
+  await expect(page.getByText('尚未启用非中文语言', { exact: true })).toHaveCount(0);
+  releaseSettings();
+  await expect(page.getByTestId('translations-content-loading')).toBeVisible();
+  await expect(page.getByText('暂无数据', { exact: true })).toHaveCount(0);
+  releaseTranslations();
+  await expect(page.getByTestId('translations-content-loading')).toHaveCount(0);
+  await expect(page.locator('.ant-empty-description').getByText('暂无数据', { exact: true })).toBeVisible();
+});
+
+test('translation empty-language state appears only after settings load and keeps a training-sized height', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
+    localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: ['page.site.editor', 'page.site.translations'] }));
+  });
+  let releaseSettings!: () => void;
+  const settingsGate = new Promise<void>(resolve => { releaseSettings = resolve; });
+  await page.route('**/api/v1/**', async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/workspace/settings')) {
+      await settingsGate;
+      return route.fulfill({ json: { data: { site: { name: '测试站点', defaultLanguage: 'zh_CN', supportedLanguages: ['zh_CN'] } } } });
+    }
+    return route.fulfill({ json: { data: {} } });
+  });
+
+  await page.goto(`${process.env.FRONTEND_BASE_URL || 'http://localhost:8088'}/storefront-translations`);
+  await expect(page.getByTestId('translations-settings-loading')).toBeVisible();
+  await expect(page.getByText('尚未启用非中文语言', { exact: true })).toHaveCount(0);
+  releaseSettings();
+  const emptyState = page.getByTestId('translations-empty-languages');
+  await expect(emptyState).toBeVisible();
+  expect((await emptyState.boundingBox())!.height).toBeGreaterThanOrEqual(384);
+});
+
 test('keyword matches are consolidated into one search result card', async ({ page }) => {
   await prepare(page, {
     product: [

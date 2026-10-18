@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 const permissions = [
   'group.site', 'menu.site', 'menu.storefront.settings', 'menu.storefront.releases',
   'page.site.editor', 'page.site.settings', 'page.storefront.releases',
-  'site.edit', 'site.publish', 'settings.site',
+  'site.edit', 'site.publish', 'settings.site', 'site.domain',
 ];
 
 const workspace = {
@@ -163,6 +163,33 @@ test('site settings cards share height and use the default site description', as
     return Array.from(field.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input[placeholder], textarea[placeholder]')).filter(control => control.placeholder !== label).map(control => ({ label, placeholder: control.placeholder }));
   }));
   expect(placeholderMismatches).toEqual([]);
+});
+
+test('site settings keeps all modules in loading state until settings data is ready', async ({ page }) => {
+  await authenticate(page);
+  let releaseData!: () => void;
+  const dataGate = new Promise<void>(resolve => { releaseData = resolve; });
+  await page.route('**/api/v1/**', async route => {
+    const url = route.request().url();
+    if (url.includes('/auth/me')) return route.fulfill({ json: { data: { permissions } } });
+    if (url.includes('/workspace/settings') || url.includes('/workspace/config/seo')) {
+      await dataGate;
+      if (url.includes('/workspace/settings')) return route.fulfill({ json: { data: workspace } });
+      return route.fulfill({ json: { data: { title: 'SEO 标题', description: 'SEO 描述', keywords: '关键词' } } });
+    }
+    return route.fulfill({ json: { data: [] } });
+  });
+
+  await page.goto(`${process.env.FRONTEND_BASE_URL || 'http://localhost:8088'}/storefront/settings`);
+  await expect(page.getByTestId('storefront-settings-loading')).toBeVisible();
+  await expect(page.getByTestId('storefront-settings-loading').locator('section')).toHaveCount(4);
+  await expect(page.getByRole('heading', { name: '站点信息', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '多语言配置', exact: true })).toHaveCount(0);
+  releaseData();
+  await expect(page.getByTestId('storefront-settings-loading')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '站点信息', exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'SEO 标题' })).toHaveValue('SEO 标题');
+  await expect(page.getByRole('heading', { name: '多语言配置', exact: true })).toBeVisible();
 });
 
 test('site editor shows identity and requires a release note before publishing', async ({ page }) => {
@@ -634,16 +661,23 @@ test('release history displays version, publisher, date and note', async ({ page
   await page.route('**/api/v1/**', route => {
     const url = route.request().url();
     if (url.includes('/auth/me')) return route.fulfill({ json: { data: { permissions } } });
-    if (url.includes('/admin/sites/site-1/versions')) return route.fulfill({ json: { data: [{ id: 'version-2', siteId: 'site-1', version: 2, publishedBy: 'publisher@example.com', publishedAt: '2026-10-14T08:00:00.000Z', releaseNote: '首页升级' }] } });
+    if (url.includes('/admin/sites/site-1/versions')) return route.fulfill({ json: { data: Array.from({ length: 21 }, (_, index) => ({ id: `version-${index + 1}`, siteId: 'site-1', version: index + 1, publishedBy: index === 1 ? 'publisher@example.com' : 'tester@example.com', publishedAt: '2026-10-14T08:00:00.000Z', releaseNote: index === 1 ? '首页升级' : `版本 ${index + 1}` })) } });
     return route.fulfill({ json: { data: [] } });
   });
 
-  await page.goto('http://localhost:8088/storefront/releases');
+  await page.goto(`${process.env.FRONTEND_BASE_URL || 'http://localhost:8088'}/storefront/releases`);
   await expect(page.getByRole('heading', { name: '发版历史', exact: true })).toBeVisible();
   for (const heading of ['版本号', '发版日期', '发版人', '发版备注']) await expect(page.getByRole('columnheader', { name: heading })).toBeVisible();
   await expect(page.getByText('v2', { exact: true })).toBeVisible();
   await expect(page.getByText('publisher@example.com', { exact: true })).toBeVisible();
   await expect(page.getByText('首页升级', { exact: true })).toBeVisible();
+  await expect(page.getByText('共 21 条', { exact: true })).toBeVisible();
+  await expect(page.getByRole('row')).toHaveCount(11);
+  await page.getByTitle('2').click();
+  await expect(page.getByText('v11', { exact: true })).toBeVisible();
+  await page.locator('.ant-pagination-options .ant-select-selector').click();
+  await page.getByText('20 条/页', { exact: true }).click();
+  await expect(page.getByText('v20', { exact: true })).toBeVisible();
   const settingsItem = page.getByRole('button', { name: '站点设置', exact: true });
   const releasesItem = page.getByRole('button', { name: '发版历史', exact: true });
   expect((await settingsItem.boundingBox())!.y).toBeLessThan((await releasesItem.boundingBox())!.y);

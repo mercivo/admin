@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Descriptions, Empty, Input, Select, Tag, Tree, Upload, message, type UploadProps } from 'antd';
+import { Button, Descriptions, Empty, Input, Select, Skeleton, Tag, Tree, Upload, message, type UploadProps } from 'antd';
 import { ArrowRight, CheckCircle2, Copy, Eye, Globe2, Heart, ImagePlus, Languages, Link2, MessageSquareText, PackageCheck, Plus, Search, Settings2, ShieldCheck, Trash2, UserCheck, XCircle } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { AppModal, AppTable, createActionColumn, LeadStatusTag, leadStatusMeta, PageContent, PageHeader, ProductGallery, ProductTableCell, productBadgeLabels, StatusBadge, TableActionButton, TableActions } from '../../components/shared';
@@ -101,14 +101,15 @@ const ProductPool = () => {
 const ReleaseHistory = () => {
   const [items, setItems] = useState<SiteVersion[]>([]);
   const [loading, setLoading] = useState(true);
+  const pagination = useTablePagination();
   useEffect(() => {
     const siteId = String(JSON.parse(localStorage.getItem('mercivo_user') || '{}').siteId || '');
-    void (siteId ? siteApi.versions(siteId) : Promise.resolve([])).then(setItems).finally(() => setLoading(false));
+    void (siteId ? siteApi.versions(siteId) : Promise.resolve([])).then(result => { setItems(result); pagination.reconcile(result.length); }).finally(() => setLoading(false));
   }, []);
   return <PageContent>
     <PageHeader title="发版历史" description="查看独立站每次发布的版本、时间、发版人与备注"/>
     <section className={`${card} overflow-hidden`}>
-      <AppTable loading={loading} rowKey="id" dataSource={items} pagination={{ pageSize: 10 }} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无发版记录"/> }} columns={[
+      <AppTable loading={loading} rowKey="id" dataSource={items} pagination={pagination.config} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无发版记录"/> }} columns={[
         { title: '版本号', dataIndex: 'version', render: value => <Tag color="purple">v{value}</Tag> },
         { title: '发版日期', dataIndex: 'publishedAt', render: value => value ? new Date(value).toLocaleString('zh-CN') : '-' },
         { title: '发版人', dataIndex: 'publishedBy', render: value => value || '-' },
@@ -127,6 +128,7 @@ const StorefrontSettings = () => {
   const [domainSaving, setDomainSaving] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
   const [saveState, setSaveState] = useState<'loading' | 'saving' | 'saved' | 'error'>('loading');
+  const [initialLoading, setInitialLoading] = useState(true);
   const savedSiteInfo = useRef('');
   const savedLanguages = useRef('');
   const savedSeo = useRef('');
@@ -148,10 +150,11 @@ const StorefrontSettings = () => {
         savedSiteInfo.current = JSON.stringify({ name: settings.site.name, description: settings.site.description, logoUrl: settings.site.logoUrl || '' });
         savedLanguages.current = JSON.stringify({ defaultLanguage: settings.site.defaultLanguage, supportedLanguages: nextLanguages });
         savedSeo.current = JSON.stringify(nextSeo);
-        setWorkspace(settings); setLanguages(nextLanguages); setSeo(nextSeo); setSaveState('saved');
-        if (domainEditable) setDomains(await siteApi.domains(settings.site.id));
+        const nextDomains = domainEditable ? await siteApi.domains(settings.site.id) : [];
+        setWorkspace(settings); setLanguages(nextLanguages); setSeo(nextSeo); setDomains(nextDomains); setSaveState('saved');
       })
-      .catch(() => { setSaveState('error'); message.error('站点设置加载失败'); });
+      .catch(() => { setSaveState('error'); message.error('站点设置加载失败'); })
+      .finally(() => setInitialLoading(false));
   }, []);
 
   useEffect(() => {
@@ -215,7 +218,9 @@ const StorefrontSettings = () => {
   const heading = (icon: React.ReactNode, title: string, description: string) => <div className="mb-4 flex items-center gap-3"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">{icon}</div><div><h2 className="text-sm font-normal">{title}</h2><p className="mt-0.5 text-xs font-normal text-muted-foreground">{description}</p></div></div>;
   return <PageContent>
     <PageHeader title="站点设置" description="修改后自动保存" action={<span className={`text-xs ${saveState === 'error' ? 'text-red-500' : 'text-muted-foreground'}`}>{saveState === 'saving' ? '正在保存…' : saveState === 'error' ? '自动保存失败，请重试' : saveState === 'saved' ? '已自动保存' : '加载中…'}</span>}/>
-    <div className="grid items-stretch gap-4 xl:grid-cols-2">
+    {initialLoading ? <div data-testid="storefront-settings-loading" className="grid items-stretch gap-4 xl:grid-cols-2">
+      {[...(can('page.site.settings') ? [false, false, true] : []), ...(domainEditable ? [true] : [])].map((fullWidth, index) => <section key={index} className={`${section} min-h-56 ${fullWidth ? 'xl:col-span-2' : ''}`}><Skeleton active title={{ width: '32%' }} paragraph={{ rows: fullWidth ? 3 : 5 }}/></section>)}
+    </div> : <div className="grid items-stretch gap-4 xl:grid-cols-2">
       {can('page.site.settings') && <section className={`${section} flex flex-col`}>{heading(<Globe2 size={19}/>, '站点信息', '维护前台品牌信息与品牌形象')}<div className="flex flex-1 flex-col gap-4">
         <SettingsField label="站点名称"><Input placeholder="站点名称" disabled={!siteInfoEditable} value={workspace?.site.name || ''} onChange={event => workspace && setWorkspace({ ...workspace, site: { ...workspace.site, name: event.target.value } })}/></SettingsField>
         <SettingsField label="站点描述"><Input placeholder="站点描述" disabled={!siteInfoEditable} value={workspace?.site.description || ''} onChange={event => workspace && setWorkspace({ ...workspace, site: { ...workspace.site, description: event.target.value } })}/></SettingsField>
@@ -228,7 +233,7 @@ const StorefrontSettings = () => {
       </div></section>}
       {can('page.site.settings') && <section className={`${section} xl:col-span-2`}>{heading(<Languages size={19}/>, '多语言配置', '维护独立站可用语言并设置默认语言')}<div data-testid="language-search-container" style={{ marginBottom: 12 }}><Select aria-label="添加支持语言" placeholder="搜索并添加语言" disabled={!languagesEditable} className="w-full max-w-sm" showSearch optionFilterProp="searchText" value={undefined} options={selectableLanguageOptions.filter(option => !languages.includes(option.value)).map(option => ({ ...option, label: `${option.label} (${option.value})` }))} optionRender={option => localeOption(ANTD_LOCALE_OPTIONS.find(item => item.value === option.value)!)} onChange={value => { if (value) setLanguages(current => [...current, value]); }}/></div><div data-testid="language-table" className="overflow-hidden rounded-xl border border-border"><div className="grid grid-cols-[minmax(0,1fr)_120px_56px] bg-secondary/35 px-4 py-2 text-xs text-muted-foreground"><span>语言</span><span className="text-center">默认</span><span/></div>{languages.map(code => { const option = ANTD_LOCALE_OPTIONS.find(item => item.value === code); const isDefaultLanguage = workspace?.site.defaultLanguage === code; return <div data-testid="selected-language-row" key={code} className="grid min-h-16 grid-cols-[minmax(0,1fr)_120px_56px] items-center border-t border-border px-4 first:border-t-0"><div className="flex min-w-0 items-center gap-3"><span className="grid h-8 min-w-16 place-items-center rounded-md bg-primary/10 px-2 font-mono text-[11px] text-primary">{code}</span><div className="min-w-0"><div className="truncate text-sm font-medium">{option?.label || code}</div><div className="truncate text-xs text-muted-foreground">{option?.nativeLabel || code}</div></div></div><div className="text-center"><input type="radio" name="default-site-language" aria-label={`设 ${code} 为默认语言`} disabled={!languagesEditable} checked={isDefaultLanguage} onChange={() => workspace && setWorkspace({ ...workspace, site: { ...workspace.site, defaultLanguage: code } })}/></div><button type="button" aria-label={`删除语言 ${code}`} title={isDefaultLanguage ? '默认语言不可删除' : undefined} disabled={!languagesEditable || languages.length === 1 || isDefaultLanguage} onClick={() => { if (!workspace || languages.length === 1 || isDefaultLanguage) return; const next = languages.filter(item => item !== code); setLanguages(next); setWorkspace({ ...workspace, site: { ...workspace.site, supportedLanguages: next } }); }} className="mx-auto grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-35"><Trash2 size={15}/></button></div>; })}</div></section>}
       {domainEditable && <section className={`${section} xl:col-span-2`}>{heading(<Link2 size={19}/>, '自定义域名', '完成所有权验证和解析后，系统自动提供 HTTPS')}<div className="flex max-w-2xl items-end gap-2"><SettingsField label="自定义域名" className="flex-1"><Input placeholder="自定义域名" value={newDomain} onChange={event => setNewDomain(event.target.value)} onPressEnter={() => void addDomain()}/></SettingsField><Button type="primary" loading={domainSaving} disabled={!newDomain.trim()} onClick={() => void addDomain()}>添加域名</Button></div><div className="mt-4 space-y-3">{domains.length === 0 && <div className="rounded-xl border border-dashed border-border bg-secondary/20 px-5 py-8 text-center text-sm text-muted-foreground">尚未绑定自定义域名</div>}{domains.map(domain => <article key={domain.id} className="rounded-xl border border-border p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><b className="text-sm">{domain.hostname}</b>{domain.isPrimary && <Tag color="blue">主域名</Tag>}<Tag color={domain.status === 'active' ? 'green' : 'gold'}>{domain.status === 'active' ? '已验证' : '待验证'}</Tag></div><p className="mt-1 text-xs text-muted-foreground">{domain.status === 'active' ? 'DNS 已验证 · HTTPS 将自动签发和续期' : '请添加下方 DNS 记录，再执行验证'}</p></div><div className="flex gap-2">{domain.status !== 'active' && <Button size="small" icon={<ShieldCheck size={14}/>} onClick={() => void verifyDomain(domain)}>立即验证</Button>}<Button size="small" danger type="text" icon={<Trash2 size={14}/>} onClick={() => removeDomain(domain)}>移除</Button></div></div><div className="mt-4 grid gap-2 md:grid-cols-2">{[domain.status !== 'active' ? domain.verificationRecord : null, domain.routingRecord].filter(Boolean).map(record => <button type="button" key={`${record!.type}:${record!.name}`} onClick={() => { void navigator.clipboard.writeText(`${record!.type} ${record!.name} ${record!.value}`); message.success('DNS 记录已复制'); }} className="group rounded-lg bg-secondary/50 p-3 text-left hover:bg-secondary"><div className="flex items-center justify-between text-[10px] font-bold uppercase text-muted-foreground"><span>{record!.type} 记录</span><Copy size={13}/></div><div className="mt-1 truncate font-mono text-xs">{record!.name}</div><div className="mt-1 truncate font-mono text-xs text-primary">{record!.value}</div></button>)}</div></article>)}</div></section>}
-    </div>
+    </div>}
   </PageContent>;
 };
 
