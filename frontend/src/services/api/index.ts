@@ -680,8 +680,8 @@ export const siteApi = {
     ),
   publish: (id: string, releaseNote: string) =>
     api.post<any, SiteVersion>(`/admin/sites/${id}/publish`, { releaseNote }),
-  versions: (id: string) =>
-    api.get<any, SiteVersion[]>(`/admin/sites/${id}/versions`),
+  versions: (id: string, params?: Record<string, string | number | undefined>) =>
+    api.get<any, Paged<SiteVersion>>(`/admin/sites/${id}/versions`, { params }),
   rollback: (id: string, versionId: string) =>
     api.post<any, SiteVersion>(`/admin/sites/${id}/rollback`, { versionId }),
   domains: (id: string) =>

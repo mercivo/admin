@@ -104,8 +104,9 @@ const ReleaseHistory = () => {
   const pagination = useTablePagination();
   useEffect(() => {
     const siteId = String(JSON.parse(localStorage.getItem('mercivo_user') || '{}').siteId || '');
-    void (siteId ? siteApi.versions(siteId) : Promise.resolve([])).then(result => { setItems(result); pagination.reconcile(result.length); }).finally(() => setLoading(false));
-  }, []);
+    setLoading(true);
+    void (siteId ? siteApi.versions(siteId, { page: pagination.current, pageSize: pagination.pageSize }) : Promise.resolve({ items: [], total: 0, page: pagination.current, pageSize: pagination.pageSize })).then(result => { setItems(result.items); pagination.reconcile(result.total); }).finally(() => setLoading(false));
+  }, [pagination.current, pagination.pageSize]);
   return <PageContent>
     <PageHeader title="发版历史" description="查看独立站每次发布的版本、时间、发版人与备注"/>
     <section className={`${card} overflow-hidden`}>

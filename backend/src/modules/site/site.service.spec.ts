@@ -13,6 +13,7 @@ describe('SiteService single site model', () => {
   };
   const emptyRepo = {
     find: jest.fn().mockResolvedValue([]),
+    findAndCount: jest.fn().mockResolvedValue([[], 0]),
     findOne: jest.fn(),
     save: jest.fn(async (value) => ({ id: 'version-1', version: 1, ...value })),
     create: jest.fn((value) => value),
@@ -104,5 +105,17 @@ describe('SiteService single site model', () => {
     siteRepo.findOne.mockResolvedValue({ id: 'site-1', tenantId: 'tenant-1', status: 'draft' });
     await expect(service.publish('site-1', 'tester', '   ', 'tenant-1')).rejects.toThrow('请填写发版备注');
     expect(emptyRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('paginates site versions in the database', async () => {
+    siteRepo.findOne.mockResolvedValue({ id: 'site-1', tenantId: 'tenant-1' });
+    emptyRepo.findAndCount.mockResolvedValueOnce([[{ id: 'version-11', version: 11 }], 21]);
+
+    await expect(service.listVersions('site-1', 'tenant-1', { page: 2, pageSize: 10 })).resolves.toEqual({
+      items: [{ id: 'version-11', version: 11 }], total: 21, page: 2, pageSize: 10,
+    });
+    expect(emptyRepo.findAndCount).toHaveBeenCalledWith(expect.objectContaining({
+      where: { siteId: 'site-1' }, skip: 10, take: 10, order: { version: 'DESC' },
+    }));
   });
 });

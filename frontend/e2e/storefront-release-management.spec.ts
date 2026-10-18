@@ -658,10 +658,17 @@ test('site editor shows identity and requires a release note before publishing',
 
 test('release history displays version, publisher, date and note', async ({ page }) => {
   await authenticate(page);
+  const versionRequests: Array<{ page: string | null; pageSize: string | null }> = [];
+  const versions = Array.from({ length: 21 }, (_, index) => ({ id: `version-${index + 1}`, siteId: 'site-1', version: index + 1, publishedBy: index === 1 ? 'publisher@example.com' : 'tester@example.com', publishedAt: '2026-10-14T08:00:00.000Z', releaseNote: index === 1 ? '首页升级' : `版本 ${index + 1}` }));
   await page.route('**/api/v1/**', route => {
-    const url = route.request().url();
-    if (url.includes('/auth/me')) return route.fulfill({ json: { data: { permissions } } });
-    if (url.includes('/admin/sites/site-1/versions')) return route.fulfill({ json: { data: Array.from({ length: 21 }, (_, index) => ({ id: `version-${index + 1}`, siteId: 'site-1', version: index + 1, publishedBy: index === 1 ? 'publisher@example.com' : 'tester@example.com', publishedAt: '2026-10-14T08:00:00.000Z', releaseNote: index === 1 ? '首页升级' : `版本 ${index + 1}` })) } });
+    const url = new URL(route.request().url());
+    if (url.pathname.includes('/auth/me')) return route.fulfill({ json: { data: { permissions } } });
+    if (url.pathname.includes('/admin/sites/site-1/versions')) {
+      const pageNumber = Number(url.searchParams.get('page') || 1);
+      const pageSize = Number(url.searchParams.get('pageSize') || 10);
+      versionRequests.push({ page: url.searchParams.get('page'), pageSize: url.searchParams.get('pageSize') });
+      return route.fulfill({ json: { data: { items: versions.slice((pageNumber - 1) * pageSize, pageNumber * pageSize), total: versions.length, page: pageNumber, pageSize } } });
+    }
     return route.fulfill({ json: { data: [] } });
   });
 
@@ -675,9 +682,11 @@ test('release history displays version, publisher, date and note', async ({ page
   await expect(page.getByRole('row')).toHaveCount(11);
   await page.getByTitle('2').click();
   await expect(page.getByText('v11', { exact: true })).toBeVisible();
+  await expect.poll(() => versionRequests).toContainEqual({ page: '2', pageSize: '10' });
   await page.locator('.ant-pagination-options .ant-select-selector').click();
   await page.getByText('20 条/页', { exact: true }).click();
   await expect(page.getByText('v20', { exact: true })).toBeVisible();
+  await expect.poll(() => versionRequests).toContainEqual({ page: '1', pageSize: '20' });
   const settingsItem = page.getByRole('button', { name: '站点设置', exact: true });
   const releasesItem = page.getByRole('button', { name: '发版历史', exact: true });
   expect((await settingsItem.boundingBox())!.y).toBeLessThan((await releasesItem.boundingBox())!.y);

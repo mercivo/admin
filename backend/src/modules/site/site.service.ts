@@ -10,11 +10,12 @@ import { SiteVersion } from './site-version.entity';
 import { Tenant } from './tenant.entity';
 import { Product } from '../product/product.entity';
 import { AppConfig } from '../workspace/app-config.entity';
-import { CreateDomainDto, CreateSiteDto, UpdateSiteDto } from './site.dto';
+import { CreateDomainDto, CreateSiteDto, SiteVersionQueryDto, UpdateSiteDto } from './site.dto';
 import { ProductCategory } from '../product-category/product-category.entity';
 import { Warehouse } from '../inventory/inventory.entity';
 import { ANTD_LOCALE_SET } from '../../common/constants/antd-locales';
 import { TranslationService } from '../translation/translation.service';
+import { pageLimit, pageOffset, pageResult } from '../../common/dto/page-query.dto';
 
 @Injectable()
 export class SiteService {
@@ -84,13 +85,16 @@ export class SiteService {
     return this.domainRepo.save(domain);
   }
   async removeDomain(id: string, tenantId: string) { const domain = await this.domainRepo.findOne({ where: { id } }); if (!domain) throw new NotFoundException('Domain not found'); await this.getSite(domain.siteId, tenantId); await this.domainRepo.delete(id); }
-  async listVersions(siteId: string, tenantId: string) {
+  async listVersions(siteId: string, tenantId: string, query: SiteVersionQueryDto) {
     await this.getSite(siteId, tenantId);
-    return this.versionRepo.find({
+    const [items, total] = await this.versionRepo.findAndCount({
       select: { id: true, siteId: true, version: true, status: true, publishedBy: true, publishedAt: true, releaseNote: true },
       where: { siteId },
       order: { version: 'DESC' },
+      skip: pageOffset(query),
+      take: pageLimit(query),
     });
+    return pageResult(items, total, query);
   }
 
   async publish(siteId: string, publishedBy: string, releaseNote: string, tenantId?: string) {

@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { SiteService } from './site.service';
-import { CreateDomainDto, CreateSiteDto, PublishSiteDto, RollbackSiteDto, UpdateSiteDto } from './site.dto';
+import { CreateDomainDto, CreateSiteDto, PublishSiteDto, RollbackSiteDto, SiteVersionQueryDto, UpdateSiteDto } from './site.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuthUser } from '../../common/types/auth-user';
@@ -18,7 +18,7 @@ export class SiteAdminController {
   @Post(':id/domains') addDomain(@Param('id') id: string, @Body() dto: CreateDomainDto, @Req() req: { user: AuthUser }) { return this.service.addDomain(id, dto, req.user.tenantId); }
   @Post('domains/:id/verify') verifyDomain(@Param('id') id: string, @Req() req: { user: AuthUser }) { return this.service.verifyDomain(id, req.user.tenantId); }
   @Delete('domains/:id') removeDomain(@Param('id') id: string, @Req() req: { user: AuthUser }) { return this.service.removeDomain(id, req.user.tenantId); }
-  @Get(':id/versions') versions(@Param('id') id: string, @Req() req: { user: AuthUser }) { return this.service.listVersions(id, req.user.tenantId); }
+  @Get(':id/versions') versions(@Param('id') id: string, @Query() query: SiteVersionQueryDto, @Req() req: { user: AuthUser }) { return this.service.listVersions(id, req.user.tenantId, query); }
   @Post(':id/publish') publish(@Param('id') id: string, @Body() dto: PublishSiteDto, @Req() req: { user: AuthUser }) { return this.service.publish(id, req.user.account, dto.releaseNote, req.user.tenantId); }
   @Post(':id/rollback') rollback(@Param('id') id: string, @Body() dto: RollbackSiteDto, @Req() req: { user: AuthUser }) { return this.service.rollback(id, dto.versionId, req.user.tenantId); }
 }

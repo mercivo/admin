@@ -1,5 +1,6 @@
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ANTD_LOCALE_CODES } from '../../common/constants/antd-locales';
+import { PageQueryDto } from '../../common/dto/page-query.dto';
 
 export class CreateSiteDto {
   @IsOptional() @IsString() tenantId?: string;
@@ -20,3 +21,4 @@ export class CreateDomainDto {
 }
 export class PublishSiteDto { @IsString() @MaxLength(1000) releaseNote: string; }
 export class RollbackSiteDto { @IsString() versionId: string; }
+export class SiteVersionQueryDto extends PageQueryDto {}
