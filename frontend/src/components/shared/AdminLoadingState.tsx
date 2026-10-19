@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button, Result, Skeleton } from 'antd';
 
-export type AdminSkeletonVariant = 'dashboard' | 'table' | 'form' | 'detail' | 'cards' | 'settings';
+export type AdminSkeletonVariant = 'dashboard' | 'inventory' | 'table' | 'form' | 'detail' | 'cards' | 'settings';
 
 interface AdminModuleSkeletonProps {
   cards?: number;
@@ -24,6 +24,7 @@ export const AdminModuleSkeleton: React.FC<AdminModuleSkeletonProps> = ({ cards 
 
 export const AdminPageSkeleton: React.FC<{ variant?: AdminSkeletonVariant; testId?: string }> = ({ variant = 'table', testId = 'admin-page-skeleton' }) => {
   if (variant === 'dashboard') return <div data-testid={testId} aria-busy="true" aria-label="页面加载中" className="space-y-5"><AdminModuleSkeleton cards={4} columns={4} rows={1} minHeight={120}/><AdminModuleSkeleton cards={3} columns={3} rows={1} minHeight={88}/><AdminModuleSkeleton cards={2} columns={2} rows={3} minHeight={260}/></div>;
+  if (variant === 'inventory') return <div data-testid={testId} aria-busy="true" aria-label="库存页面加载中" className="space-y-4"><AdminModuleSkeleton cards={4} columns={4} rows={1} minHeight={126}/><section className="rounded-2xl border border-border bg-card p-5"><div className="mb-5 flex gap-3 border-b border-border pb-4"><Skeleton.Input active size="small"/><Skeleton.Input active size="small"/><Skeleton.Input active size="small"/></div><Skeleton active title={false} paragraph={{ rows: 3, width: ['100%', '86%', '70%'] }}/></section></div>;
   if (variant === 'form' || variant === 'settings') return <div data-testid={testId} aria-busy="true" aria-label="页面加载中" className="space-y-4"><AdminModuleSkeleton cards={2} columns={2} rows={3} minHeight={220}/><AdminModuleSkeleton rows={3} minHeight={200}/></div>;
   if (variant === 'detail') return <div data-testid={testId} aria-busy="true" aria-label="页面加载中" className="space-y-4"><AdminModuleSkeleton rows={2} minHeight={150}/><AdminModuleSkeleton cards={2} columns={2} rows={3} minHeight={240}/></div>;
   if (variant === 'cards') return <AdminModuleSkeleton testId={testId} cards={3} columns={3} rows={2} minHeight={160}/>;

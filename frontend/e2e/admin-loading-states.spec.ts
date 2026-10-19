@@ -56,3 +56,49 @@ test('商品分类加载失败显示可重试错误态', async ({ page }) => {
   await page.getByRole('button', { name: '重新加载' }).click();
   await expect(page.getByText('箱包', { exact: true })).toBeVisible();
 });
+
+test('库存模块切换时统一显示骨架且不闪烁空态', async ({ page }) => {
+  const permissions = [
+    'group.inventory',
+    'menu.inventory.stocks', 'page.inventory.stocks',
+    'menu.inventory.counts', 'page.inventory.counts',
+    'menu.inventory.transfers', 'page.inventory.transfers',
+    'menu.inventory.warehouses', 'page.inventory.warehouses',
+  ];
+  await auth(page, permissions);
+  await page.route('**/api/v1/**', async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/auth/me')) return route.fulfill({ json: { data: { permissions } } });
+    if (url.pathname.endsWith('/inventory/warehouse-options')) return route.fulfill({ json: { data: [] } });
+    if (url.pathname.endsWith('/workspace/settings')) return route.fulfill({ json: { data: { billing: { limits: { warehouses: 3 } } } } });
+    if (url.pathname.endsWith('/inventory/stocks')) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      return route.fulfill({ json: { data: { items: [], total: 0, page: 1, pageSize: 10, summary: { onHand: 12, available: 9, inTransit: 3, warningItems: 0, warehouses: [], warningEnabled: true, warningThreshold: 10 } } } });
+    }
+    if (/\/inventory\/(counts|transfers|warehouses)$/.test(url.pathname)) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      return route.fulfill({ json: { data: { items: [], total: 0, page: 1, pageSize: 10 } } });
+    }
+    return route.fulfill({ json: { data: {} } });
+  });
+
+  await page.goto('/inventory/stocks');
+  const skeleton = page.getByTestId('admin-page-skeleton');
+  await expect(skeleton).toBeVisible();
+  await expect(skeleton).toHaveAttribute('aria-label', '库存页面加载中');
+  await expect(page.getByText('暂无库存')).toHaveCount(0);
+  await expect(skeleton).toBeHidden();
+  await expect(page.getByText('12', { exact: true })).toBeVisible();
+
+  for (const item of [
+    { name: '库存盘点', empty: '暂无盘点单' },
+    { name: '库存调拨', empty: '暂无调拨单' },
+    { name: '仓库管理', empty: '暂无仓库' },
+  ]) {
+    await page.getByRole('button', { name: item.name, exact: true }).click();
+    await expect(skeleton).toBeVisible();
+    await expect(page.getByText(item.empty)).toHaveCount(0);
+    await expect(skeleton).toBeHidden();
+    await expect(page.getByText(item.empty)).toBeVisible();
+  }
+});

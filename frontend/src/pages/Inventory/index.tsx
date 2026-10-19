@@ -28,6 +28,7 @@ import {
   AppEditableTable,
   AppModal,
   AppTable,
+  AdminPageSkeleton,
   createActionColumn,
   InventoryStatusBadge,
   ModalForm,
@@ -119,6 +120,7 @@ const InventoryPage: React.FC = () => {
   const navigate = useNavigate();
   const module = rawModule as ModuleId;
   const [loading, setLoading] = useState(true);
+  const [loadedModule, setLoadedModule] = useState<ModuleId>();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [warehouseRows, setWarehouseRows] = useState<Warehouse[]>([]);
   const [stocks, setStocks] = useState<InventoryStock[]>([]);
@@ -162,6 +164,7 @@ const InventoryPage: React.FC = () => {
     outbound: 0,
   });
   const ledgerRequestRef = useRef(0);
+  const listRequestRef = useRef(0);
   const ledgerKeywordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -169,26 +172,36 @@ const InventoryPage: React.FC = () => {
   const [warehouseLimit, setWarehouseLimit] = useState<number | null>(null);
   const pagination = useTablePagination();
 
-  const loadList = async () => {
+  const loadList = async (
+    requestId = ++listRequestRef.current,
+    requestedModule = module,
+  ) => {
     setLoading(true);
     try {
-      if (module === "stocks") {
+      if (requestedModule === "stocks") {
         const result = await inventoryApi.stocks({ page: pagination.current, pageSize: pagination.pageSize, keyword: keyword || undefined, warehouseId: warehouseFilter, status: statusFilter });
+        if (requestId !== listRequestRef.current) return;
         setStockRows(result.items); setSummary(result.summary); pagination.reconcile(result.total);
-      } else if (module === "counts" && can("page.inventory.counts")) {
+      } else if (requestedModule === "counts" && can("page.inventory.counts")) {
         const result = await inventoryApi.counts({ page: pagination.current, pageSize: pagination.pageSize });
+        if (requestId !== listRequestRef.current) return;
         setCounts(result.items); pagination.reconcile(result.total);
-      } else if (module === "transfers" && can("page.inventory.transfers")) {
+      } else if (requestedModule === "transfers" && can("page.inventory.transfers")) {
         const result = await inventoryApi.transfers({ page: pagination.current, pageSize: pagination.pageSize });
+        if (requestId !== listRequestRef.current) return;
         setTransfers(result.items); pagination.reconcile(result.total);
-      } else if (module === "warehouses") {
+      } else if (requestedModule === "warehouses") {
         const result = await inventoryApi.warehouses({ page: pagination.current, pageSize: pagination.pageSize, keyword: keyword || undefined, status: statusFilter });
+        if (requestId !== listRequestRef.current) return;
         setWarehouseRows(result.items); pagination.reconcile(result.total);
       }
     } catch {
-      message.error("库存数据加载失败");
+      if (requestId === listRequestRef.current) message.error("库存数据加载失败");
     } finally {
-      setLoading(false);
+      if (requestId === listRequestRef.current) {
+        setLoadedModule(requestedModule);
+        setLoading(false);
+      }
     }
   };
   const loadWarehouseOptions = async () => setWarehouses(await inventoryApi.warehouseOptions());
@@ -199,7 +212,12 @@ const InventoryPage: React.FC = () => {
   useEffect(() => {
     if (module === "stocks") void loadWarehouseOptions().catch(() => message.error("仓库选项加载失败"));
   }, [module]);
-  useEffect(() => { const timer = window.setTimeout(() => void loadList(), 250); return () => window.clearTimeout(timer); }, [module, pagination.current, pagination.pageSize, keyword, warehouseFilter, statusFilter]);
+  useEffect(() => {
+    const requestId = ++listRequestRef.current;
+    setLoading(true);
+    const timer = window.setTimeout(() => void loadList(requestId, module), 250);
+    return () => window.clearTimeout(timer);
+  }, [module, pagination.current, pagination.pageSize, keyword, warehouseFilter, statusFilter]);
   useEffect(() => { pagination.reset(); }, [module, keyword, warehouseFilter, statusFilter]);
   useEffect(
     () => () => {
@@ -234,6 +252,21 @@ const InventoryPage: React.FC = () => {
   const warehouseQuotaReached =
     warehouseLimit !== null && (module === "warehouses" ? pagination.total : warehouses.length) >= warehouseLimit;
   if (!modules.has(module)) return <Navigate to="/inventory/stocks" replace />;
+
+  if (loadedModule !== module) {
+    const pageMeta: Record<ModuleId, { title: string; description: string }> = {
+      stocks: { title: "库存查询", description: "按仓库、商品与规格查看现存、可用和在途库存" },
+      counts: { title: "库存盘点", description: "选择仓库后立即锁定，录入实盘数即可完成盘点" },
+      transfers: { title: "库存调拨", description: "新建后直接发出，目标仓确认收货即可完成调拨" },
+      warehouses: { title: "仓库管理", description: "维护库存所属仓库、联系方式和默认仓设置" },
+    };
+    return (
+      <PageContent>
+        <PageHeader title={pageMeta[module].title} description={pageMeta[module].description} />
+        <AdminPageSkeleton variant={module === "stocks" ? "inventory" : "table"} />
+      </PageContent>
+    );
+  }
 
   const mutate = async (action: () => Promise<unknown>, success: string) => {
     setSaving(true);
