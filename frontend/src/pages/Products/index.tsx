@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Button, Empty, Input, Pagination, Select, Tree } from "antd";
+import { Button, Empty, Input, Pagination, Select, Skeleton, Tree } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
   Plus,
@@ -349,6 +349,7 @@ const ProductsPage: React.FC = () => {
   const [category, setCategory] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
   const [allProductCount, setAllProductCount] = useState(0);
   const [productLimit, setProductLimit] = useState<number | null>(null);
@@ -412,7 +413,8 @@ const ProductsPage: React.FC = () => {
             })),
         );
       })
-      .catch(() => setCategories([]));
+      .catch(() => setCategories([]))
+      .finally(() => setCategoriesLoading(false));
   }, []);
   useEffect(() => { pagination.reset(); }, [search, category, statusFilter]);
 
@@ -692,7 +694,12 @@ const ProductsPage: React.FC = () => {
             )}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
-            <button
+            {categoriesLoading ? (
+              <div data-testid="product-category-skeleton" aria-busy="true" aria-label="商品分类加载中" className="space-y-3 px-3 py-2">
+                <Skeleton.Input active size="small" block />
+                <Skeleton active title={false} paragraph={{ rows: 3, width: ['92%', '78%', '86%'] }} />
+              </div>
+            ) : <><button
               data-testid="all-products-category"
               onClick={() => setCategory("all")}
               className={`mb-1 flex h-[31px] w-full items-center justify-between rounded-lg px-3 text-left transition-colors ${category === "all" ? "bg-primary/10 text-primary" : "text-foreground hover:bg-secondary"}`}
@@ -718,7 +725,7 @@ const ProductsPage: React.FC = () => {
                 onSelect={(keys) => setCategory(String(keys[0] || "all"))}
                 className="product-category-tree bg-transparent [&_.ant-tree-node-selected]:bg-primary/10! [&_.ant-tree-node-selected]:text-primary!"
               />
-            )}
+            )}</>}
           </div>
         </aside>
 

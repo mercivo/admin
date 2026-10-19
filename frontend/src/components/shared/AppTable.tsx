@@ -25,8 +25,8 @@ export const AppTable = <RecordType extends object>({
   };
   if (initialSkeleton && props.loading && !hasResolved.current) return (
     <section data-testid="admin-table-skeleton" aria-busy="true" aria-label="表格加载中" className={`app-data-table rounded-2xl bg-card p-5 ${className}`.trim()}>
-      <div className="mb-5 grid grid-cols-4 gap-5 border-b border-border pb-4">{Array.from({ length: 4 }, (_, index) => <Skeleton.Input key={index} active size="small" block/>)}</div>
-      <Skeleton active title={false} paragraph={{ rows: Math.min(10, Number(typeof pagination === 'object' ? pagination.pageSize : 8) || 8), width: Array.from({ length: 10 }, (_, index) => index % 3 === 2 ? '82%' : '100%') }}/>
+      <div className="mb-5 grid grid-cols-3 gap-5 border-b border-border pb-4">{Array.from({ length: 3 }, (_, index) => <Skeleton.Input key={index} active size="small" block/>)}</div>
+      <Skeleton active title={false} paragraph={{ rows: 3, width: ['100%', '88%', '72%'] }}/>
     </section>
   );
   return (

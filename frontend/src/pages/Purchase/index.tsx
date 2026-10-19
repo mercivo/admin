@@ -42,6 +42,7 @@ import {
 } from "../../config/sales";
 import {
   AppEditableTable,
+  AdminPageSkeleton,
   AppModal,
   AppTable,
   ModalForm,
@@ -115,6 +116,7 @@ const PurchasePage: React.FC = () => {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadedModule, setLoadedModule] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [status, setStatus] = useState<string>();
@@ -153,6 +155,7 @@ const PurchasePage: React.FC = () => {
     } catch {
       message.error("采购数据加载失败");
     } finally {
+      setLoadedModule(module);
       setLoading(false);
     }
   };
@@ -605,7 +608,7 @@ const PurchasePage: React.FC = () => {
           ) : undefined
         }
       />
-      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      {loadedModule !== module ? <AdminPageSkeleton variant="table" /> : <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <Input
             allowClear
@@ -627,6 +630,7 @@ const PurchasePage: React.FC = () => {
           )}
         </div>
         <AppTable<Record<string, unknown>>
+          key={module}
           rowKey="id"
           loading={loading}
           dataSource={
@@ -640,7 +644,7 @@ const PurchasePage: React.FC = () => {
           pagination={pagination.config}
           columns={baseColumns as never}
         />
-      </section>
+      </section>}
       <AppModal
         open={!!orderDraft}
         width={980}

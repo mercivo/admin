@@ -18,6 +18,7 @@ import { DEFAULT_CURRENCY_CONFIG, type CurrencyConfig } from '../../config/sales
 import {
   AppModal,
   AppTable,
+  AdminPageSkeleton,
   ModalForm,
   ModalFormField,
   ModalFormGrid,
@@ -74,6 +75,7 @@ const FinancePage: React.FC = () => {
   const [summary, setSummary] = useState({ confirmedAmount: 0, pendingAmount: 0, totalCount: 0 });
   const [statistics, setStatistics] = useState<FinanceStatistics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadedModule, setLoadedModule] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [status, setStatus] = useState<string>();
@@ -109,6 +111,7 @@ const FinancePage: React.FC = () => {
     } catch {
       message.error("财务数据加载失败");
     } finally {
+      setLoadedModule(module);
       setLoading(false);
     }
   };
@@ -197,6 +200,13 @@ const FinancePage: React.FC = () => {
   const title = isStatistics ? "财务统计" : isReceipt ? "收款管理" : "付款管理";
   const description = isStatistics ? "按币种独立统计销售、采购及已确认收付款，不进行汇率换算" : isReceipt ? "登记客户回款，确认后计入订单结算，待确认单可取消" : "登记供应商付款，确认后计入订单结算，待确认单可取消";
   const dateFilter = <RangePicker allowClear={false} value={range} onChange={(value) => value?.[0] && value?.[1] && setRange([value[0], value[1]])} variant="filled" size="middle" />;
+
+  if (loadedModule !== module) return (
+    <PageContent>
+      <PageHeader title={title} description={description} />
+      <AdminPageSkeleton variant="table" />
+    </PageContent>
+  );
 
   if (isStatistics) return (
     <PageContent>

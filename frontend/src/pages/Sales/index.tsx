@@ -44,6 +44,7 @@ import {
 } from "../../config/sales";
 import {
   AppEditableTable,
+  AdminPageSkeleton,
   AppModal,
   AppTable,
   ModalForm,
@@ -107,6 +108,7 @@ const SalesPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [stocks, setStocks] = useState<InventoryStock[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadedModule, setLoadedModule] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [status, setStatus] = useState<string>();
@@ -146,6 +148,7 @@ const SalesPage: React.FC = () => {
     } catch {
       message.error("销售数据加载失败");
     } finally {
+      setLoadedModule(module);
       setLoading(false);
     }
   };
@@ -395,7 +398,7 @@ const SalesPage: React.FC = () => {
           ) : undefined
         }
       />
-      <section className="overflow-hidden rounded-2xl border border-white/60 bg-white shadow-sm">
+      {loadedModule !== module ? <AdminPageSkeleton variant="table" /> : <section className="overflow-hidden rounded-2xl border border-white/60 bg-white shadow-sm">
         {filters}
         {module === "orders" ? (
           <AppTable
@@ -602,7 +605,7 @@ const SalesPage: React.FC = () => {
             ]}
           />
         )}
-      </section>
+      </section>}
 
       <AppModal
         open={!!orderDraft}
