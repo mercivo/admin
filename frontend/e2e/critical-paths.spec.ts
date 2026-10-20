@@ -1,16 +1,29 @@
 import { expect, test } from '@playwright/test';
 
-test('language can switch globally and persists after reload', async ({ page }) => {
+test('admin stays in Chinese and clears the retired English preference', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('mercivo_locale', 'en-US'));
+  let requestLocale: { acceptLanguage?: string; locale?: string } = {};
+  await page.route('**/api/v1/auth/login', async route => {
+    const headers = route.request().headers();
+    requestLocale = {
+      acceptLanguage: headers['accept-language'],
+      locale: headers['x-locale'],
+    };
+    await route.fulfill({ status: 401, json: { message: '账号或密码错误' } });
+  });
   await page.goto('http://localhost:8088/login');
-  await page.getByRole('button', { name: '切换到英文' }).click();
-  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
-  await expect(page.getByLabel('Login account')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '欢迎回来' })).toBeVisible();
+  await expect(page.getByLabel('登录账号')).toBeVisible();
+  await expect(page.getByRole('button', { name: /切换到英文|Switch to Chinese/ })).toHaveCount(0);
+  await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
+  expect(await page.evaluate(() => localStorage.getItem('mercivo_locale'))).toBeNull();
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
-  await expect(page.locator('html')).toHaveAttribute('lang', 'en-US');
-  await page.getByRole('button', { name: 'Switch to Chinese' }).click();
   await expect(page.getByRole('heading', { name: '欢迎回来' })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
+  await page.getByLabel('登录账号').fill('invalid-account');
+  await page.getByLabel('密码').fill('invalid-password');
+  await page.getByRole('button', { name: '安全登录' }).click();
+  await expect.poll(() => requestLocale).toEqual({ acceptLanguage: 'zh-CN', locale: 'zh-CN' });
 });
 
 test('customer can open the published storefront', async ({ page }) => {

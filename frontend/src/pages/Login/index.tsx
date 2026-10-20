@@ -10,7 +10,6 @@ import {
 import { ArrowRight, Globe2, Package, Sparkles } from 'lucide-react';
 import { AppForm, AppFormItem, AppInput, AppPasswordInput, BrandMark } from '../../components/shared';
 import api from '../../services/api';
-import { LanguageSwitcher } from '../../i18n';
 import { firstAuthorizedRoute } from '../../utils/navigation';
 
 type Captcha = { captchaId: string; image: string };
@@ -96,7 +95,6 @@ const LoginPage: React.FC = () => {
       </section>
 
       <section className="relative flex min-h-[100dvh] items-center justify-center px-4 py-4 sm:px-8 lg:px-12">
-        <div className="absolute right-5 top-5 z-20"><LanguageSwitcher /></div>
         <div className="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top,#ddd6fe,transparent_70%)] opacity-70 lg:hidden" />
         <div className="relative w-full max-w-[420px] rounded-[26px] border border-white/80 bg-white/95 p-5 shadow-[0_24px_70px_-24px_rgba(91,76,180,.3)] backdrop-blur sm:p-7">
           <div className="mb-4 flex items-center gap-3 lg:hidden">

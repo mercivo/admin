@@ -1,11 +1,13 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import { I18nProvider } from './i18n';
 import './styles/index.css';
+
+localStorage.removeItem('mercivo_locale');
+document.documentElement.lang = 'zh-CN';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <I18nProvider><App /></I18nProvider>
+    <App />
   </React.StrictMode>,
 );
