@@ -11,12 +11,13 @@ import { antdLocaleFor, normalizeLocaleCode, platformMessages, requestedPlatform
 import SiteRenderer from '../../frontend/src/pages/SiteEditor/SiteRenderer';
 import { normalizeEditorConfig } from '../../frontend/src/pages/SiteEditor/schema';
 import type { Product as RendererProduct, ProductCategory as RendererCategory } from '../../frontend/src/types';
+import { languageDisplayName } from '../../frontend/src/utils/languageDisplayName';
 import './tailwind.css';
 
-type Product = { id: string; nameZh: string; description?: string; seoTitle?: string; seoDescription?: string; seoImage?: string; sku?: string; price: string; priceVisible?: boolean; priceSource?: string; moq: number; img: string; images?: string[]; hot: boolean; badge?: string; likeCount?: number; tags?: string[]; category: string };
+type Product = { id: string; nameZh: string; description?: string; seoTitle?: string; seoDescription?: string; seoImage?: string; sku?: string; price: string; basePrice?: number; priceVisible?: boolean; priceSource?: string; moq: number; img: string; images?: string[]; hot: boolean; badge?: string; likeCount?: number; tags?: string[]; category: string; variants?: Array<{ id?: string; specification: string; option: string; stock: number; surcharge: number }> };
 type ProductCategory = { code: string; label: string; parentCode?: string | null; sort: number };
 type SeoConfig = { title?: string; description?: string; keywords?: string; shareImage?: string; canonicalUrl?: string; robots?: string };
-type PublishedSite = { siteId: string; versionId: string; version: number; locale?: string; site: { name: string; slug: string; logoUrl?: string; defaultLanguage: string; supportedLanguages?: string[]; defaultCurrency: string; currencySymbol?: string; guestPriceMode?: 'base' | 'hidden' }; config: Record<string, unknown>; seo?: SeoConfig; products: Product[]; categories?: ProductCategory[]; i18n?: { sourceLocale: string; locales: string[]; messages: Record<string, Record<string, string>> } };
+type PublishedSite = { siteId: string; versionId: string; version: number; locale?: string; site: { name: string; slug: string; logoUrl?: string; defaultLanguage: string; supportedLanguages?: string[]; defaultCurrency: string; currencySymbol?: string; guestAccessEnabled?: boolean; guestPriceMode?: 'base' | 'hidden' | 'percentage' }; config: Record<string, unknown>; seo?: SeoConfig; products: Product[]; categories?: ProductCategory[]; i18n?: { sourceLocale: string; locales: string[]; messages: Record<string, Record<string, string>> } };
 type PublicErrorCode = 'SITE_NOT_FOUND_OR_UNPUBLISHED' | 'CONTACT_NAME_REQUIRED' | 'CONTACT_METHOD_REQUIRED' | 'PURCHASE_REQUIREMENTS_REQUIRED' | 'INQUIRY_SUBMIT_FAILED' | 'SERVICE_UNAVAILABLE' | 'NETWORK_ERROR' | 'UNKNOWN_ERROR';
 class PublicApiError extends Error { constructor(readonly errorCode: PublicErrorCode, message: string) { super(message); } }
 type FormFieldKey = 'name' | 'contact' | 'email' | 'company' | 'phone' | 'country' | 'requirements';
@@ -31,10 +32,6 @@ const inquiryFormFields = (configured: FormField[] = []) => [
   ...configured.filter(field => !defaultFormFields.some(required => required.key === field.key) && !['email', 'phone'].includes(field.key)),
 ];
 const anchorId = (item?: EditorSection, fallback?: string) => item?.id ? `section-${item.id}` : fallback;
-const languageName = (code: string) => {
-  try { return new Intl.DisplayNames(['zh-CN'], { type: 'language' }).of(code.replace('_', '-')) || code; }
-  catch { return code; }
-};
 const productSummary = (value?: string) => {
   if (!value) return '-';
   const container = document.createElement('div');
@@ -46,13 +43,12 @@ const pathSegments = location.pathname.split('/').filter(Boolean);
 const pathSite = pathHosts.has(location.hostname.toLowerCase()) && pathSegments[0] && pathSegments[0] !== 'products' ? pathSegments[0] : null;
 const querySite = new URLSearchParams(location.search).get('site') || pathSite;
 const siteBasePath = pathSite ? `/${encodeURIComponent(pathSite)}` : '';
-let storefrontPathname = pathSite ? `/${pathSegments.slice(1).join('/')}` : location.pathname;
-if (/^\/products\/[^/]+\/?$/.test(storefrontPathname)) {
-  const home = new URL(location.href);
-  home.pathname = pathSite ? `/${encodeURIComponent(pathSite)}/` : '/';
-  history.replaceState(null, '', home);
-  storefrontPathname = '/';
-}
+const storefrontPathname = () => pathSite ? `/${location.pathname.split('/').filter(Boolean).slice(1).join('/')}` : location.pathname;
+const routeProductId = () => {
+  const match = storefrontPathname().match(/^\/products\/([^/]+)\/?$/);
+  if (!match) return null;
+  try { return decodeURIComponent(match[1]); } catch { return match[1]; }
+};
 const api = async <T,>(path: string, init?: RequestInit): Promise<T> => { let res: Response; try { res = await fetch(path, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers || {}) } }); } catch { throw new PublicApiError('NETWORK_ERROR', 'Network request failed'); } const body = await res.json().catch(() => ({})); if (!res.ok) throw new PublicApiError(body.errorCode || (res.status >= 500 ? 'SERVICE_UNAVAILABLE' : 'UNKNOWN_ERROR'), Array.isArray(body.message) ? body.message.join('; ') : body.message || 'Request failed'); return body.data as T; };
 const legacyImageOrigin = 'https://image.aihubflux.com/';
 const gcsImageOrigin = 'https://storage.googleapis.com/mercivo-images-753805870951/';
@@ -84,9 +80,9 @@ const setMeta = (selector: string, attributes: Record<string, string>) => {
   if (!element) { element = document.createElement('meta'); document.head.appendChild(element); }
   Object.entries(attributes).forEach(([key, value]) => element!.setAttribute(key, value));
 };
-const applySeo = (data: PublishedSite) => {
+const applySeo = (data: PublishedSite, selectedProductId = routeProductId()) => {
   const seo = data.seo || {};
-  const productId = storefrontPathname.match(/^\/products\/([^/]+)$/)?.[1];
+  const productId = selectedProductId;
   const product = productId ? data.products.find(item => item.id === productId) : undefined;
   const locale = data.locale || data.site.defaultLanguage;
   const currentMessages = data.i18n?.messages?.[locale] || {};
@@ -95,8 +91,8 @@ const applySeo = (data: PublishedSite) => {
   const sections = ((data.config.pages as Record<string, { sections?: EditorSection[] }> | undefined)?.home?.sections || []);
   const header = sections.find(item => item.type === 'header'); const footer = sections.find(item => item.type === 'footer');
   const titleSection = header || footer; const siteName = titleSection?.id ? translated(`editor:home:${titleSection.id}:title`, titleSection.title || data.site.name) : data.site.name;
-  const title = product ? (translated(`product:${product.id}:seoTitle`, product.seoTitle || '') || `${translated(`product:${product.id}:name`, product.nameZh)}｜${siteName}`) : (translated('seo:title', seo.title || '') || siteName);
-  const description = product ? translated(`product:${product.id}:seoDescription`, product.seoDescription || product.description || '') : translated('seo:description', seo.description || '');
+  const title = product ? `${translated(`product:${product.id}:name`, product.nameZh)}｜${siteName}` : (translated('seo:title', seo.title || '') || siteName);
+  const description = product ? translated(`product:${product.id}:description`, product.description || '') : translated('seo:description', seo.description || '');
   const canonical = product ? `${location.origin}${location.pathname}` : (seo.canonicalUrl || `${location.origin}${location.pathname}`);
   const image = product?.seoImage || (product?.img ? imageUrl(product.img) : '') || seo.shareImage || (data.products[0]?.img ? imageUrl(data.products[0].img) : '');
   document.title = title;
@@ -171,11 +167,13 @@ function App() {
   const [productPageSize, setProductPageSize] = useState(10);
   const [heroIndex, setHeroIndex] = useState(0);
   const [language, setLanguage] = useState('');
+  const [activeProductId, setActiveProductId] = useState<string | null>(() => routeProductId());
   const [inquiry, setInquiry] = useState<Record<FormFieldKey, string>>({ name: '', contact: '', email: '', company: '', phone: '', country: '', requirements: '' });
   const [inquiryState, setInquiryState] = useState<'idle' | 'submitting' | 'success' | 'error' | 'validation'>('idle');
   const [inquiryErrorCode, setInquiryErrorCode] = useState<PublicErrorCode>('INQUIRY_SUBMIT_FAILED');
-  const loadSite = () => { const params = new URLSearchParams(); if (querySite) params.set('site', querySite); const requested = new URLSearchParams(location.search).get('lang'); if (requested) params.set('lang', requested); return api<PublishedSite>(`/api/v1/public/site${params.size ? `?${params}` : ''}`).then(data => { setSite(data); setLanguage(normalizeLocaleCode(data.locale || data.site.defaultLanguage)); applySeo(data); setError(''); }); };
+  const loadSite = () => { const params = new URLSearchParams(); if (querySite) params.set('site', querySite); const requested = new URLSearchParams(location.search).get('lang'); if (requested) params.set('lang', requested); return api<PublishedSite>(`/api/v1/public/site${params.size ? `?${params}` : ''}`).then(data => { setSite(data); setLanguage(normalizeLocaleCode(data.locale || data.site.defaultLanguage)); applySeo(data, routeProductId()); setError(''); }); };
   useEffect(() => { loadSite().catch(err => setError(err instanceof PublicApiError ? err.errorCode : 'UNKNOWN_ERROR')); }, [querySite]);
+  useEffect(() => { const syncRoute = () => { const productId = routeProductId(); setActiveProductId(productId); if (site) applySeo(site, productId); }; window.addEventListener('popstate', syncRoute); return () => window.removeEventListener('popstate', syncRoute); }, [site]);
   const submitInquiry = async (event: React.FormEvent) => {
     event.preventDefault();
     if (['name', 'contact', 'requirements'].some(key => !inquiry[key as FormFieldKey].trim())) { setInquiryState('validation'); return; }
@@ -199,7 +197,7 @@ function App() {
       const resolved = normalizeLocaleCode(data.locale || normalized);
       setSite(data);
       setLanguage(resolved);
-      applySeo({ ...data, locale: resolved });
+      applySeo({ ...data, locale: resolved }, activeProductId);
     }).catch(() => undefined);
   };
   const editorText = (section: EditorSection | undefined, field: string, fallback = '') => section?.id ? t(`editor:home:${section.id}:${field}`, fallback) : fallback;
@@ -228,6 +226,7 @@ function App() {
         translated.stats = section.stats?.map(item => ({ ...item, label: messages[`${prefix}:stat:${item.id}:label`] || item.label }));
         translated.trustItems = (section.trustItems || (section.type === 'hero' ? defaultHeroTrustItems : [])).map(item => ({ ...item, title: messages[`${prefix}:trust:${item.id}:title`] || item.title, description: messages[`${prefix}:trust:${item.id}:description`] || item.description }));
       }
+      if (section.type === 'footer' && messages[`${prefix}:copyrightText`]) translated.copyrightText = messages[`${prefix}:copyrightText`];
       return translated;
     });
   }, [site, language]);
@@ -271,8 +270,7 @@ function App() {
     const contactItems = (Array.isArray(source.contactItems) ? source.contactItems : legacyItems).map(item => ({ ...item, label: messages[`editor:siteInfo:contact:${item.id}:label`] || item.label, content: messages[`editor:siteInfo:contact:${item.id}:content`] || item.content }));
     return { ...source, contactModalTitle: messages['editor:siteInfo:contactModalTitle'] || source.contactModalTitle, contactModalSubtitle: messages['editor:siteInfo:contactModalSubtitle'] || source.contactModalSubtitle, contactItems };
   }, [site, language]);
-  const pathProductId = storefrontPathname.match(/^\/products\/([^/]+)$/)?.[1];
-  const featured = useMemo(() => pathProductId ? (site?.products || []).filter(product => product.id === pathProductId) : site?.products || [], [site, pathProductId]);
+  const featured = useMemo(() => site?.products || [], [site]);
   const heroImages = useMemo(() => heroSection?.sectionBackgroundImage ? [heroSection.sectionBackgroundImage] : heroSection?.imageUrls?.length ? heroSection.imageUrls : featured.slice(0, 5).map(product => imageUrl(product.img)), [heroSection?.sectionBackgroundImage, heroSection?.imageUrls, featured]);
   useEffect(() => { setHeroIndex(0); if (heroImages.length < 2) return; const timer = window.setInterval(() => setHeroIndex(index => (index + 1) % heroImages.length), 5000); return () => window.clearInterval(timer); }, [heroImages]);
   const categoryTree = useMemo(() => {
@@ -356,13 +354,20 @@ function App() {
     if (['name', 'contact', 'requirements'].some(key => !String(values[key] || '').trim())) throw new Error('validation');
     await api(`/api/v1/public/inquiries${querySite ? `?site=${encodeURIComponent(querySite)}` : ''}`, { method: 'POST', body: JSON.stringify({ type: 'inquiry', ...values, sourcePage: location.href }) });
   };
-  return <SiteRenderer config={rendererConfig} products={site.products as unknown as RendererProduct[]} categories={rendererCategories} currency={site.site.currencySymbol || site.site.defaultCurrency} brandLogoUrl={site.site.logoUrl || siteInfo?.brandLogoUrl || ''} language={language} supportedLanguages={siteLanguages} onLanguageChange={changeLanguage} onSubmitInquiry={submitRendererInquiry} translate={t} />;
+  const changeProduct = (productId: string | null) => {
+    const url = new URL(location.href);
+    url.pathname = productId ? `${siteBasePath}/products/${encodeURIComponent(productId)}` : `${siteBasePath}/`;
+    history.pushState({ productId }, '', url);
+    setActiveProductId(productId);
+    applySeo(site, productId);
+  };
+  return <SiteRenderer config={rendererConfig} products={site.products as unknown as RendererProduct[]} categories={rendererCategories} currency={site.site.currencySymbol || site.site.defaultCurrency} brandLogoUrl={site.site.logoUrl || siteInfo?.brandLogoUrl || ''} language={language} supportedLanguages={siteLanguages} initialProductId={activeProductId} onProductChange={changeProduct} onLanguageChange={changeLanguage} onSubmitInquiry={submitRendererInquiry} translate={t} guestAccessEnabled={site.site.guestAccessEnabled} guestPriceMode={site.site.guestPriceMode} />;
   /* Legacy renderer retained temporarily for migration reference.
   const themeOpacity = typeof site.config.themeOpacity === 'number' ? site.config.themeOpacity : 100;
   const headerSection = section('header');
   return <div style={{ '--theme': colorWithOpacity(themeColor, themeOpacity), '--theme-contrast': contrastColor(themeColor) } as React.CSSProperties}>
     {hasSection('header') && headerSection?.showEyebrow !== false && !!headerSection?.eyebrow && <div className="site-announcement">{headerSection.eyebrow}</div>}
-    {hasSection('header') && <header className="nav"><a className="brand" href="#top">{section('header')?.logoUrl || site.site.logoUrl || siteInfo?.brandLogoUrl ? <img src={section('header')?.logoUrl || site.site.logoUrl || siteInfo?.brandLogoUrl} alt={section('header')?.title || site.site.name} /> : <><Globe2/> {section('header')?.title || site.site.name}</>}</a><nav>{section('header')?.navItems?.map(item=><a key={item.id} href={`#section-${item.targetId}`}>{item.label}</a>)}</nav><div className="language-control"><Globe2/><AntSelect className="language-select" value={language || siteLanguages[0] || 'zh_CN'} onChange={changeLanguage} options={(siteLanguages.length ? siteLanguages : ['zh_CN']).map(code => ({ value: code, label: `${languageName(code)} (${code})` }))} /></div><button className="icon"><Menu/></button></header>}
+    {hasSection('header') && <header className="nav"><a className="brand" href="#top">{section('header')?.logoUrl || site.site.logoUrl || siteInfo?.brandLogoUrl ? <img src={section('header')?.logoUrl || site.site.logoUrl || siteInfo?.brandLogoUrl} alt={section('header')?.title || site.site.name} /> : <><Globe2/> {section('header')?.title || site.site.name}</>}</a><nav>{section('header')?.navItems?.map(item=><a key={item.id} href={`#section-${item.targetId}`}>{item.label}</a>)}</nav><div className="language-control"><Globe2/><AntSelect className="language-select" value={language || siteLanguages[0] || 'zh_CN'} onChange={changeLanguage} options={(siteLanguages.length ? siteLanguages : ['zh_CN']).map(code => ({ value: code, label: languageDisplayName(code, language || site.site.defaultLanguage) }))} /></div><button className="icon"><Menu/></button></header>}
     <main id="top">
       {hasSection('hero') && <section id={anchorId(heroSection)} className="hero"><div className="hero-carousel">{heroImages.map((url, index) => <img key={`${url}-${index}`} className={index === heroIndex ? 'active' : ''} src={url} alt="" />)}<div className="hero-shade"/><div className="hero-copy"><h1>{editorText(heroSection, 'title', heroSection?.title || '为您的品牌打造高品质产品')}</h1><p>{editorText(heroSection, 'subtitle', heroSection?.subtitle || '工厂直供、品牌定制与可靠的全球交付，由专业外贸团队全程服务。')}</p><div className="actions">{heroSection?.showButton !== false && <button className="primary" onClick={() => runAction(heroSection?.buttonAction || 'products')}>{editorText(heroSection, 'buttonText', heroSection?.buttonText || '查看产品')}<ArrowRight /></button>}{heroSection?.showSecondaryButton !== false && <button className="secondary" onClick={() => runAction(heroSection?.secondaryButtonAction || 'contactModal')}>{editorText(heroSection, 'secondaryButtonText', heroSection?.secondaryButtonText || '获取报价')}</button>}</div>{heroSection?.showTrustBar !== false && <div className="trust">{(heroSection?.trustItems || defaultHeroTrustItems).map(item => <span key={item.id}><ShieldCheck/><span><strong>{item.title}</strong><small>{item.description}</small></span></span>)}</div>}</div>{heroImages.length > 1 && <><button className="carousel-arrow prev" onClick={() => setHeroIndex(index => (index - 1 + heroImages.length) % heroImages.length)}><ChevronLeft /></button><button className="carousel-arrow next" onClick={() => setHeroIndex(index => (index + 1) % heroImages.length)}><ChevronRight /></button><div className="carousel-dots">{heroImages.map((_, index) => <button className={index === heroIndex ? 'active' : ''} key={index} onClick={() => setHeroIndex(index)} />)}</div></>}</div></section>}
       {hasSection('products') && <section className="section" id={anchorId(productSection, 'products')}>

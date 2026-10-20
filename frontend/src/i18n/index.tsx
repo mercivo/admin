@@ -21,16 +21,18 @@ export function translate(text: string, locale: Locale): string {
 }
 
 const translatableAttributes = ['placeholder', 'title', 'aria-label'];
+const ignoredTranslationSelector = '[data-i18n-ignore]';
 function translateElementTree(root: ParentNode, locale: Locale) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let node: Node | null;
   while ((node = walker.nextNode())) {
-    if (node.parentElement?.closest('script,style,code,pre')) continue;
+    if (node.parentElement?.closest(`script,style,code,pre,${ignoredTranslationSelector}`)) continue;
     const next = translate(node.nodeValue || '', locale);
     if (next !== node.nodeValue) node.nodeValue = next;
   }
   const elements = root instanceof Element ? [root, ...root.querySelectorAll('*')] : [...root.querySelectorAll('*')];
   for (const element of elements) for (const attribute of translatableAttributes) {
+    if (element.closest(ignoredTranslationSelector)) continue;
     const value = element.getAttribute(attribute);
     if (value) { const next = translate(value, locale); if (next !== value) element.setAttribute(attribute, next); }
   }

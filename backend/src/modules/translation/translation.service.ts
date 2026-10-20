@@ -11,19 +11,23 @@ import { DEFAULT_HERO_TRUST_ITEMS, ensureSiteEditorPages } from '../site/site-ed
 import { AppConfig } from '../workspace/app-config.entity';
 import { TranslationUnit } from './translation-unit.entity';
 import { TranslationValue } from './translation-value.entity';
-import { SaveTranslationsDto, TranslationQueryDto } from './translation.dto';
+import { SaveTranslationsDto, TranslationExportQueryDto, TranslationQueryDto } from './translation.dto';
 import { TranslationImportCacheService } from './translation-import-cache.service';
 
 type Source = { resourceType: string; resourceId: string; fieldKey: string; sourceText: string; contentFormat?: 'text' | 'html'; required?: boolean; includeWhenEmpty?: boolean };
-type EditorDescriptor = { key: string; path: string; fieldLabel: string; pageId?: string; pageName?: string; componentId?: string; componentType?: string; componentName: string; order: number; required?: boolean };
+type EditorDescriptor = { key: string; path: string; fieldLabel: string; pageId?: string; pageName?: string; componentId?: string; componentType?: string; componentName: string; order: number; required?: boolean; sourceText?: string };
 type ImportRowStatus = 'ready' | 'unchanged' | 'blank' | 'source_changed' | 'removed' | 'duplicate' | 'invalid';
 type ImportPreviewRow = { row: number; unitId: string; key: string; sourceText: string; value: string; status: ImportRowStatus; reason: string };
 type ImportPreviewCache = { siteId: string; userId: string; locale: string; fileHash: string; expiresAt: string; rows: ImportPreviewRow[] };
 
-const IMPORT_TEMPLATE_VERSION = '2';
+const IMPORT_TEMPLATE_VERSION = '3';
 const IMPORT_PREVIEW_TTL = 30 * 60 * 1000;
 const IMPORT_COLUMNS = ['模块', '业务对象', '字段', '中文原文', '目标语言', '译文', '当前状态', '稳定键', '翻译单元ID', '中文源文哈希'];
 const RESOURCE_LABELS: Record<string, string> = { product: '商品信息', category: '商品分类', editor: '站点设计', seo: 'SEO 优化', system: '系统文案', constant: '业务常量' };
+const BATCH_COLUMNS = ['内容分类', '业务语境', '字段', '中文原文', '目标语言', '译文', '使用次数', '当前状态', '复用组ID', '成员ID', '成员源文哈希'];
+const OVERRIDE_COLUMNS = ['内容分类', '业务对象', '字段', '中文原文', '目标语言', '当前译文', '覆盖译文', '稳定键', '翻译单元ID', '中文源文哈希'];
+
+type TaskTab = 'product' | 'page' | 'common';
 
 const excelCellText = (value: ExcelJS.CellValue): string => {
   if (value === null || value === undefined) return '';
@@ -58,14 +62,28 @@ const EDITOR_TEXT_FIELDS: Record<string, Array<[string, string]>> = {
   text: [['eyebrow', '眉标文案'], ['title', '主标题'], ['subtitle', '说明文字'], ['promiseTitle', '承诺标题'], ['promiseText', '承诺内容'], ['qualityBadgeText', '品质保证标识']],
   products: [['eyebrow', '眉标文案'], ['title', '主标题'], ['subtitle', '说明文字'], ['buttonText', '按钮文案']],
   form: [['eyebrow', '眉标文案'], ['title', '主标题'], ['subtitle', '说明文字'], ['buttonText', '按钮文案']],
-  footer: [['title', '企业名称'], ['subtitle', '说明文字']],
+  footer: [['title', '企业名称'], ['subtitle', '说明文字'], ['copyrightText', '版权信息']],
 };
+
+const PRODUCT_DETAIL_COPY: Array<[string, string, string]> = [
+  ['home', '面包屑首页', '首页'],
+  ['likes', '点赞数后缀', '人喜欢'],
+  ['contactForPrice', '隐藏价格文案', '价格请咨询'],
+  ['contactNote', '报价说明', '联系我们获取报价、定制方案与交付信息。'],
+  ['specifications', '规格标题', '商品规格'],
+  ['descriptionEyebrow', '描述眉标', 'PRODUCT DETAILS'],
+  ['descriptionTitle', '描述标题', '商品详情'],
+  ['notFoundTitle', '商品不存在标题', '商品不存在或已下架'],
+  ['notFoundDescription', '商品不存在说明', '该商品暂时无法查看，请返回首页浏览其他商品。'],
+  ['backHome', '返回首页按钮', '返回首页'],
+];
 
 const PRODUCT_CONSTANTS: Record<string, string> = { 'product.moq': '最低起订量', 'product.badges': '新品;爆品;热销;推荐' };
 const STOREFRONT_CONSTANTS: Record<string, string> = { 'storefront.productBadge': '商品标记', 'storefront.quickNavigation': '快速导航' };
 
 const SYSTEM_COPY: Record<string, string> = {
   'empty.products': '当前分类暂无商品', 'empty.categories': '暂无分类', 'empty.contactInformation': '暂无联系信息',
+  'guestAccess.disabledTitle': '暂不开放游客访问', 'guestAccess.disabledDescription': '当前站点仅对授权客户开放，请联系站点管理员获取访问权限。',
   'inquiry.submitting': '提交中…', 'inquiry.preview': '预览模式不会提交询盘。',
   'inquiry.validation': '请完整填写联系人、联系方式和采购需求。', 'inquiry.success': '询盘已提交，我们将尽快与您联系。',
   'apiErrors.SITE_NOT_FOUND_OR_UNPUBLISHED': '站点不存在或尚未发布。',
@@ -99,9 +117,6 @@ export class TranslationService {
     products.forEach(product => {
       add({ resourceType: 'product', resourceId: product.id, fieldKey: `product:${product.id}:name`, sourceText: product.nameZh });
       add({ resourceType: 'product', resourceId: product.id, fieldKey: `product:${product.id}:description`, sourceText: product.description || '', contentFormat: 'html' });
-      add({ resourceType: 'product', resourceId: product.id, fieldKey: `product:${product.id}:seoTitle`, sourceText: product.seoTitle || '' });
-      add({ resourceType: 'product', resourceId: product.id, fieldKey: `product:${product.id}:seoDescription`, sourceText: product.seoDescription || '' });
-      add({ resourceType: 'product', resourceId: product.id, fieldKey: `product:${product.id}:brand`, sourceText: product.brand || '' });
       add({ resourceType: 'product', resourceId: product.id, fieldKey: `product:${product.id}:tags`, sourceText: (product.tags || []).join(';') });
       (product.variants || []).forEach(variant => { add({ resourceType: 'product', resourceId: product.id, fieldKey: `product:${product.id}:variant:${variant.id}:specification`, sourceText: variant.specification }); add({ resourceType: 'product', resourceId: product.id, fieldKey: `product:${product.id}:variant:${variant.id}:option`, sourceText: variant.option }); });
     });
@@ -145,13 +160,21 @@ export class TranslationService {
     }));
     categoryMeta.set('__all__', { code: '__all__', parentCode: null, sort: -1, level: 1, path: ['全部商品'] });
     const editorDescriptors = new Map(this.editorDescriptors(ensureSiteEditorPages(editor?.value as any)).map(item => [item.key, item]));
-    let items = all.map(unit => { const translated = valueMap.get(unit.id); const status = !translated?.value.trim() ? 'missing' : translated.sourceHash === unit.sourceHash ? 'completed' : 'stale'; return { key: unit.fieldKey, resourceType: unit.resourceType, resourceId: unit.resourceId, sourceText: unit.sourceText, sourceHash: unit.sourceHash, contentFormat: unit.contentFormat, required: unit.isRequired, value: translated?.value || '', status, updatedAt: translated?.updatedAt || unit.updatedAt, meta: unit.resourceType === 'product' ? productMeta.get(unit.resourceId) : unit.resourceType === 'category' ? categoryMeta.get(unit.resourceId) : unit.resourceType === 'editor' ? editorDescriptors.get(unit.fieldKey) : undefined }; });
+    let items = all.map(unit => {
+      const translated = valueMap.get(unit.id);
+      const status = !translated?.value.trim() ? 'missing' : translated.sourceHash === unit.sourceHash ? 'completed' : 'stale';
+      const organization = this.organization(unit, all);
+      const resourceMeta = unit.resourceType === 'product' ? productMeta.get(unit.resourceId) : unit.resourceType === 'category' ? categoryMeta.get(unit.resourceId) : unit.resourceType === 'editor' ? editorDescriptors.get(unit.fieldKey) : undefined;
+      return { key: unit.fieldKey, resourceType: unit.resourceType, resourceId: unit.resourceId, sourceText: unit.sourceText, sourceHash: unit.sourceHash, contentFormat: unit.contentFormat, required: unit.isRequired, value: translated?.value || '', status, updatedAt: translated?.updatedAt || unit.updatedAt, taskTab: organization.taskTab, groupPath: organization.groupPath, semanticType: organization.semanticType, reuseGroupId: organization.reuseGroupId, usage: organization.usage, meta: { ...(resourceMeta || {}), ...organization } };
+    });
     if (query.resourceType) items = items.filter(item => item.resourceType === query.resourceType);
+    if (query.taskTab) items = items.filter(item => item.taskTab === query.taskTab);
+    if (String(query.requiredOnly) === 'true') items = items.filter(item => item.required);
     if (query.status) items = items.filter(item => item.status === query.status);
     if (query.keyword?.trim()) { const keyword = query.keyword.trim().toLowerCase(); items = items.filter(item => `${item.key}\n${item.sourceText}\n${item.value}`.toLowerCase().includes(keyword)); }
     const page = Math.max(1, Number(query.page) || 1); const pageSize = Math.min(200, Math.max(1, Number(query.pageSize) || 50));
-    const summary = await this.summary(siteId);
-    return { items: items.slice((page - 1) * pageSize, page * pageSize), total: items.length, page, pageSize, locale, summary };
+    const [summary, contentSummary] = await Promise.all([this.summary(siteId), this.contentSummary(siteId)]);
+    return { items: items.slice((page - 1) * pageSize, page * pageSize), total: items.length, page, pageSize, locale, summary, contentSummary };
   }
 
   async save(siteId: string, dto: SaveTranslationsDto) {
@@ -182,6 +205,14 @@ export class TranslationService {
     return locales.map(locale => { const localized = values.filter(item => item.locale === locale); const completed = units.filter(unit => localized.some(value => value.unitId === unit.id && value.value.trim() && value.sourceHash === unit.sourceHash)).length; const stale = units.filter(unit => localized.some(value => value.unitId === unit.id && value.value.trim() && value.sourceHash !== unit.sourceHash)).length; return { locale, total: units.length, completed, stale, missing: units.length - completed - stale, percent: units.length ? Math.round(completed / units.length * 100) : 100 }; });
   }
 
+  async contentSummary(siteId: string) {
+    const site = await this.sites.findOneByOrFail({ id: siteId });
+    const units = await this.units.find({ where: { siteId, isArchived: false } });
+    const locales = (site.supportedLanguages || [site.defaultLanguage]).filter(locale => locale !== 'zh_CN');
+    const values = units.length && locales.length ? await this.values.find({ where: { unitId: In(units.map(item => item.id)), locale: In(locales) } }) : [];
+    return locales.map(locale => { const localized = values.filter(item => item.locale === locale); const completed = units.filter(unit => localized.some(value => value.unitId === unit.id && value.value.trim() && value.sourceHash === unit.sourceHash)).length; const stale = units.filter(unit => localized.some(value => value.unitId === unit.id && value.value.trim() && value.sourceHash !== unit.sourceHash)).length; return { locale, total: units.length, completed, stale, missing: units.length - completed - stale, percent: units.length ? Math.round(completed / units.length * 100) : 100 }; });
+  }
+
   async validateForPublish(siteId: string) {
     await this.sync(siteId);
     const summary = await this.summary(siteId);
@@ -191,6 +222,7 @@ export class TranslationService {
   }
 
   async messages(siteId: string) {
+    await this.sync(siteId);
     const site = await this.sites.findOneByOrFail({ id: siteId });
     const units = await this.units.find({ where: { siteId, isArchived: false } });
     const locales = site.supportedLanguages || [site.defaultLanguage];
@@ -200,19 +232,22 @@ export class TranslationService {
     return { sourceLocale: 'zh_CN', locales, messages };
   }
 
-  async exportWorkbook(siteId: string, locale: string) {
+  async exportWorkbook(siteId: string, locale: string, query: TranslationExportQueryDto = {}) {
     await this.assertTargetLocale(siteId, locale);
     await this.sync(siteId);
     const site = await this.sites.findOneByOrFail({ id: siteId });
-    const units = await this.units.find({ where: { siteId, isArchived: false }, order: { resourceType: 'ASC', resourceId: 'ASC', fieldKey: 'ASC' } });
+    const allUnits = await this.units.find({ where: { siteId, isArchived: false }, order: { resourceType: 'ASC', resourceId: 'ASC', fieldKey: 'ASC' } });
+    let units = allUnits;
     const translations = units.length ? await this.values.find({ where: { unitId: In(units.map(item => item.id)), locale } }) : [];
     const valueMap = new Map(translations.map(item => [item.unitId, item]));
+    if (query.taskTab) units = units.filter(unit => this.organization(unit, allUnits).taskTab === query.taskTab);
+    if (query.scope === 'incomplete') units = units.filter(unit => { const translated = valueMap.get(unit.id); return !translated?.value.trim() || translated.sourceHash !== unit.sourceHash; });
     const rows = units.map(unit => {
       const translated = valueMap.get(unit.id);
       const status = !translated?.value.trim() ? '未翻译' : translated.sourceHash === unit.sourceHash ? '已完成' : '已过期';
       return {
         '模块': RESOURCE_LABELS[unit.resourceType] || unit.resourceType,
-        '业务对象': this.businessObjectName(unit, units),
+        '业务对象': this.businessObjectName(unit, allUnits),
         '字段': this.fieldLabel(unit),
         '中文原文': unit.sourceText,
         '目标语言': locale,
@@ -224,19 +259,35 @@ export class TranslationService {
       };
     });
     const workbook = new ExcelJS.Workbook();
-    const content = workbook.addWorksheet('翻译内容');
+    const groups = new Map<string, TranslationUnit[]>();
+    units.forEach(unit => { const id = this.organization(unit, allUnits).reuseGroupId; groups.set(id, [...(groups.get(id) || []), unit]); });
+    const batch = workbook.addWorksheet('批量翻译');
+    batch.addRow(BATCH_COLUMNS);
+    groups.forEach(group => {
+      const first = group[0]; const organization = this.organization(first, allUnits);
+      const current = [...new Set(group.map(unit => valueMap.get(unit.id)?.value || '').filter(Boolean))];
+      const status = group.every(unit => { const value = valueMap.get(unit.id); return value?.value.trim() && value.sourceHash === unit.sourceHash; }) ? '已完成' : group.some(unit => valueMap.get(unit.id)?.value.trim()) ? '部分完成' : '未翻译';
+      batch.addRow([this.taskTabLabel(organization.taskTab), organization.groupPath.join(' / '), this.fieldLabel(first), first.sourceText, locale, current.length === 1 ? current[0] : '', group.length, status, organization.reuseGroupId, group.map(unit => unit.id).join(';'), group.map(unit => unit.sourceHash).join(';')]);
+    });
+    [14, 30, 20, 48, 14, 48, 12, 12, 30, 48, 48].forEach((width, index) => { batch.getColumn(index + 1).width = width; });
+    [9, 10, 11].forEach(column => { batch.getColumn(column).hidden = true; });
+    batch.autoFilter = `A1:K${Math.max(1, batch.rowCount)}`;
+    const overrides = workbook.addWorksheet('单项覆盖');
+    overrides.addRow(OVERRIDE_COLUMNS);
+    units.forEach(unit => { const translated = valueMap.get(unit.id); const organization = this.organization(unit, allUnits); overrides.addRow([this.taskTabLabel(organization.taskTab), this.businessObjectName(unit, allUnits), this.fieldLabel(unit), unit.sourceText, locale, translated?.value || '', '', unit.fieldKey, unit.id, unit.sourceHash]); });
+    [14, 24, 20, 48, 14, 40, 40, 48, 18, 32].forEach((width, index) => { overrides.getColumn(index + 1).width = width; });
+    [9, 10].forEach(column => { overrides.getColumn(column).hidden = true; });
+    const content = workbook.addWorksheet('完整明细');
     content.addRow(IMPORT_COLUMNS);
     rows.forEach(row => content.addRow(IMPORT_COLUMNS.map(column => row[column as keyof typeof row])));
     [14, 24, 20, 48, 14, 48, 12, 48, 18, 32].forEach((width, index) => { content.getColumn(index + 1).width = width; });
-    content.getColumn(9).hidden = true;
-    content.getColumn(10).hidden = true;
-    content.autoFilter = `A1:J${Math.max(1, rows.length + 1)}`;
+    content.protect('', { selectLockedCells: true, selectUnlockedCells: true });
     const guide = workbook.addWorksheet('填写说明');
     [
       ['多语言翻译填写说明'],
-      ['1', '本文件是当前中文内容的快照，请只填写“译文”列。'],
-      ['2', '请勿删除、重命名或移动工作表和列，也不要修改目标语言。'],
-      ['3', '中文原文、稳定键及隐藏技术列用于安全校验，修改后对应行会被跳过。'],
+      ['1', '优先在“批量翻译”填写译文，一行可安全应用到多个相同语义的使用位置。'],
+      ['2', '如某个位置需要不同译法，请在“单项覆盖”的“覆盖译文”列填写。'],
+      ['3', '“完整明细”仅供审计，请勿修改；中文原文及隐藏技术列用于安全校验。'],
       ['4', 'HTML 内容可保留基础格式；脚本和危险标签会在导入时被清理。'],
       ['5', '标签、徽标等多值内容必须使用英文分号 ; 分隔，数量需与中文一致。'],
       ['6', '空白译文不会清空已有内容，只会被跳过。'],
@@ -245,7 +296,7 @@ export class TranslationService {
     guide.getColumn(2).width = 100;
     const exportedAt = new Date();
     const meta = workbook.addWorksheet('_meta', { state: 'veryHidden' });
-    [['key', 'value'], ['templateVersion', IMPORT_TEMPLATE_VERSION], ['siteId', siteId], ['sourceLocale', 'zh_CN'], ['targetLocale', locale], ['exportedAt', exportedAt.toISOString()]].forEach(row => meta.addRow(row));
+    [['key', 'value'], ['templateVersion', IMPORT_TEMPLATE_VERSION], ['siteId', siteId], ['sourceLocale', 'zh_CN'], ['targetLocale', locale], ['taskTab', query.taskTab || 'all'], ['scope', query.scope || 'all'], ['exportedAt', exportedAt.toISOString()]].forEach(row => meta.addRow(row));
     const stamp = exportedAt.toISOString().replace(/[-:T]/g, '').slice(0, 12);
     const safeName = site.name.replace(/[\\/:*?"<>|]/g, '-').trim() || '站点';
     return { data: Buffer.from(await workbook.xlsx.writeBuffer()), filename: `${safeName}-多语言-${locale}-${stamp}.xlsx` };
@@ -255,19 +306,35 @@ export class TranslationService {
     await this.assertTargetLocale(siteId, locale);
     const workbook = new ExcelJS.Workbook();
     try { await workbook.xlsx.load(buffer as any); } catch { throw new BadRequestException('无法读取 Excel 文件，请使用系统导出的 .xlsx 文件'); }
-    const sheet = workbook.getWorksheet('翻译内容');
     const metaSheet = workbook.getWorksheet('_meta');
-    if (!sheet || !metaSheet) throw new BadRequestException('Excel 模板不完整，请重新导出最新模板');
-    const headerRows = worksheetRows(sheet);
-    const headers = (headerRows[0] || []).map(value => value.trim());
-    const missingHeaders = IMPORT_COLUMNS.filter(column => !headers.includes(column));
-    if (missingHeaders.length) throw new BadRequestException(`Excel 缺少必要列：${missingHeaders.join('、')}`);
+    if (!metaSheet) throw new BadRequestException('Excel 模板不完整，请重新导出最新模板');
     const metaRows = worksheetRows(metaSheet);
     const meta = Object.fromEntries(metaRows.slice(1).map(row => [String(row[0] || ''), String(row[1] || '')]));
-    if (meta.templateVersion !== IMPORT_TEMPLATE_VERSION) throw new BadRequestException('Excel 模板版本已过期，请重新导出');
+    if (!['2', IMPORT_TEMPLATE_VERSION].includes(meta.templateVersion)) throw new BadRequestException('Excel 模板版本已过期，请重新导出');
     if (meta.siteId !== siteId) throw new BadRequestException('Excel 不属于当前站点');
     if (meta.sourceLocale !== 'zh_CN' || meta.targetLocale !== locale) throw new BadRequestException('Excel 目标语言与当前选择不一致');
-    const input = worksheetObjects(sheet);
+    let input: Array<Record<string, string>>;
+    if (meta.templateVersion === '2') {
+      const sheet = workbook.getWorksheet('翻译内容');
+      if (!sheet) throw new BadRequestException('Excel 模板不完整，请重新导出最新模板');
+      const headers = (worksheetRows(sheet)[0] || []).map(value => value.trim());
+      const missingHeaders = IMPORT_COLUMNS.filter(column => !headers.includes(column));
+      if (missingHeaders.length) throw new BadRequestException(`Excel 缺少必要列：${missingHeaders.join('、')}`);
+      input = worksheetObjects(sheet);
+    } else {
+      const batchSheet = workbook.getWorksheet('批量翻译'); const overrideSheet = workbook.getWorksheet('单项覆盖');
+      if (!batchSheet || !overrideSheet) throw new BadRequestException('Excel 模板不完整，请重新导出最新模板');
+      const candidates = new Map<string, Record<string, string>>();
+      worksheetObjects(batchSheet).forEach((row, index) => {
+        const ids = String(row['成员ID'] || '').split(';').filter(Boolean); const hashes = String(row['成员源文哈希'] || '').split(';');
+        ids.forEach((unitId, memberIndex) => candidates.set(unitId, { '中文原文': row['中文原文'], '目标语言': row['目标语言'], '译文': row['译文'], '稳定键': '', '翻译单元ID': unitId, '中文源文哈希': hashes[memberIndex] || '', '__row': String(index + 2), '__kind': '批量翻译' }));
+      });
+      worksheetObjects(overrideSheet).forEach((row, index) => {
+        if (!String(row['覆盖译文'] || '').trim()) return;
+        candidates.set(row['翻译单元ID'], { '中文原文': row['中文原文'], '目标语言': row['目标语言'], '译文': row['覆盖译文'], '稳定键': row['稳定键'], '翻译单元ID': row['翻译单元ID'], '中文源文哈希': row['中文源文哈希'], '__row': String(index + 2), '__kind': '单项覆盖' });
+      });
+      input = [...candidates.values()];
+    }
     if (!input.length) throw new BadRequestException('Excel 中没有可导入的数据');
     await this.sync(siteId);
     const active = await this.units.find({ where: { siteId, isArchived: false } });
@@ -277,13 +344,14 @@ export class TranslationService {
     const counts = new Map<string, number>();
     input.forEach(row => { const id = String(row['翻译单元ID'] || '').trim(); if (id) counts.set(id, (counts.get(id) || 0) + 1); });
     const rows: ImportPreviewRow[] = input.map((row, index) => {
-      const rowNumber = index + 2;
+      const rowNumber = Number(row.__row) || index + 2;
       const unitId = String(row['翻译单元ID'] || '').trim();
-      const key = String(row['稳定键'] || '').trim();
+      let key = String(row['稳定键'] || '').trim();
       const sourceText = String(row['中文原文'] || '');
       const sourceHash = String(row['中文源文哈希'] || '').trim();
       const targetLocale = String(row['目标语言'] || '').trim();
       const rawValue = String(row['译文'] || '');
+      const unitForKey = unitMap.get(unitId); if (!key && unitForKey) key = unitForKey.fieldKey;
       const base = { row: rowNumber, unitId, key, sourceText, value: rawValue };
       if (!unitId || !key || !sourceHash || !targetLocale) return { ...base, status: 'invalid', reason: '缺少必要技术字段' };
       if (targetLocale !== locale) return { ...base, status: 'invalid', reason: '行目标语言不一致' };
@@ -298,7 +366,8 @@ export class TranslationService {
       return { ...base, value, status: 'ready', reason: '可导入' };
     });
     const importedUnitIds = new Set(input.map(row => String(row['翻译单元ID'] || '').trim()).filter(Boolean));
-    const addedSinceExport = active.filter(unit => !importedUnitIds.has(unit.id)).length;
+    const isFullExport = meta.templateVersion === '2' || (meta.taskTab === 'all' && meta.scope === 'all');
+    const addedSinceExport = isFullExport ? active.filter(unit => !importedUnitIds.has(unit.id)).length : 0;
     const token = randomUUID();
     const expiresAt = new Date(Date.now() + IMPORT_PREVIEW_TTL).toISOString();
     const cache: ImportPreviewCache = { siteId, userId, locale, fileHash: this.hash(buffer.toString('base64')), expiresAt, rows };
@@ -364,7 +433,10 @@ export class TranslationService {
       (section.stats || []).forEach((item: any) => add({ resourceType: 'editor', resourceId: section.id, fieldKey: `editor:${page}:${section.id}:stat:${item.id}:label`, sourceText: item.label || '' }));
     }));
     }
-    const info = config?.siteInfo || {};
+    const contactSection = Object.values(config?.pages || {}).flatMap((page: any) => page?.sections || []).find((section: any) => section?.type === 'contactModal') as any;
+    const info = { ...(config?.siteInfo || {}) };
+    if (!String(info.contactModalTitle || '').trim()) info.contactModalTitle = contactSection?.title || '';
+    if (!String(info.contactModalSubtitle || '').trim()) info.contactModalSubtitle = contactSection?.subtitle || '';
     if (!descriptorKeys.has('editor:siteInfo:contactModalTitle')) add({ resourceType: 'editor', resourceId: 'siteInfo', fieldKey: 'editor:siteInfo:contactModalTitle', sourceText: info.contactModalTitle || '' });
     if (!descriptorKeys.has('editor:siteInfo:contactModalSubtitle')) add({ resourceType: 'editor', resourceId: 'siteInfo', fieldKey: 'editor:siteInfo:contactModalSubtitle', sourceText: info.contactModalSubtitle || '' });
     const legacyContactFields = ['email', 'phone', 'whatsapp', 'hours', 'address'];
@@ -411,6 +483,16 @@ export class TranslationService {
         });
       });
     });
+    const productDetailBase = { pageId: 'product', pageName: '商品详情页', componentId: 'product-detail', componentType: 'productDetail', componentName: '商品详情' };
+    PRODUCT_DETAIL_COPY.forEach(([field, fieldLabel, sourceText], index) => inferred.push({
+      ...productDetailBase,
+      key: `editor:product:product-detail:${field}`,
+      path: `fixed.productDetail.${field}`,
+      fieldLabel,
+      sourceText,
+      order: 900000 + index,
+      required: true,
+    }));
     const info = config?.siteInfo || {};
     const contactBase = { pageId: 'siteInfo', pageName: '联系我们', componentId: 'siteInfo', componentType: 'contactModal', componentName: '联系我们' };
     inferred.push({ ...contactBase, key: 'editor:siteInfo:contactModalTitle', path: 'siteInfo.contactModalTitle', fieldLabel: '区块标题', order: 0, required: true });
@@ -432,8 +514,12 @@ export class TranslationService {
     return [...merged.values()].sort((a, b) => a.order - b.order);
   }
   private resolveEditorSource(config: any, descriptor: EditorDescriptor): string {
+    if (descriptor.sourceText !== undefined) return descriptor.sourceText;
     if (descriptor.pageId === 'siteInfo') {
-      const info = config?.siteInfo || {};
+      const contactSection = Object.values(config?.pages || {}).flatMap((page: any) => page?.sections || []).find((section: any) => section?.type === 'contactModal') as any;
+      const info = { ...(config?.siteInfo || {}) };
+      if (!String(info.contactModalTitle || '').trim()) info.contactModalTitle = contactSection?.title || '';
+      if (!String(info.contactModalSubtitle || '').trim()) info.contactModalSubtitle = contactSection?.subtitle || '';
       const parts = descriptor.key.split(':');
       if (parts.includes('contact')) {
         const id = parts[parts.indexOf('contact') + 1];
@@ -471,9 +557,27 @@ export class TranslationService {
     if (unit.resourceType === 'constant') return unit.resourceId === 'product' ? '商品常量' : '独立站常量';
     return unit.resourceId;
   }
+  private organization(unit: TranslationUnit, units: TranslationUnit[]) {
+    const taskTab: TaskTab = unit.resourceType === 'product' || unit.resourceType === 'category' ? 'product' : unit.resourceType === 'editor' || unit.resourceType === 'seo' || unit.resourceType === 'site' ? 'page' : 'common';
+    const tail = unit.fieldKey.split(':').pop() || unit.fieldKey;
+    const semanticType = unit.resourceType === 'product' && unit.fieldKey.includes(':variant:') && tail === 'specification' ? 'product-variant-specification'
+      : unit.resourceType === 'product' && unit.fieldKey.includes(':variant:') && tail === 'option' ? 'product-variant-option'
+      : `${unit.resourceType}:${tail}`;
+    const safelyReusable = semanticType === 'product-variant-specification' || semanticType === 'product-variant-option';
+    const reuseGroupId = safelyReusable ? this.hash(`${semanticType}\n${unit.contentFormat}\n${unit.sourceText.trim()}`).slice(0, 24) : `unit:${unit.id}`;
+    let groupPath: string[];
+    if (unit.resourceType === 'product') groupPath = ['商品信息', this.businessObjectName(unit, units)];
+    else if (unit.resourceType === 'category') groupPath = ['商品分类', this.businessObjectName(unit, units)];
+    else if (unit.resourceType === 'editor') groupPath = [EDITOR_PAGE_NAMES[unit.fieldKey.split(':')[1]] || '站点页面', unit.fieldKey.startsWith('editor:siteInfo:') ? '联系我们' : this.businessObjectName(unit, units)];
+    else if (unit.resourceType === 'seo') groupPath = ['站点设置', 'SEO 优化'];
+    else if (unit.resourceType === 'system') groupPath = ['公共交互', unit.fieldKey.split(':')[1]?.split('.')[0] || '系统文案'];
+    else groupPath = ['公共文案', unit.resourceId === 'product' ? '商品标记' : '导航与展示'];
+    return { taskTab, groupPath, semanticType, reuseGroupId, usage: `${groupPath.join(' / ')} / ${this.fieldLabel(unit)}` };
+  }
+  private taskTabLabel(taskTab: TaskTab) { return taskTab === 'product' ? '商品内容' : taskTab === 'page' ? '页面内容' : '公共文案'; }
   private fieldLabel(unit: TranslationUnit) {
     const tail = unit.fieldKey.split(':').pop() || unit.fieldKey;
-    const labels: Record<string, string> = { name: '名称', description: '描述', seoTitle: 'SEO 标题', seoDescription: 'SEO 描述', brand: '品牌', tags: '标签', specification: '规格名', option: '规格值', label: '标签', remark: '备注', title: '标题', subtitle: '说明文字', eyebrow: '眉标文案', buttonText: '按钮文案', secondaryButtonText: '次按钮', content: '内容', keywords: 'SEO 关键词' };
+    const labels: Record<string, string> = { name: '名称', description: '描述', tags: '标签', specification: '规格名', option: '规格值', label: '标签', remark: '备注', title: '标题', subtitle: '说明文字', eyebrow: '眉标文案', buttonText: '按钮文案', secondaryButtonText: '次按钮', content: '内容', keywords: 'SEO 关键词' };
     return labels[tail] || tail.replace(/([A-Z])/g, ' $1').trim() || '-';
   }
   private normalizeTranslationValue(unit: TranslationUnit, raw: string) {

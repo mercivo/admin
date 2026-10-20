@@ -9,6 +9,13 @@ export class TranslationQueryDto {
   @IsOptional() @IsString() keyword?: string;
   @IsOptional() page?: number;
   @IsOptional() pageSize?: number;
+  @IsOptional() @IsIn(['product', 'page', 'common']) taskTab?: 'product' | 'page' | 'common';
+  @IsOptional() requiredOnly?: boolean;
+}
+
+export class TranslationExportQueryDto {
+  @IsOptional() @IsIn(['product', 'page', 'common']) taskTab?: 'product' | 'page' | 'common';
+  @IsOptional() @IsIn(['all', 'incomplete']) scope?: 'all' | 'incomplete';
 }
 
 export class SaveTranslationItemDto {

@@ -697,18 +697,21 @@ export const siteApi = {
 };
 
 export type TranslationStatus = 'missing' | 'completed' | 'stale';
-export type TranslationItem = { key: string; resourceType: string; resourceId: string; sourceText: string; contentFormat: 'text' | 'html'; required: boolean; value: string; status: TranslationStatus; updatedAt: string; meta?: { sku?: string; moq?: number; badge?: string; code?: string; parentCode?: string | null; sort?: number; level?: number; path?: string[]; pageId?: string; pageName?: string; componentId?: string; componentType?: string; componentName?: string; fieldLabel?: string; order?: number } };
+export type TranslationTaskTab = 'product' | 'page' | 'common';
+export type TranslationItem = { key: string; resourceType: string; resourceId: string; sourceText: string; sourceHash?: string; contentFormat: 'text' | 'html'; required: boolean; value: string; status: TranslationStatus; updatedAt: string; taskTab?: TranslationTaskTab; groupPath?: string[]; semanticType?: string; reuseGroupId?: string; usage?: string; meta?: { sku?: string; moq?: number; badge?: string; code?: string; parentCode?: string | null; sort?: number; level?: number; path?: string[]; pageId?: string; pageName?: string; componentId?: string; componentType?: string; componentName?: string; fieldLabel?: string; order?: number; taskTab?: TranslationTaskTab; groupPath?: string[]; semanticType?: string; reuseGroupId?: string; usage?: string } };
 export type TranslationSummary = { locale: string; total: number; completed: number; stale: number; missing: number; percent: number };
-export type TranslationPage = { items: TranslationItem[]; total: number; page: number; pageSize: number; locale: string; summary: TranslationSummary[] };
+export type TranslationPage = { items: TranslationItem[]; total: number; page: number; pageSize: number; locale: string; summary: TranslationSummary[]; contentSummary?: TranslationSummary[] };
+export type TranslationMessages = { sourceLocale: string; locales: string[]; messages: Record<string, Record<string, string>> };
 export type TranslationImportRowStatus = 'ready' | 'unchanged' | 'blank' | 'source_changed' | 'removed' | 'duplicate' | 'invalid';
 export type TranslationImportPreviewRow = { row: number; unitId: string; key: string; sourceText: string; value: string; status: TranslationImportRowStatus; reason: string };
 export type TranslationImportSummary = { total: number; ready: number; unchanged: number; blank: number; sourceChanged: number; removed: number; duplicate: number; invalid: number; addedSinceExport: number };
 export type TranslationImportPreview = { token: string; expiresAt: string; summary: TranslationImportSummary; rows: TranslationImportPreviewRow[] };
 export type TranslationImportResult = { imported: number; unchanged: number; blankSkipped: number; staleSkipped: number; invalidSkipped: number };
 export const translationApi = {
-  list: (params: { locale: string; resourceType?: string; status?: string; keyword?: string; page?: number; pageSize?: number }) => api.get<any, TranslationPage>('/translations', { params }),
+  list: (params: { locale: string; resourceType?: string; taskTab?: TranslationTaskTab; status?: string; keyword?: string; requiredOnly?: boolean; page?: number; pageSize?: number }) => api.get<any, TranslationPage>('/translations', { params }),
+  messages: () => api.get<any, TranslationMessages>('/translations/messages'),
   save: (locale: string, items: Array<{ key: string; value: string }>) => api.put<any, TranslationPage>('/translations', { locale, items }),
-  export: (locale: string) => api.get<any, Blob>(`/translations/export/${locale}`, { responseType: 'blob' }),
+  export: (locale: string, params?: { taskTab?: TranslationTaskTab; scope?: 'all' | 'incomplete' }) => api.get<any, Blob>(`/translations/export/${locale}`, { params, responseType: 'blob' }),
   previewImport: (locale: string, file: File) => { const body = new FormData(); body.append('file', file); return api.post<any, TranslationImportPreview>(`/translations/import/${locale}/preview`, body, { headers: { 'Content-Type': 'multipart/form-data' } }); },
   commitImport: (locale: string, token: string) => api.post<any, TranslationImportResult>(`/translations/import/${locale}/commit`, { token }),
   importReport: (token: string) => api.get<any, Blob>(`/translations/import/report/${token}`, { responseType: 'blob' }),

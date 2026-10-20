@@ -82,8 +82,8 @@ function renderHtml(data, requestUrl, host, route) {
   const canonicalBase = product ? `${origin}${route.basePath}/products/${encodeURIComponent(product.id)}` : (seo.canonicalUrl || `${origin}${route.basePath}/`);
   const canonical = `${canonicalBase}${canonicalBase.includes('?') ? '&' : '?'}lang=${encodeURIComponent(locale)}`;
   const productName = product ? t(`product:${product.id}:name`, product.nameZh) : '';
-  const title = product ? (t(`product:${product.id}:seoTitle`, product.seoTitle || '') || `${productName}｜${siteName}`) : (t('seo:title', seo.title || '') || siteName);
-  const description = product ? (t(`product:${product.id}:seoDescription`, product.seoDescription || '') || t(`product:${product.id}:description`, product.description || '')) : t('seo:description', seo.description || '');
+  const title = product ? `${productName}｜${siteName}` : (t('seo:title', seo.title || '') || siteName);
+  const description = product ? t(`product:${product.id}:description`, product.description || '') : t('seo:description', seo.description || '');
   const image = product?.seoImage || product?.img || seo.shareImage || data.products?.[0]?.img || '';
   const languages = data.site.supportedLanguages || [data.site.defaultLanguage];
   const alternates = languages.map(language => `<link rel="alternate" hreflang="${escapeHtml(language.replace('_', '-'))}" href="${escapeHtml(canonicalBase)}${canonicalBase.includes('?') ? '&' : '?'}lang=${escapeHtml(language)}">`).join('');

@@ -75,7 +75,7 @@ describe('SiteService single site model', () => {
 
     await expect(service.resolvePublished('live.example.com')).resolves.toMatchObject({
       config: { themeColor: '#123456' },
-      products: [expect.objectContaining({ id: 'live-product', price: '128.00' })],
+      products: [expect.objectContaining({ id: 'live-product', basePrice: 128, price: '128.00' })],
       categories: [{ code: 'live-category', label: '实时分类', parentCode: null, sort: 1 }],
     });
   });

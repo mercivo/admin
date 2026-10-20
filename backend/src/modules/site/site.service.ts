@@ -150,7 +150,7 @@ export class SiteService {
       const basePrice = Number(currencyPrice?.basePrice ?? product.basePrice);
       const priceValue = guestMode === 'percentage' ? basePrice * guestPricePercentage / 100 : basePrice;
       const priceVisible = guestMode !== 'hidden';
-      return { ...product, currencyPrices: undefined, price: priceVisible ? this.calculatePublicPrice(priceValue, product.variants || []) : '', priceVisible, priceSource: guestMode };
+      return { ...product, currencyPrices: undefined, basePrice: priceValue, price: priceVisible ? this.calculatePublicPrice(priceValue, product.variants || []) : '', priceVisible, priceSource: guestMode };
     });
     const categories = liveCategoryEntries.map(({ code, label, parentCode, sort }) => ({ code, label, parentCode, sort }));
     const supported = snapshot.site?.supportedLanguages || [snapshot.site?.defaultLanguage || 'zh_CN'];

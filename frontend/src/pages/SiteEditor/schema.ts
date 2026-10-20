@@ -30,7 +30,7 @@ export const COMPONENT_DEFINITIONS: Record<SectionType, ComponentDefinition> = {
   products: { type: 'products', label: '产品列表', description: '商品分类与产品陈列', content: ['title', 'subtitle', 'eyebrow', 'buttonText'], style: ['columns', 'showMoq', 'showEyebrow', 'showButton', 'background'], events: ['buttonAction'], translatable: [{ path: 'title', label: '标题' }, { path: 'subtitle', label: '说明文字' }, { path: 'eyebrow', label: '眉标文案' }, { path: 'buttonText', label: '按钮文案' }] },
   form: { type: 'form', label: '询盘表单', description: '收集客户询盘与采购需求', content: ['title', 'subtitle', 'eyebrow', 'buttonText', 'formFields'], style: ['showEyebrow', 'backgroundImageUrl', 'background'], events: ['submit'], translatable: [{ path: 'title', label: '标题' }, { path: 'subtitle', label: '说明文字' }, { path: 'eyebrow', label: '眉标文案' }, { path: 'buttonText', label: '提交按钮' }, { path: 'formFields.*.label', label: '表单字段' }] },
   contactModal: { type: 'contactModal', label: '联系我们', description: '快捷联系信息弹窗', content: ['title', 'subtitle'], style: ['background'], events: [], translatable: [{ path: 'title', label: '区块标题' }, { path: 'subtitle', label: '说明文字' }] },
-  footer: { type: 'footer', label: '页脚', description: '导航、联系与版权信息', content: ['title', 'subtitle', 'navItems', 'socialLinks'], style: ['showContact', 'background'], events: ['navItems'], translatable: [{ path: 'title', label: '企业名称' }, { path: 'subtitle', label: '企业说明' }, { path: 'navItems.*.label', label: '导航文案' }, { path: 'socialLinks.*.label', label: '社交媒体名称' }] },
+  footer: { type: 'footer', label: '页脚', description: '导航、联系与版权信息', content: ['title', 'subtitle', 'copyrightText', 'navItems', 'socialLinks'], style: ['showContact', 'background'], events: ['navItems'], translatable: [{ path: 'title', label: '企业名称' }, { path: 'subtitle', label: '企业说明' }, { path: 'copyrightText', label: '版权信息' }, { path: 'navItems.*.label', label: '导航文案' }, { path: 'socialLinks.*.label', label: '社交媒体名称' }] },
 };
 
 export const PAGE_NAMES: Record<string, string> = { home: '首页', products: '商品列表页', about: '关于我们', contact: '联系我们' };
@@ -81,6 +81,34 @@ export const buildTranslationDescriptors = (config: Pick<EditorConfig, 'pages'>)
   return page.sections.filter(section => section.visible !== false && section.type !== 'contactModal' && !(section.type === 'header' && pageId !== 'home')).flatMap((section, sectionIndex) => COMPONENT_DEFINITIONS[section.type].translatable.filter(field => isDisplayed(section, field.path)).flatMap((field, fieldIndex) => descriptorFor(pageId, PAGE_NAMES[pageId] || pageId, section, field.path, field.label, pageIndex * 10000 + sectionIndex * 100 + fieldIndex, field.required === true)));
 });
 
+export const applyEditorTranslations = (config: EditorConfig, messages: Record<string, string> = {}): EditorConfig => {
+  const translated: EditorConfig = {
+    ...config,
+    siteInfo: { ...config.siteInfo, contactItems: (config.siteInfo.contactItems || []).map(item => ({ ...item })) },
+    pages: Object.fromEntries(Object.entries(config.pages).map(([pageId, page]) => [pageId, { ...page, sections: page.sections.map(section => ({ ...section, navItems: section.navItems?.map(item => ({ ...item })), formFields: section.formFields?.map(item => ({ ...item })), stats: section.stats?.map(item => ({ ...item })), trustItems: section.trustItems?.map(item => ({ ...item })), socialLinks: section.socialLinks?.map(item => ({ ...item })) })) }])),
+  };
+  const descriptors = config.translationDescriptors?.length ? config.translationDescriptors : buildTranslationDescriptors(config);
+  descriptors.forEach(descriptor => {
+    const value = messages[descriptor.key];
+    if (!value || !descriptor.pageId || !descriptor.componentId) return;
+    const section = translated.pages[descriptor.pageId]?.sections.find(item => item.id === descriptor.componentId);
+    if (!section) return;
+    const parts = descriptor.key.split(':');
+    const field = parts[parts.length - 1] || '';
+    const collection = parts.includes('nav') ? 'navItems' : parts.includes('form') ? 'formFields' : parts.includes('stat') ? 'stats' : parts.includes('trust') ? 'trustItems' : parts.includes('social') ? 'socialLinks' : '';
+    if (!collection) { (section as unknown as Record<string, unknown>)[field] = value; return; }
+    const token = collection === 'navItems' ? 'nav' : collection === 'formFields' ? 'form' : collection === 'stats' ? 'stat' : collection === 'trustItems' ? 'trust' : 'social';
+    const itemId = parts[parts.indexOf(token) + 1];
+    const entries = (section as unknown as Record<string, Array<Record<string, unknown>>>)[collection] || [];
+    (section as unknown as Record<string, unknown>)[collection] = entries.map(item => String(item[collection === 'formFields' ? 'key' : 'id']) === itemId ? { ...item, [field]: value } : item);
+  });
+  const info = translated.siteInfo;
+  info.contactModalTitle = messages['editor:siteInfo:contactModalTitle'] || info.contactModalTitle;
+  info.contactModalSubtitle = messages['editor:siteInfo:contactModalSubtitle'] || info.contactModalSubtitle;
+  info.contactItems = (info.contactItems || []).map(item => ({ ...item, label: messages[`editor:siteInfo:contact:${item.id}:label`] || item.label, content: messages[`editor:siteInfo:contact:${item.id}:content`] || item.content }));
+  return translated;
+};
+
 export const defaultConfig = (): EditorConfig => {
   const base = { status: 'draft' as const, version: 1, page: 'home', themeColor: '#7C6EF5', themeOpacity: 100, siteInfo: defaultSiteInfo(), pages: { home: createPage(['header', 'hero', 'products', 'text', 'form', 'contactModal', 'footer']), products: createPage(['header', 'products', 'footer']), about: createPage(['header', 'text', 'footer']), contact: createPage(['header', 'form', 'footer']) } };
   return { ...base, translationDescriptors: buildTranslationDescriptors(base) };
@@ -93,6 +121,9 @@ export const normalizeEditorConfig = (raw: Record<string, unknown>): EditorConfi
   value.themeColor = !value.themeColor || value.themeColor.toUpperCase() === '#1A3D2E' ? '#7C6EF5' : value.themeColor;
   value.themeOpacity = Math.min(100, Math.max(0, value.themeOpacity ?? 100));
   const legacySiteInfo = value.siteInfo || defaultSiteInfo();
+  const contactSection = Object.values(value.pages).flatMap(page => page.sections || []).find(section => section.type === 'contactModal');
+  if (!legacySiteInfo.contactModalTitle?.trim() && contactSection?.title) legacySiteInfo.contactModalTitle = contactSection.title;
+  if (!legacySiteInfo.contactModalSubtitle?.trim() && contactSection?.subtitle) legacySiteInfo.contactModalSubtitle = contactSection.subtitle;
   const legacyContactDetails = { ...defaultSiteInfo().contactDetails, ...(legacySiteInfo.contactDetails || {}) };
   const legacyContactLabels = { ...defaultSiteInfo().contactLabels, ...(legacySiteInfo.contactLabels || {}) };
   const contactItems = Array.isArray(legacySiteInfo.contactItems) ? legacySiteInfo.contactItems : (Object.keys(legacyContactDetails) as Array<keyof ContactDetails>).filter(key => legacyContactDetails[key]).map(key => ({ id: `legacy-${key}`, label: legacyContactLabels[key], content: legacyContactDetails[key] }));

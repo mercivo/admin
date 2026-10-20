@@ -1,0 +1,16 @@
+version: v1.0.4
+releaseType: maintenance
+releaseDate: 2026-10-19
+owner: mercivo
+sourceBranch: main
+database:
+  schemaMigration: false
+  dataCorrection: false
+  backwardCompatible: true
+redis:
+  changed: false
+storage:
+  changed: false
+rollback:
+  applicationRevisionSafe: true
+  databaseRestoreRequired: false

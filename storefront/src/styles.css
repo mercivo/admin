@@ -92,3 +92,4 @@
 @media(max-width:900px){.about-media{max-width:560px}.about-quality-badge{left:12px}}
 @media(max-width:620px){.about-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.about-quality-badge{bottom:-12px}}
 .category-navigation .primary-tabs:before,.category-navigation .secondary-tabs:before,.category-selects:before{display:none!important;content:none!important}.category-filter-title{grid-column:1/-1;margin:0 0 4px;color:#292524;font-size:13px;font-weight:700}.category-empty{margin-bottom:24px;padding:18px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);text-align:center}
+.nav>nav{position:absolute;left:50%;margin-left:0;transform:translateX(-50%)}

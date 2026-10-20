@@ -3,6 +3,27 @@ import { createHash } from 'crypto';
 import ExcelJS = require('exceljs');
 
 describe('TranslationService public site source catalog', () => {
+  it('excludes removed product brand and SEO fields and archives their legacy translation units', async () => {
+    const saved: Array<Record<string, unknown>> = [];
+    const legacy = ['seoTitle', 'seoDescription', 'brand'].map((field, index) => ({ id: `legacy-${index}`, siteId: 'site-1', resourceType: 'product', resourceId: 'product-1', fieldKey: `product:product-1:${field}`, sourceText: field, sourceHash: field, contentFormat: 'text', isRequired: true, isArchived: false }));
+    const units = { find: jest.fn().mockResolvedValue(legacy), create: jest.fn((value) => value), save: jest.fn(async (value) => { saved.push(value); return value; }), update: jest.fn() };
+    const products = { find: jest.fn().mockResolvedValue([{ id: 'product-1', siteId: 'site-1', status: 'published', nameZh: '商品一', description: '商品描述', seoTitle: '旧 SEO 标题', seoDescription: '旧 SEO 描述', brand: '旧品牌', tags: [], variants: [] }]) };
+    const categories = { find: jest.fn().mockResolvedValue([]) };
+    const configs = { findOne: jest.fn(async ({ where: { key } }) => key.endsWith(':siteEditor') ? { value: { pages: {}, siteInfo: { contactDetails: {}, contactItems: [] } } } : key.endsWith(':seo') ? { value: {} } : null) };
+    const sites = { findOneByOrFail: jest.fn().mockResolvedValue({ id: 'site-1' }) };
+    const service = new TranslationService(units as any, {} as any, products as any, categories as any, configs as any, sites as any, {} as any);
+
+    await service.sync('site-1');
+
+    expect(saved).toEqual(expect.arrayContaining([
+      expect.objectContaining({ fieldKey: 'product:product-1:name', sourceText: '商品一' }),
+      expect.objectContaining({ fieldKey: 'product:product-1:description', sourceText: '商品描述' }),
+    ]));
+    expect(saved.some(source => /:(seoTitle|seoDescription|brand)$/.test(String(source.fieldKey)))).toBe(false);
+    expect(units.update).toHaveBeenCalledWith(expect.objectContaining({ id: expect.anything() }), { isArchived: true });
+    expect((units.update.mock.calls[0][0].id as any)._value).toEqual(expect.arrayContaining(legacy.map(item => item.id)));
+  });
+
   it('uses the editor translation descriptor catalog as the source of truth', async () => {
     const saved: Array<Record<string, unknown>> = [];
     const units = { find: jest.fn().mockResolvedValue([]), create: jest.fn((value) => value), save: jest.fn(async (value) => { saved.push(value); return value; }), update: jest.fn() };
@@ -29,11 +50,47 @@ describe('TranslationService public site source catalog', () => {
       expect.objectContaining({ fieldKey: 'system:empty.products', sourceText: '当前分类暂无商品' }),
       expect.objectContaining({ fieldKey: 'system:empty.categories', sourceText: '暂无分类' }),
       expect.objectContaining({ fieldKey: 'system:empty.contactInformation', sourceText: '暂无联系信息' }),
+      expect.objectContaining({ fieldKey: 'system:guestAccess.disabledTitle', sourceText: '暂不开放游客访问' }),
+      expect.objectContaining({ fieldKey: 'system:guestAccess.disabledDescription', sourceText: '当前站点仅对授权客户开放，请联系站点管理员获取访问权限。' }),
       expect.objectContaining({ fieldKey: 'constant:storefront.productBadge', sourceText: '商品标记' }),
       expect.objectContaining({ fieldKey: 'constant:storefront.quickNavigation', sourceText: '快速导航' }),
+      expect.objectContaining({ resourceType: 'editor', resourceId: 'product-detail', fieldKey: 'editor:product:product-detail:likes', sourceText: '人喜欢' }),
+      expect.objectContaining({ resourceType: 'editor', resourceId: 'product-detail', fieldKey: 'editor:product:product-detail:contactNote', sourceText: '联系我们获取报价、定制方案与交付信息。' }),
+      expect.objectContaining({ resourceType: 'editor', resourceId: 'product-detail', fieldKey: 'editor:product:product-detail:descriptionTitle', sourceText: '商品详情' }),
     ]));
     expect(saved.some(source => String(source.fieldKey).startsWith('system:customer.'))).toBe(false);
     expect(saved.some(source => source.fieldKey === 'constant:storefront.categoryFilter')).toBe(false);
+  });
+
+  it('adds footer copyright copy to the page-content translation catalog', async () => {
+    const saved: Array<Record<string, unknown>> = [];
+    const units = { find: jest.fn().mockResolvedValue([]), create: jest.fn((value) => value), save: jest.fn(async (value) => { saved.push(value); return value; }), update: jest.fn() };
+    const emptyList = { find: jest.fn().mockResolvedValue([]) };
+    const configs = { findOne: jest.fn(async ({ where: { key } }) => key.endsWith(':siteEditor') ? { value: { pages: { home: { sections: [{ id: 'footer-1', type: 'footer', visible: true, title: '企业名称', subtitle: '企业说明', copyrightText: '版权所有', navItems: [], socialLinks: [] }] } } } } : key.endsWith(':seo') ? { value: {} } : null) };
+    const sites = { findOneByOrFail: jest.fn().mockResolvedValue({ id: 'site-1' }) };
+    const service = new TranslationService(units as any, {} as any, emptyList as any, emptyList as any, configs as any, sites as any, {} as any);
+
+    await service.sync('site-1');
+
+    expect(saved).toEqual(expect.arrayContaining([
+      expect.objectContaining({ resourceType: 'editor', resourceId: 'footer-1', fieldKey: 'editor:home:footer-1:copyrightText', sourceText: '版权所有' }),
+    ]));
+  });
+
+  it('uses the site editor contact module as the translation source for legacy configs', async () => {
+    const saved: Array<Record<string, unknown>> = [];
+    const units = { find: jest.fn().mockResolvedValue([]), create: jest.fn((value) => value), save: jest.fn(async (value) => { saved.push(value); return value; }), update: jest.fn() };
+    const emptyList = { find: jest.fn().mockResolvedValue([]) };
+    const configs = { findOne: jest.fn(async ({ where: { key } }) => key.endsWith(':siteEditor') ? { value: { pages: { home: { sections: [{ id: 'contact-1', type: 'contactModal', title: '获取专属报价', subtitle: '请留下您的采购需求' }] } }, siteInfo: { contactModalTitle: '', contactModalSubtitle: '', contactItems: [] } } } : key.endsWith(':seo') ? { value: {} } : null) };
+    const sites = { findOneByOrFail: jest.fn().mockResolvedValue({ id: 'site-1' }) };
+    const service = new TranslationService(units as any, {} as any, emptyList as any, emptyList as any, configs as any, sites as any, {} as any);
+
+    await service.sync('site-1');
+
+    expect(saved).toEqual(expect.arrayContaining([
+      expect.objectContaining({ fieldKey: 'editor:siteInfo:contactModalTitle', sourceText: '获取专属报价' }),
+      expect.objectContaining({ fieldKey: 'editor:siteInfo:contactModalSubtitle', sourceText: '请留下您的采购需求' }),
+    ]));
   });
 
   it('keeps internal site metadata out and groups public settings sources', async () => {
@@ -121,12 +178,17 @@ describe('TranslationService public site source catalog', () => {
 describe('TranslationService Excel safety workflow', () => {
   const hash = (value: string) => createHash('sha256').update(value).digest('hex');
   const unit = (index: number, sourceText = `中文 ${index}`) => ({ id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`, siteId: 'site-1', resourceType: 'product', resourceId: `product-${index}`, fieldKey: `product:product-${index}:name`, sourceText, sourceHash: hash(sourceText), contentFormat: 'text', isRequired: true, isArchived: false, updatedAt: new Date() });
-  const createService = (activeUnits: any[], existingValues: any[] = []) => {
+  const createService = (activeUnits: any[], existingValues: any[] = [], supportedLanguages = ['zh_CN', 'en_US']) => {
     const stored = new Map<string, unknown>();
-    const units = { find: jest.fn().mockResolvedValue(activeUnits) };
-    const values = { find: jest.fn().mockResolvedValue(existingValues), manager: { transaction: jest.fn() } };
+    const units = { find: jest.fn(async (options?: any) => options?.where?.isRequired === true ? activeUnits.filter(item => item.isRequired) : activeUnits) };
+    const transactionManager = {
+      findOne: jest.fn().mockResolvedValue(null),
+      create: jest.fn((_entity, value) => value),
+      save: jest.fn(async value => value),
+    };
+    const values = { find: jest.fn().mockResolvedValue(existingValues), manager: { transaction: jest.fn(async callback => callback(transactionManager)) } };
     const emptyList = { find: jest.fn().mockResolvedValue([]) };
-    const sites = { findOneByOrFail: jest.fn().mockResolvedValue({ id: 'site-1', name: '演示站点', defaultLanguage: 'zh_CN', supportedLanguages: ['zh_CN', 'en_US'] }) };
+    const sites = { findOneByOrFail: jest.fn().mockResolvedValue({ id: 'site-1', name: '演示站点', defaultLanguage: 'zh_CN', supportedLanguages }) };
     const cache = { set: jest.fn(async (key, value) => { stored.set(key, value); }), get: jest.fn(async key => stored.get(key) || null), del: jest.fn(async key => { stored.delete(key); }) };
     const service = new TranslationService(units as any, values as any, emptyList as any, emptyList as any, {} as any, sites as any, cache as any);
     jest.spyOn(service, 'sync').mockResolvedValue(undefined);
@@ -138,9 +200,43 @@ describe('TranslationService Excel safety workflow', () => {
     const result = await createService(activeUnits).exportWorkbook('site-1', 'en_US');
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(result.data as any);
-    expect(workbook.getWorksheet('翻译内容')?.actualRowCount).toBe(206);
+    expect(workbook.getWorksheet('批量翻译')?.actualRowCount).toBe(206);
+    expect(workbook.getWorksheet('单项覆盖')?.actualRowCount).toBe(206);
+    expect(workbook.getWorksheet('完整明细')?.actualRowCount).toBe(206);
     expect(workbook.getWorksheet('_meta')).toBeDefined();
     expect(result.filename).toMatch(/^演示站点-多语言-en_US-/);
+  });
+
+  it('deduplicates compatible variant copy in the v3 batch sheet', async () => {
+    const first = { ...unit(1, '颜色'), fieldKey: 'product:p1:variant:v1:specification', resourceId: 'p1' };
+    const second = { ...unit(2, '颜色'), fieldKey: 'product:p2:variant:v2:specification', resourceId: 'p2' };
+    const result = await createService([first, second]).exportWorkbook('site-1', 'en_US');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(result.data as any);
+    expect(workbook.getWorksheet('批量翻译')?.actualRowCount).toBe(2);
+    expect(workbook.getWorksheet('批量翻译')?.getRow(2).getCell(7).value).toBe(2);
+    expect(workbook.getWorksheet('单项覆盖')?.actualRowCount).toBe(3);
+  });
+
+  it('fans a v3 batch translation out to every compatible unit during preview', async () => {
+    const first = { ...unit(1, '颜色'), fieldKey: 'product:p1:variant:v1:specification', resourceId: 'p1' };
+    const second = { ...unit(2, '颜色'), fieldKey: 'product:p2:variant:v2:specification', resourceId: 'p2' };
+    const service = createService([first, second]);
+    const exported = await service.exportWorkbook('site-1', 'en_US');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(exported.data as any);
+    workbook.getWorksheet('批量翻译')!.getRow(2).getCell(6).value = 'Color';
+    const preview = await service.previewImport('site-1', 'user-1', 'en_US', Buffer.from(await workbook.xlsx.writeBuffer()));
+    expect(preview.summary).toEqual(expect.objectContaining({ ready: 2, invalid: 0, duplicate: 0 }));
+    expect(preview.rows.map(row => row.key)).toEqual(expect.arrayContaining([first.fieldKey, second.fieldKey]));
+  });
+
+  it('reports visible content progress across required and optional fields', async () => {
+    const required = unit(1);
+    const optional = { ...unit(2), isRequired: false };
+    const service = createService([required, optional], [{ unitId: required.id, locale: 'en_US', value: 'Translated', sourceHash: required.sourceHash }]);
+    await expect(service.summary('site-1')).resolves.toEqual([expect.objectContaining({ total: 1, completed: 1, missing: 0, percent: 100 })]);
+    await expect(service.contentSummary('site-1')).resolves.toEqual([expect.objectContaining({ total: 2, completed: 1, missing: 1, percent: 50 })]);
   });
 
   it('previews valid, blank and changed-source rows without writing translations', async () => {
@@ -159,5 +255,29 @@ describe('TranslationService Excel safety workflow', () => {
     [['key', 'value'], ['templateVersion', '2'], ['siteId', 'site-1'], ['sourceLocale', 'zh_CN'], ['targetLocale', 'en_US']].forEach(row => meta.addRow(row));
     const preview = await createService(current).previewImport('site-1', 'user-1', 'en_US', Buffer.from(await workbook.xlsx.writeBuffer()));
     expect(preview.summary).toEqual(expect.objectContaining({ ready: 1, blank: 1, sourceChanged: 1 }));
+  });
+
+  it('previews and commits a 79-row hr_HR workbook with five blank translations', async () => {
+    const activeUnits = Array.from({ length: 79 }, (_, index) => unit(index + 1));
+    const columns = ['模块', '业务对象', '字段', '中文原文', '目标语言', '译文', '当前状态', '稳定键', '翻译单元ID', '中文源文哈希'];
+    const workbook = new ExcelJS.Workbook();
+    const content = workbook.addWorksheet('翻译内容');
+    content.addRow(columns);
+    activeUnits.forEach((current, index) => content.addRow([
+      '商品信息', `商品 ${index + 1}`, '名称', current.sourceText, 'hr_HR', index < 74 ? `Prijevod ${index + 1}` : '', '未翻译', current.fieldKey, current.id, current.sourceHash,
+    ]));
+    const meta = workbook.addWorksheet('_meta');
+    [['key', 'value'], ['templateVersion', '2'], ['siteId', 'site-1'], ['sourceLocale', 'zh_CN'], ['targetLocale', 'hr_HR']].forEach(row => meta.addRow(row));
+    const service = createService(activeUnits, [], ['zh_CN', 'hr_HR']);
+
+    const preview = await service.previewImport('site-1', 'user-1', 'hr_HR', Buffer.from(await workbook.xlsx.writeBuffer()));
+    const result = await service.commitImport('site-1', 'user-1', 'hr_HR', preview.token);
+
+    expect(preview.summary).toEqual(expect.objectContaining({ total: 79, ready: 74, blank: 5, invalid: 0 }));
+    expect(result).toEqual({ imported: 74, unchanged: 0, blankSkipped: 5, staleSkipped: 0, invalidSkipped: 0 });
+    await expect(service.commitImport('site-1', 'user-1', 'hr_HR', preview.token)).rejects.toMatchObject({
+      response: { message: '预检结果已过期，请重新上传 Excel', statusCode: 400 },
+      status: 400,
+    });
   });
 });
