@@ -87,7 +87,7 @@ const LoginPage: React.FC = () => {
           </p>
           <div className="mt-9 grid max-w-sm grid-cols-2 gap-3">
             {capabilities.map(({ icon: Icon, label }) => (
-              <div key={label} className="rounded-2xl border border-white/10 bg-white/[.07] px-3 py-4 backdrop-blur-sm">
+              <div key={label} data-testid="login-capability" className="flex flex-col items-center justify-center rounded-2xl border border-white/10 bg-white/[.07] px-3 py-4 text-center backdrop-blur-sm">
                 <Icon className="mb-3 text-[19px] text-violet-300" />
                 <span className="text-xs font-medium text-indigo-50/80">{label}</span>
               </div>

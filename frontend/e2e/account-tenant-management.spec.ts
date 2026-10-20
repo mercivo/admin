@@ -10,6 +10,32 @@ test('login hides registration and system administrator helper copy', async ({ p
   await expect(page.getByText('系统管理员可使用专属账号登录', { exact: true })).toHaveCount(0);
 });
 
+test('login capability cards center icons above their labels', async ({ page }) => {
+  await page.goto('http://localhost:8088/login');
+  const cards = page.getByTestId('login-capability');
+  await expect(cards).toHaveCount(2);
+  for (const card of await cards.all()) {
+    await expect(card).toHaveCSS('display', 'flex');
+    await expect(card).toHaveCSS('flex-direction', 'column');
+    await expect(card).toHaveCSS('align-items', 'center');
+    await expect(card).toHaveCSS('text-align', 'center');
+    const alignment = await card.evaluate(element => {
+      const cardRect = element.getBoundingClientRect();
+      const iconRect = element.querySelector('.anticon')!.getBoundingClientRect();
+      const labelRect = element.querySelector('span:last-child')!.getBoundingClientRect();
+      const center = (rect: DOMRect) => rect.left + rect.width / 2;
+      return {
+        iconOffset: Math.abs(center(iconRect) - center(cardRect)),
+        labelOffset: Math.abs(center(labelRect) - center(cardRect)),
+        iconAboveLabel: iconRect.bottom < labelRect.top,
+      };
+    });
+    expect(alignment.iconOffset).toBeLessThan(1);
+    expect(alignment.labelOffset).toBeLessThan(1);
+    expect(alignment.iconAboveLabel).toBe(true);
+  }
+});
+
 test('system administrator creates a tenant and resets its password', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('mercivo_access_token', 'system-token');
