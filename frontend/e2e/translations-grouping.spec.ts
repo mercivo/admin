@@ -8,6 +8,7 @@ type TranslationItem = {
   resourceId: string;
   sourceText: string;
   meta?: Record<string, unknown>;
+  reuseGroupId?: string;
 };
 
 const item = (value: TranslationItem) => ({
@@ -28,6 +29,7 @@ const prepare = async (page: Page, itemsByType: Record<string, ReturnType<typeof
     if (url.pathname.endsWith('/workspace/settings')) {
       return route.fulfill({ json: { data: { site: { defaultLanguage: 'zh_CN', supportedLanguages: ['zh_CN', 'en_US'] } } } });
     }
+    if (url.pathname.endsWith('/auth/me')) return route.fulfill({ json: { data: { permissions: ['page.site.editor', 'page.site.translations', 'site.translation.edit'] } } });
     if (url.pathname.endsWith('/translations')) {
       const type = url.searchParams.get('resourceType') || '';
       const taskTab = url.searchParams.get('taskTab') || '';
@@ -36,7 +38,22 @@ const prepare = async (page: Page, itemsByType: Record<string, ReturnType<typeof
       const taskTypes: Record<string, string[]> = { product: ['product', 'category'], page: ['editor', 'site', 'seo'], common: ['system', 'constant'] };
       const all = taskTab ? (taskTypes[taskTab] || []).flatMap(resourceType => itemsByType[resourceType] || []) : itemsByType[type] || [];
       const items = keyword ? all.filter(entry => `${entry.key}\n${entry.sourceText}`.toLowerCase().includes(keyword)) : all;
-      return route.fulfill({ json: { data: { items, total: items.length, page: 1, pageSize: 200, locale: 'en_US', summary: [{ locale: 'en_US', total: items.length, completed: 0, stale: 0, missing: items.length, percent: 0 }], contentSummary: [{ locale: 'en_US', total: contentTotal, completed: 0, stale: 0, missing: contentTotal, percent: 0 }] } } });
+      const groupKey = (entry: ReturnType<typeof item>) => {
+        if (entry.resourceType === 'product') return `product:${entry.resourceId}`;
+        if (entry.resourceType === 'category') return `category-level-${entry.meta?.level || 1}`;
+        if (entry.resourceType === 'editor') return entry.resourceId === 'siteInfo'
+          ? 'editor:siteInfo'
+          : `editor:${entry.meta?.pageId || 'home'}:${entry.meta?.componentId || entry.resourceId}`;
+        if (entry.resourceType === 'seo') return 'site-settings';
+        if (entry.resourceType === 'system') return `system:${entry.meta?.section || entry.resourceId}`;
+        return `${entry.resourceType}:${entry.resourceId}`;
+      };
+      const groupPage = Number(url.searchParams.get('groupPage') || 1);
+      const groupPageSize = Number(url.searchParams.get('groupPageSize') || 10);
+      const groupKeys = [...new Set(items.map(groupKey))];
+      const selectedKeys = new Set(groupKeys.slice((groupPage - 1) * groupPageSize, groupPage * groupPageSize));
+      const pagedItems = items.filter(entry => selectedKeys.has(groupKey(entry)));
+      return route.fulfill({ json: { data: { items: pagedItems, total: items.length, page: 1, pageSize: 200, groupPage, groupPageSize, groupTotal: groupKeys.length, locale: 'en_US', summary: [{ locale: 'en_US', total: items.length, completed: 0, stale: 0, missing: items.length, percent: 0 }], contentSummary: [{ locale: 'en_US', total: contentTotal, completed: 0, stale: 0, missing: contentTotal, percent: 0 }] } } });
     }
     return route.fulfill({ json: { data: {} } });
   });
@@ -77,6 +94,65 @@ test('translation loading states prevent empty content from flashing', async ({ 
   await expect(page.locator('.ant-empty-description').getByText('暂无数据', { exact: true })).toBeVisible();
 });
 
+test('translation sidebar renders a skeleton whenever the content tab changes', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
+    localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: ['page.site.editor', 'page.site.translations'] }));
+  });
+  let releasePageTab!: () => void;
+  const pageTabGate = new Promise<void>(resolve => { releasePageTab = resolve; });
+  await page.route('**/api/v1/**', async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/workspace/settings')) return route.fulfill({ json: { data: { site: { defaultLanguage: 'zh_CN', supportedLanguages: ['zh_CN', 'en_US'] } } } });
+    if (url.pathname.endsWith('/translations')) {
+      const taskTab = url.searchParams.get('taskTab');
+      if (taskTab === 'page') await pageTabGate;
+      const items = taskTab === 'product' ? [item({ key: 'product:p1:name', resourceType: 'product', resourceId: 'p1', sourceText: '商品甲' })] : [];
+      return route.fulfill({ json: { data: { items, total: items.length, page: 1, pageSize: 200, locale: 'en_US', summary: [] } } });
+    }
+    return route.fulfill({ json: { data: {} } });
+  });
+
+  await page.goto(`${frontendBaseUrl}/storefront-translations`);
+  await expect(page.getByRole('button', { name: /商品甲/ }).first()).toBeVisible();
+  await page.getByRole('tab', { name: '页面内容', exact: true }).click();
+  await expect(page.getByTestId('translations-content-loading')).toBeVisible();
+  const sidebar = page.locator('section:has(.translation-tabs) aside');
+  await expect(sidebar.locator('nav')).toBeHidden();
+  expect(await sidebar.evaluate(element => getComputedStyle(element, '::after').animationName)).toBe('translation-menu-skeleton');
+  releasePageTab();
+  await expect(page.getByTestId('translations-content-loading')).toHaveCount(0);
+  await expect(sidebar.locator('nav')).toBeVisible();
+});
+
+test('each tab change requests exactly one business-group page', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
+    localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: ['page.site.editor', 'page.site.translations'] }));
+  });
+  const requests: Array<{ tab: string; page: string; size: string }> = [];
+  await page.route('**/api/v1/**', route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/workspace/settings')) return route.fulfill({ json: { data: { site: { defaultLanguage: 'zh_CN', supportedLanguages: ['zh_CN', 'en_US'] } } } });
+    if (url.pathname.endsWith('/translations')) {
+      requests.push({ tab: url.searchParams.get('taskTab') || '', page: url.searchParams.get('groupPage') || '', size: url.searchParams.get('groupPageSize') || '' });
+      return route.fulfill({ json: { data: { items: [], total: 0, page: 1, pageSize: 50, groupPage: 1, groupPageSize: 10, groupTotal: 0, locale: 'en_US', summary: [], contentSummary: [] } } });
+    }
+    return route.fulfill({ json: { data: {} } });
+  });
+
+  await page.goto(`${frontendBaseUrl}/storefront-translations`);
+  await expect.poll(() => requests.length).toBe(1);
+  expect(requests[0]).toEqual({ tab: 'product', page: '1', size: '10' });
+  await page.getByRole('tab', { name: '页面内容', exact: true }).click();
+  await expect.poll(() => requests.length).toBe(2);
+  expect(requests[1]).toEqual({ tab: 'page', page: '1', size: '10' });
+  await page.waitForTimeout(450);
+  expect(requests).toHaveLength(2);
+});
+
 test('translation empty-language state appears only after settings load and keeps a training-sized height', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('mercivo_access_token', 'e2e-token');
@@ -115,6 +191,55 @@ test('keyword matches keep their business context', async ({ page }) => {
   await page.getByPlaceholder('搜索中文原文、译文、业务对象或稳定键').fill('商品');
   await expect(page.getByRole('heading', { name: '搜索结果', exact: true })).toHaveCount(0);
   await expect(page.locator('article')).toHaveCount(2);
+});
+
+test('identical source copy renders and edits as independent translation fields', async ({ page }) => {
+  await prepare(page, {
+    product: [
+      item({ key: 'product:p1:variant:v1:specification', resourceType: 'product', resourceId: 'p1', sourceText: '颜色', reuseGroupId: 'legacy-shared-group' }),
+      item({ key: 'product:p1:variant:v2:specification', resourceType: 'product', resourceId: 'p1', sourceText: '颜色', reuseGroupId: 'legacy-shared-group' }),
+    ],
+  });
+  await page.goto(`${frontendBaseUrl}/storefront-translations`);
+
+  const translations = page.getByRole('textbox', { name: '规格名称译文' });
+  await expect(translations).toHaveCount(2);
+  await translations.nth(0).fill('Color A');
+  await expect(translations.nth(0)).toHaveValue('Color A');
+  await expect(translations.nth(1)).toHaveValue('');
+  await expect(page.getByText(/应用于 \d+ 处/)).toHaveCount(0);
+  await expect(page.getByText('译文不一致', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '保存 (1)', exact: true })).toBeEnabled();
+});
+
+test('fields follow business rendering order instead of API response order in every tab', async ({ page }) => {
+  await prepare(page, {
+    product: [
+      item({ key: 'product:p1:variant:v2:option', resourceType: 'product', resourceId: 'p1', sourceText: '蓝色', meta: { sku: 'SKU-1', order: 103 } }),
+      item({ key: 'product:p1:description', resourceType: 'product', resourceId: 'p1', sourceText: '商品内容', meta: { sku: 'SKU-1', order: 1 } }),
+      item({ key: 'product:p1:variant:v1:specification', resourceType: 'product', resourceId: 'p1', sourceText: '尺寸', meta: { sku: 'SKU-1', order: 100 } }),
+      item({ key: 'product:p1:name', resourceType: 'product', resourceId: 'p1', sourceText: '商品名称', meta: { sku: 'SKU-1', order: 0 } }),
+      item({ key: 'product:p1:variant:v2:specification', resourceType: 'product', resourceId: 'p1', sourceText: '颜色', meta: { sku: 'SKU-1', order: 102 } }),
+      item({ key: 'product:p1:variant:v1:option', resourceType: 'product', resourceId: 'p1', sourceText: '大号', meta: { sku: 'SKU-1', order: 101 } }),
+    ],
+    editor: [
+      item({ key: 'editor:home:hero-1:subtitle', resourceType: 'editor', resourceId: 'hero-1', sourceText: '模块内容', meta: { pageId: 'home', componentId: 'hero-1', componentName: '首屏横幅', fieldLabel: '说明文字', order: 2 } }),
+      item({ key: 'editor:home:hero-1:title', resourceType: 'editor', resourceId: 'hero-1', sourceText: '模块名称', meta: { pageId: 'home', componentId: 'hero-1', componentName: '首屏横幅', fieldLabel: '主标题', order: 1 } }),
+    ],
+    system: [
+      item({ key: 'system:empty.contactInformation', resourceType: 'system', resourceId: 'storefront', sourceText: '暂无联系信息' }),
+      item({ key: 'system:empty.products', resourceType: 'system', resourceId: 'storefront', sourceText: '当前分类暂无商品' }),
+      item({ key: 'system:empty.categories', resourceType: 'system', resourceId: 'storefront', sourceText: '暂无分类' }),
+    ],
+  });
+  const sources = () => page.locator('article input[readonly]').evaluateAll(inputs => inputs.map(input => (input as HTMLInputElement).value));
+
+  await page.goto(`${frontendBaseUrl}/storefront-translations`);
+  await expect.poll(sources).toEqual(['商品名称', '商品内容', '尺寸', '大号', '颜色', '蓝色']);
+  await page.getByRole('tab', { name: '页面内容', exact: true }).click();
+  await expect.poll(sources).toEqual(['模块名称', '模块内容']);
+  await page.getByRole('tab', { name: '公共文案', exact: true }).click();
+  await expect.poll(sources).toEqual(['当前分类暂无商品', '暂无分类', '暂无联系信息']);
 });
 
 test('public API errors use readable field labels instead of split error-code letters', async ({ page }) => {
@@ -172,6 +297,25 @@ test('category levels use Chinese numerals without card descriptions', async ({ 
   await expect(page.getByRole('heading', { name: '一级分类', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: '二级分类', exact: true })).toBeVisible();
   await expect(page.getByText(/汇总维护全部/)).toHaveCount(0);
+});
+
+test('product tab quick navigation lists category levels before product cards', async ({ page }) => {
+  await prepare(page, {
+    product: [
+      item({ key: 'product:p1:name', resourceType: 'product', resourceId: 'p1', sourceText: '商品甲', meta: { sku: 'SKU-1', order: 0 } }),
+    ],
+    category: [
+      item({ key: 'category:c2:label', resourceType: 'category', resourceId: 'c2', sourceText: '手提包', meta: { level: 2, sort: 1, path: ['箱包', '手提包'] } }),
+      item({ key: 'category:c1:label', resourceType: 'category', resourceId: 'c1', sourceText: '箱包', meta: { level: 1, sort: 1, path: ['箱包'] } }),
+    ],
+  });
+  await page.goto(`${frontendBaseUrl}/storefront-translations`);
+
+  const navigationItems = page.locator('section:has(.translation-tabs) aside nav button');
+  await expect(navigationItems).toHaveCount(3);
+  await expect(navigationItems.nth(0)).toContainText('一级分类');
+  await expect(navigationItems.nth(1)).toContainText('二级分类');
+  await expect(navigationItems.nth(2)).toContainText('商品甲');
 });
 
 test('site design groups footer social copy with the footer card', async ({ page }) => {

@@ -6,7 +6,7 @@ describe('TranslationService public site source catalog', () => {
   it('excludes removed product brand and SEO fields and archives their legacy translation units', async () => {
     const saved: Array<Record<string, unknown>> = [];
     const legacy = ['seoTitle', 'seoDescription', 'brand'].map((field, index) => ({ id: `legacy-${index}`, siteId: 'site-1', resourceType: 'product', resourceId: 'product-1', fieldKey: `product:product-1:${field}`, sourceText: field, sourceHash: field, contentFormat: 'text', isRequired: true, isArchived: false }));
-    const units = { find: jest.fn().mockResolvedValue(legacy), create: jest.fn((value) => value), save: jest.fn(async (value) => { saved.push(value); return value; }), update: jest.fn() };
+    const units = { find: jest.fn().mockResolvedValue(legacy), create: jest.fn((value) => value), save: jest.fn(async (value) => { saved.push(...(Array.isArray(value) ? value : [value])); return value; }), update: jest.fn() };
     const products = { find: jest.fn().mockResolvedValue([{ id: 'product-1', siteId: 'site-1', status: 'published', nameZh: '商品一', description: '商品描述', seoTitle: '旧 SEO 标题', seoDescription: '旧 SEO 描述', brand: '旧品牌', tags: [], variants: [] }]) };
     const categories = { find: jest.fn().mockResolvedValue([]) };
     const configs = { findOne: jest.fn(async ({ where: { key } }) => key.endsWith(':siteEditor') ? { value: { pages: {}, siteInfo: { contactDetails: {}, contactItems: [] } } } : key.endsWith(':seo') ? { value: {} } : null) };
@@ -26,7 +26,7 @@ describe('TranslationService public site source catalog', () => {
 
   it('uses the editor translation descriptor catalog as the source of truth', async () => {
     const saved: Array<Record<string, unknown>> = [];
-    const units = { find: jest.fn().mockResolvedValue([]), create: jest.fn((value) => value), save: jest.fn(async (value) => { saved.push(value); return value; }), update: jest.fn() };
+    const units = { find: jest.fn().mockResolvedValue([]), create: jest.fn((value) => value), save: jest.fn(async (value) => { saved.push(...(Array.isArray(value) ? value : [value])); return value; }), update: jest.fn() };
     const emptyList = { find: jest.fn().mockResolvedValue([]) };
     const configs = { findOne: jest.fn(async ({ where: { key } }) => key.endsWith(':siteEditor') ? { value: { pages: { home: { sections: [{ id: 'header-1', type: 'header', visible: true, eyebrow: '全球交付', title: '品牌名称', navItems: [{ id: 'nav-1', label: '产品中心', targetId: 'hero-1' }] }, { id: 'hero-1', type: 'hero', visible: true, title: '品牌主张', stats: [{ id: 'stat-1', label: '全球客户' }] }, { id: 'text-1', type: 'text', visible: true, title: '品牌故事', qualityBadgeText: '品质认证', showStats: false }] } }, translationDescriptors: [{ key: 'editor:home:hero-1:title', path: 'pages.home.sections.hero-1.title', fieldLabel: '主标题', pageId: 'home', pageName: '首页', componentId: 'hero-1', componentType: 'hero', componentName: '首屏横幅', order: 100, required: false }, { key: 'editor:home:hero-1:stat:stat-1:label', path: 'pages.home.sections.hero-1.stats.stat-1.label', fieldLabel: '数据标签', pageId: 'home', pageName: '首页', componentId: 'hero-1', componentType: 'hero', componentName: '首屏横幅', order: 101, required: false }] } } : key.endsWith(':seo') ? { value: {} } : null) };
     const sites = { findOneByOrFail: jest.fn().mockResolvedValue({ id: 'site-1' }) };
@@ -64,7 +64,7 @@ describe('TranslationService public site source catalog', () => {
 
   it('adds footer copyright copy to the page-content translation catalog', async () => {
     const saved: Array<Record<string, unknown>> = [];
-    const units = { find: jest.fn().mockResolvedValue([]), create: jest.fn((value) => value), save: jest.fn(async (value) => { saved.push(value); return value; }), update: jest.fn() };
+    const units = { find: jest.fn().mockResolvedValue([]), create: jest.fn((value) => value), save: jest.fn(async (value) => { saved.push(...(Array.isArray(value) ? value : [value])); return value; }), update: jest.fn() };
     const emptyList = { find: jest.fn().mockResolvedValue([]) };
     const configs = { findOne: jest.fn(async ({ where: { key } }) => key.endsWith(':siteEditor') ? { value: { pages: { home: { sections: [{ id: 'footer-1', type: 'footer', visible: true, title: '企业名称', subtitle: '企业说明', copyrightText: '版权所有', navItems: [], socialLinks: [] }] } } } } : key.endsWith(':seo') ? { value: {} } : null) };
     const sites = { findOneByOrFail: jest.fn().mockResolvedValue({ id: 'site-1' }) };
@@ -79,7 +79,7 @@ describe('TranslationService public site source catalog', () => {
 
   it('uses the site editor contact module as the translation source for legacy configs', async () => {
     const saved: Array<Record<string, unknown>> = [];
-    const units = { find: jest.fn().mockResolvedValue([]), create: jest.fn((value) => value), save: jest.fn(async (value) => { saved.push(value); return value; }), update: jest.fn() };
+    const units = { find: jest.fn().mockResolvedValue([]), create: jest.fn((value) => value), save: jest.fn(async (value) => { saved.push(...(Array.isArray(value) ? value : [value])); return value; }), update: jest.fn() };
     const emptyList = { find: jest.fn().mockResolvedValue([]) };
     const configs = { findOne: jest.fn(async ({ where: { key } }) => key.endsWith(':siteEditor') ? { value: { pages: { home: { sections: [{ id: 'contact-1', type: 'contactModal', title: '获取专属报价', subtitle: '请留下您的采购需求' }] } }, siteInfo: { contactModalTitle: '', contactModalSubtitle: '', contactItems: [] } } } : key.endsWith(':seo') ? { value: {} } : null) };
     const sites = { findOneByOrFail: jest.fn().mockResolvedValue({ id: 'site-1' }) };
@@ -98,7 +98,7 @@ describe('TranslationService public site source catalog', () => {
     const units = {
       find: jest.fn().mockResolvedValue([]),
       create: jest.fn((value) => value),
-      save: jest.fn(async (value) => { saved.push(value); return value; }),
+      save: jest.fn(async (value) => { saved.push(...(Array.isArray(value) ? value : [value])); return value; }),
       update: jest.fn(),
     };
     const emptyList = { find: jest.fn().mockResolvedValue([]) };
@@ -135,7 +135,7 @@ describe('TranslationService public site source catalog', () => {
 
   it('creates non-required public settings units when their Chinese source is empty', async () => {
     const saved: Array<Record<string, unknown>> = [];
-    const units = { find: jest.fn().mockResolvedValue([]), create: jest.fn((value) => value), save: jest.fn(async (value) => { saved.push(value); return value; }), update: jest.fn() };
+    const units = { find: jest.fn().mockResolvedValue([]), create: jest.fn((value) => value), save: jest.fn(async (value) => { saved.push(...(Array.isArray(value) ? value : [value])); return value; }), update: jest.fn() };
     const emptyList = { find: jest.fn().mockResolvedValue([]) };
     const configs = { findOne: jest.fn(async ({ where: { key } }) => key.endsWith(':siteEditor') ? { value: { pages: {}, siteInfo: { contactDetails: {}, contactItems: [{ id: 'empty-item', label: '', content: '' }] } } } : key.endsWith(':seo') ? { value: { title: '', description: '', keywords: '' } } : null) };
     const sites = { findOneByOrFail: jest.fn().mockResolvedValue({ id: 'site-1' }) };
@@ -154,7 +154,7 @@ describe('TranslationService public site source catalog', () => {
 
   it('only syncs components shown in the site editor home page structure', async () => {
     const saved: Array<Record<string, unknown>> = [];
-    const units = { find: jest.fn().mockResolvedValue([]), create: jest.fn((value) => value), save: jest.fn(async (value) => { saved.push(value); return value; }), update: jest.fn() };
+    const units = { find: jest.fn().mockResolvedValue([]), create: jest.fn((value) => value), save: jest.fn(async (value) => { saved.push(...(Array.isArray(value) ? value : [value])); return value; }), update: jest.fn() };
     const emptyList = { find: jest.fn().mockResolvedValue([]) };
     const configs = { findOne: jest.fn(async ({ where: { key } }) => key.endsWith(':siteEditor') ? { value: { pages: {
       home: { sections: [{ id: 'home-header', type: 'header', visible: true, title: '品牌名称' }, { id: 'home-hero', type: 'hero', visible: true, title: '首页主张' }, { id: 'home-footer', type: 'footer', visible: true, title: '企业名称', socialLinks: [{ id: 'linkedin', label: '领英', url: 'https://linkedin.example' }] }] },
@@ -172,6 +172,90 @@ describe('TranslationService public site source catalog', () => {
       expect.objectContaining({ fieldKey: 'editor:siteInfo:contactModalTitle', sourceText: '联系我们' }),
     ]));
     expect(saved.some(source => String(source.fieldKey).startsWith('editor:products:'))).toBe(false);
+  });
+});
+
+describe('TranslationService list performance behavior', () => {
+  const emptyConfigs = { findOne: jest.fn().mockResolvedValue(null) };
+  const site = { id: 'site-1', defaultLanguage: 'zh_CN', supportedLanguages: ['zh_CN', 'en_US'] };
+
+  it('does not write translation units when synchronization finds no source changes', async () => {
+    const captured: any[] = [];
+    const units = {
+      find: jest.fn().mockImplementation(async () => captured),
+      create: jest.fn((value) => value),
+      save: jest.fn(async (values) => { captured.push(...values); return values; }),
+      update: jest.fn(),
+    };
+    const emptyList = { find: jest.fn().mockResolvedValue([]) };
+    const service = new TranslationService(units as any, {} as any, emptyList as any, emptyList as any, emptyConfigs as any, { findOneByOrFail: jest.fn().mockResolvedValue(site) } as any, {} as any);
+
+    await service.sync('site-1');
+    units.save.mockClear();
+    await service.sync('site-1');
+
+    expect(units.save).not.toHaveBeenCalled();
+    expect(units.update).not.toHaveBeenCalled();
+  });
+
+  it('shares one synchronization run between concurrent list requests', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const units = { find: jest.fn(async () => { await gate; return []; }), create: jest.fn((value) => value), save: jest.fn(), update: jest.fn() };
+    const products = { find: jest.fn().mockResolvedValue([]) };
+    const categories = { find: jest.fn().mockResolvedValue([]) };
+    const service = new TranslationService(units as any, { find: jest.fn().mockResolvedValue([]) } as any, products as any, categories as any, emptyConfigs as any, { findOneByOrFail: jest.fn().mockResolvedValue(site) } as any, {} as any);
+
+    const first = service.sync('site-1');
+    const second = service.sync('site-1');
+    release();
+    await Promise.all([first, second]);
+
+    expect(products.find).toHaveBeenCalledTimes(1);
+    expect(categories.find).toHaveBeenCalledTimes(1);
+  });
+
+  it('paginates complete business groups while preserving filtered field totals', async () => {
+    const records = [1, 2, 3].flatMap(product => [
+      { id: `${product}-name`, siteId: 'site-1', resourceType: 'product', resourceId: `p${product}`, fieldKey: `product:p${product}:name`, sourceText: `商品${product}`, sourceHash: `h${product}n`, contentFormat: 'text', isRequired: true, isArchived: false, updatedAt: new Date() },
+      { id: `${product}-description`, siteId: 'site-1', resourceType: 'product', resourceId: `p${product}`, fieldKey: `product:p${product}:description`, sourceText: `描述${product}`, sourceHash: `h${product}d`, contentFormat: 'text', isRequired: true, isArchived: false, updatedAt: new Date() },
+    ]).reverse();
+    const units = { find: jest.fn().mockResolvedValue(records) };
+    const values = { find: jest.fn().mockResolvedValue([]) };
+    const products = { find: jest.fn().mockResolvedValue(records.filter(item => item.fieldKey.endsWith(':name')).map(item => ({ id: item.resourceId, sku: item.resourceId, moq: 1, badge: '' }))) };
+    const service = new TranslationService(units as any, values as any, products as any, { find: jest.fn().mockResolvedValue([]) } as any, emptyConfigs as any, { findOneByOrFail: jest.fn().mockResolvedValue(site) } as any, {} as any);
+    jest.spyOn(service, 'sync').mockResolvedValue();
+
+    const result = await service.list('site-1', { locale: 'en_US', taskTab: 'product', groupPage: 2, groupPageSize: 1 });
+
+    expect(result.total).toBe(6);
+    expect(result.groupTotal).toBe(3);
+    expect(result.items).toHaveLength(2);
+    expect(new Set(result.items.map(entry => entry.resourceId))).toEqual(new Set(['p2']));
+    expect(result.items.map(entry => entry.key)).toEqual(['product:p2:name', 'product:p2:description']);
+  });
+
+  it('paginates category levels before product groups in the product tab', async () => {
+    const records = [
+      { id: 'product-name', siteId: 'site-1', resourceType: 'product', resourceId: 'p1', fieldKey: 'product:p1:name', sourceText: '商品甲', sourceHash: 'hp', contentFormat: 'text', isRequired: true, isArchived: false, updatedAt: new Date() },
+      { id: 'category-level-2', siteId: 'site-1', resourceType: 'category', resourceId: 'c2', fieldKey: 'category:c2:label', sourceText: '手提包', sourceHash: 'hc2', contentFormat: 'text', isRequired: true, isArchived: false, updatedAt: new Date() },
+      { id: 'category-level-1', siteId: 'site-1', resourceType: 'category', resourceId: 'c1', fieldKey: 'category:c1:label', sourceText: '箱包', sourceHash: 'hc1', contentFormat: 'text', isRequired: true, isArchived: false, updatedAt: new Date() },
+    ];
+    const service = new TranslationService(
+      { find: jest.fn().mockResolvedValue(records) } as any,
+      { find: jest.fn().mockResolvedValue([]) } as any,
+      { find: jest.fn().mockResolvedValue([{ id: 'p1', nameZh: '商品甲', sku: 'SKU-1', moq: 1, badge: '', tags: [], variants: [] }]) } as any,
+      { find: jest.fn().mockResolvedValue([{ id: 'c2', code: 'c2', label: '手提包', parentCode: 'c1', sort: 1 }, { id: 'c1', code: 'c1', label: '箱包', parentCode: null, sort: 1 }]) } as any,
+      emptyConfigs as any,
+      { findOneByOrFail: jest.fn().mockResolvedValue(site) } as any,
+      {} as any,
+    );
+    jest.spyOn(service, 'sync').mockResolvedValue();
+
+    const result = await service.list('site-1', { locale: 'en_US', taskTab: 'product', groupPage: 1, groupPageSize: 2 });
+
+    expect(result.groupTotal).toBe(3);
+    expect(result.items.map(entry => entry.key)).toEqual(['category:c1:label', 'category:c2:label']);
   });
 });
 
@@ -207,18 +291,23 @@ describe('TranslationService Excel safety workflow', () => {
     expect(result.filename).toMatch(/^演示站点-多语言-en_US-/);
   });
 
-  it('deduplicates compatible variant copy in the v3 batch sheet', async () => {
+  it('exports identical variant copy as independent v3 batch rows', async () => {
     const first = { ...unit(1, '颜色'), fieldKey: 'product:p1:variant:v1:specification', resourceId: 'p1' };
     const second = { ...unit(2, '颜色'), fieldKey: 'product:p2:variant:v2:specification', resourceId: 'p2' };
     const result = await createService([first, second]).exportWorkbook('site-1', 'en_US');
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(result.data as any);
-    expect(workbook.getWorksheet('批量翻译')?.actualRowCount).toBe(2);
-    expect(workbook.getWorksheet('批量翻译')?.getRow(2).getCell(7).value).toBe(2);
+    const batch = workbook.getWorksheet('批量翻译')!;
+    expect(batch.actualRowCount).toBe(3);
+    expect(batch.getRow(2).getCell(7).value).toBe(1);
+    expect(batch.getRow(3).getCell(7).value).toBe(1);
+    expect(batch.getRow(2).getCell(9).value).not.toBe(batch.getRow(3).getCell(9).value);
+    expect(batch.getRow(2).getCell(10).value).toBe(first.id);
+    expect(batch.getRow(3).getCell(10).value).toBe(second.id);
     expect(workbook.getWorksheet('单项覆盖')?.actualRowCount).toBe(3);
   });
 
-  it('fans a v3 batch translation out to every compatible unit during preview', async () => {
+  it('applies a newly exported v3 batch row to only its own translation unit', async () => {
     const first = { ...unit(1, '颜色'), fieldKey: 'product:p1:variant:v1:specification', resourceId: 'p1' };
     const second = { ...unit(2, '颜色'), fieldKey: 'product:p2:variant:v2:specification', resourceId: 'p2' };
     const service = createService([first, second]);
@@ -227,6 +316,25 @@ describe('TranslationService Excel safety workflow', () => {
     await workbook.xlsx.load(exported.data as any);
     workbook.getWorksheet('批量翻译')!.getRow(2).getCell(6).value = 'Color';
     const preview = await service.previewImport('site-1', 'user-1', 'en_US', Buffer.from(await workbook.xlsx.writeBuffer()));
+    expect(preview.summary).toEqual(expect.objectContaining({ ready: 1, blank: 1, invalid: 0, duplicate: 0 }));
+    expect(preview.rows.find(row => row.key === first.fieldKey)?.status).toBe('ready');
+    expect(preview.rows.find(row => row.key === second.fieldKey)?.status).toBe('blank');
+  });
+
+  it('keeps importing legacy v3 rows that contain multiple members', async () => {
+    const first = { ...unit(1, '颜色'), fieldKey: 'product:p1:variant:v1:specification', resourceId: 'p1' };
+    const second = { ...unit(2, '颜色'), fieldKey: 'product:p2:variant:v2:specification', resourceId: 'p2' };
+    const workbook = new ExcelJS.Workbook();
+    const batch = workbook.addWorksheet('批量翻译');
+    batch.addRow(['内容分类', '业务语境', '字段', '中文原文', '目标语言', '译文', '使用次数', '当前状态', '复用组ID', '成员ID', '成员源文哈希']);
+    batch.addRow(['商品内容', '商品信息', '规格名', '颜色', 'en_US', 'Color', 2, '未翻译', 'legacy-group', `${first.id};${second.id}`, `${first.sourceHash};${second.sourceHash}`]);
+    const overrides = workbook.addWorksheet('单项覆盖');
+    overrides.addRow(['内容分类', '业务对象', '字段', '中文原文', '目标语言', '当前译文', '覆盖译文', '稳定键', '翻译单元ID', '中文源文哈希']);
+    const meta = workbook.addWorksheet('_meta');
+    [['key', 'value'], ['templateVersion', '3'], ['siteId', 'site-1'], ['sourceLocale', 'zh_CN'], ['targetLocale', 'en_US'], ['taskTab', 'all'], ['scope', 'all']].forEach(row => meta.addRow(row));
+
+    const preview = await createService([first, second]).previewImport('site-1', 'user-1', 'en_US', Buffer.from(await workbook.xlsx.writeBuffer()));
+
     expect(preview.summary).toEqual(expect.objectContaining({ ready: 2, invalid: 0, duplicate: 0 }));
     expect(preview.rows.map(row => row.key)).toEqual(expect.arrayContaining([first.fieldKey, second.fieldKey]));
   });

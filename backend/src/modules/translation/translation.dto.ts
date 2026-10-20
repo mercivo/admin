@@ -9,6 +9,8 @@ export class TranslationQueryDto {
   @IsOptional() @IsString() keyword?: string;
   @IsOptional() page?: number;
   @IsOptional() pageSize?: number;
+  @IsOptional() groupPage?: number;
+  @IsOptional() groupPageSize?: number;
   @IsOptional() @IsIn(['product', 'page', 'common']) taskTab?: 'product' | 'page' | 'common';
   @IsOptional() requiredOnly?: boolean;
 }

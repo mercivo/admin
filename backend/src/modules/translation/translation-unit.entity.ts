@@ -2,6 +2,7 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, Update
 
 @Entity('translation_units')
 @Index('uq_translation_unit_resource', ['siteId', 'resourceType', 'resourceId', 'fieldKey'], { unique: true })
+@Index('idx_translation_units_site_active_type_updated', ['siteId', 'isArchived', 'resourceType', 'updatedAt'])
 export class TranslationUnit {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ name: 'site_id', length: 36 }) siteId: string;

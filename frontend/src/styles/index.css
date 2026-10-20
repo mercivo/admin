@@ -198,6 +198,39 @@ html,
   padding-block: 10px 7px;
 }
 
+section:has(.translation-tabs) aside:has(+ div [data-testid="translations-content-loading"]){
+  min-height:280px;
+  overflow:hidden;
+}
+section:has(.translation-tabs) aside:has(+ div [data-testid="translations-content-loading"])>*{
+  visibility:hidden;
+}
+section:has(.translation-tabs) aside:has(+ div [data-testid="translations-content-loading"])::before{
+  position:absolute;
+  top:14px;
+  left:16px;
+  width:72px;
+  height:12px;
+  border-radius:6px;
+  background:#f1f5f9;
+  content:"";
+}
+section:has(.translation-tabs) aside:has(+ div [data-testid="translations-content-loading"])::after{
+  position:absolute;
+  inset:42px 12px 12px;
+  border-radius:8px;
+  background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);
+  background-size:200% 100%;
+  content:"";
+  animation:translation-menu-skeleton 1.4s ease-in-out infinite;
+  -webkit-mask:repeating-linear-gradient(to bottom,#000 0 32px,transparent 32px 42px);
+  mask:repeating-linear-gradient(to bottom,#000 0 32px,transparent 32px 42px);
+}
+@keyframes translation-menu-skeleton{
+  from{background-position:200% 0}
+  to{background-position:-200% 0}
+}
+
 /* Shared table surfaces inside application modals. */
 .app-modal .app-data-table {
   overflow: hidden;

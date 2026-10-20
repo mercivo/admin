@@ -19,6 +19,7 @@ type EditorDescriptor = { key: string; path: string; fieldLabel: string; pageId?
 type ImportRowStatus = 'ready' | 'unchanged' | 'blank' | 'source_changed' | 'removed' | 'duplicate' | 'invalid';
 type ImportPreviewRow = { row: number; unitId: string; key: string; sourceText: string; value: string; status: ImportRowStatus; reason: string };
 type ImportPreviewCache = { siteId: string; userId: string; locale: string; fileHash: string; expiresAt: string; rows: ImportPreviewRow[] };
+type TranslationProgress = { locale: string; total: number; completed: number; stale: number; missing: number; percent: number };
 
 const IMPORT_TEMPLATE_VERSION = '3';
 const IMPORT_PREVIEW_TTL = 30 * 60 * 1000;
@@ -96,6 +97,8 @@ const SYSTEM_COPY: Record<string, string> = {
 @Injectable()
 export class TranslationService {
   private readonly htmlFilter = new FilterXSS({ whiteList: { p: [], br: [], strong: [], em: [], u: [], s: [], h1: [], h2: [], h3: [], ul: [], ol: [], li: [], blockquote: [], a: ['href', 'target', 'rel'], img: ['src', 'alt', 'title'] }, stripIgnoreTag: true, stripIgnoreTagBody: ['script', 'style'] });
+  private readonly syncs = new Map<string, Promise<void>>();
+  private readonly summaryCache = new Map<string, { expiresAt: number; summary: TranslationProgress[]; contentSummary: TranslationProgress[] }>();
   constructor(
     @InjectRepository(TranslationUnit) private readonly units: Repository<TranslationUnit>,
     @InjectRepository(TranslationValue) private readonly values: Repository<TranslationValue>,
@@ -107,6 +110,14 @@ export class TranslationService {
   ) {}
 
   async sync(siteId: string) {
+    const running = this.syncs.get(siteId);
+    if (running) return running;
+    const operation = this.syncSite(siteId).finally(() => this.syncs.delete(siteId));
+    this.syncs.set(siteId, operation);
+    return operation;
+  }
+
+  private async syncSite(siteId: string) {
     await this.sites.findOneByOrFail({ id: siteId });
     const [products, categories, editor, seo] = await Promise.all([
       this.products.find({ where: { siteId, status: 'published' } }), this.categories.find({ where: { siteId, status: 'enabled' } }),
@@ -129,14 +140,19 @@ export class TranslationService {
     Object.entries(PRODUCT_CONSTANTS).forEach(([field, sourceText]) => add({ resourceType: 'constant', resourceId: 'product', fieldKey: `constant:${field}`, sourceText }));
     Object.entries(STOREFRONT_CONSTANTS).forEach(([field, sourceText]) => add({ resourceType: 'constant', resourceId: 'storefront', fieldKey: `constant:${field}`, sourceText }));
     const existing = await this.units.find({ where: { siteId } });
+    const existingByKey = new Map(existing.map(item => [item.fieldKey, item]));
     const activeKeys = new Set(sources.map(item => item.fieldKey));
+    const changed: TranslationUnit[] = [];
     for (const source of sources) {
-      const current = existing.find(item => item.fieldKey === source.fieldKey);
+      const current = existingByKey.get(source.fieldKey);
       const sourceHash = this.hash(source.sourceText);
-      await this.units.save(this.units.create({ ...current, siteId, resourceType: source.resourceType, resourceId: source.resourceId, fieldKey: source.fieldKey, sourceText: source.sourceText, sourceHash, contentFormat: source.contentFormat || 'text', isRequired: source.required !== false, isArchived: false }));
+      const contentFormat = source.contentFormat || 'text'; const isRequired = source.required !== false;
+      if (!current || current.sourceHash !== sourceHash || current.resourceType !== source.resourceType || current.resourceId !== source.resourceId || current.contentFormat !== contentFormat || current.isRequired !== isRequired || current.isArchived) changed.push(this.units.create({ ...current, siteId, resourceType: source.resourceType, resourceId: source.resourceId, fieldKey: source.fieldKey, sourceText: source.sourceText, sourceHash, contentFormat, isRequired, isArchived: false }));
     }
+    if (changed.length) await this.units.save(changed, { chunk: 500 });
     const archived = existing.filter(item => !activeKeys.has(item.fieldKey) && !item.isArchived);
     if (archived.length) await this.units.update({ id: In(archived.map(item => item.id)) }, { isArchived: true });
+    if (changed.length || archived.length) this.summaryCache.delete(siteId);
   }
 
   async list(siteId: string, query: TranslationQueryDto) {
@@ -147,11 +163,21 @@ export class TranslationService {
     const translations = all.length ? await this.values.find({ where: { unitId: In(all.map(item => item.id)), locale } }) : [];
     const valueMap = new Map(translations.map(item => [item.unitId, item]));
     const [products, categories, editor] = await Promise.all([
-      this.products.find({ where: { siteId, status: 'published' }, select: { id: true, sku: true, moq: true, badge: true } }),
+      this.products.find({ where: { siteId, status: 'published' }, select: { id: true, nameZh: true, sku: true, moq: true, badge: true, tags: true, variants: true } }),
       this.categories.find({ where: { siteId, status: 'enabled' }, select: { id: true, code: true, label: true, parentCode: true, sort: true } }),
       this.configs.findOne({ where: { key: `${siteId}:siteEditor` } }),
     ]);
-    const productMeta = new Map(products.map(item => [item.id, { sku: item.sku, moq: item.moq, badge: item.badge }]));
+    const productMeta = new Map(products.map(item => [item.id, { name: item.nameZh, sku: item.sku, moq: item.moq, badge: item.badge }]));
+    const productFieldOrder = new Map<string, number>();
+    products.forEach(product => {
+      productFieldOrder.set(`product:${product.id}:name`, 0);
+      productFieldOrder.set(`product:${product.id}:description`, 1);
+      (product.tags || []).forEach((_, index) => productFieldOrder.set(`product:${product.id}:tag:${index}`, 10 + index));
+      (product.variants || []).forEach((variant, index) => {
+        productFieldOrder.set(`product:${product.id}:variant:${variant.id}:specification`, 100 + index * 2);
+        productFieldOrder.set(`product:${product.id}:variant:${variant.id}:option`, 101 + index * 2);
+      });
+    });
     const categoryByCode = new Map(categories.map(item => [item.code, item]));
     const categoryMeta = new Map(categories.map(item => {
       const path = [item.label]; let parentCode = item.parentCode; const seen = new Set<string>();
@@ -164,7 +190,9 @@ export class TranslationService {
       const translated = valueMap.get(unit.id);
       const status = !translated?.value.trim() ? 'missing' : translated.sourceHash === unit.sourceHash ? 'completed' : 'stale';
       const organization = this.organization(unit, all);
-      const resourceMeta = unit.resourceType === 'product' ? productMeta.get(unit.resourceId) : unit.resourceType === 'category' ? categoryMeta.get(unit.resourceId) : unit.resourceType === 'editor' ? editorDescriptors.get(unit.fieldKey) : undefined;
+      const resourceMeta = unit.resourceType === 'product' ? { ...productMeta.get(unit.resourceId), order: productFieldOrder.get(unit.fieldKey) }
+        : unit.resourceType === 'category' ? { ...categoryMeta.get(unit.resourceId), order: Number(categoryMeta.get(unit.resourceId)?.sort ?? 0) * 10 + (unit.fieldKey.endsWith(':label') ? 0 : 1) }
+        : unit.resourceType === 'editor' ? editorDescriptors.get(unit.fieldKey) : undefined;
       return { key: unit.fieldKey, resourceType: unit.resourceType, resourceId: unit.resourceId, sourceText: unit.sourceText, sourceHash: unit.sourceHash, contentFormat: unit.contentFormat, required: unit.isRequired, value: translated?.value || '', status, updatedAt: translated?.updatedAt || unit.updatedAt, taskTab: organization.taskTab, groupPath: organization.groupPath, semanticType: organization.semanticType, reuseGroupId: organization.reuseGroupId, usage: organization.usage, meta: { ...(resourceMeta || {}), ...organization } };
     });
     if (query.resourceType) items = items.filter(item => item.resourceType === query.resourceType);
@@ -172,9 +200,22 @@ export class TranslationService {
     if (String(query.requiredOnly) === 'true') items = items.filter(item => item.required);
     if (query.status) items = items.filter(item => item.status === query.status);
     if (query.keyword?.trim()) { const keyword = query.keyword.trim().toLowerCase(); items = items.filter(item => `${item.key}\n${item.sourceText}\n${item.value}`.toLowerCase().includes(keyword)); }
+    const commonOrder = [...Object.keys(SYSTEM_COPY).map(key => `system:${key}`), ...Object.keys(PRODUCT_CONSTANTS).map(key => `constant:${key}`), ...Object.keys(STOREFRONT_CONSTANTS).map(key => `constant:${key}`)];
+    const fieldOrder = (item: typeof items[number]) => Number((item.meta as Record<string, unknown>).order ?? (commonOrder.indexOf(item.key) < 0 ? 1000 : commonOrder.indexOf(item.key)));
+    const groupLabel = (item: typeof items[number]) => item.resourceType === 'category' ? `0-分类-${String((item.meta as Record<string, unknown>).level || 1).padStart(3, '0')}`
+      : item.resourceType === 'product' ? `1-商品-${String((item.meta as Record<string, unknown>).name || item.resourceId)}`
+      : item.resourceType === 'editor' ? `页面-${String(fieldOrder(item)).padStart(9, '0')}`
+      : item.resourceType === 'seo' ? '站点设置' : item.resourceType === 'system' ? `系统-${String(fieldOrder(item)).padStart(4, '0')}` : `常量-${String(fieldOrder(item)).padStart(4, '0')}`;
+    items.sort((a, b) => groupLabel(a).localeCompare(groupLabel(b), 'zh-CN') || fieldOrder(a) - fieldOrder(b) || a.key.localeCompare(b.key, 'zh-CN'));
     const page = Math.max(1, Number(query.page) || 1); const pageSize = Math.min(200, Math.max(1, Number(query.pageSize) || 50));
-    const [summary, contentSummary] = await Promise.all([this.summary(siteId), this.contentSummary(siteId)]);
-    return { items: items.slice((page - 1) * pageSize, page * pageSize), total: items.length, page, pageSize, locale, summary, contentSummary };
+    const filteredTotal = items.length;
+    const groupKey = (item: typeof items[number]) => { const meta = item.meta as Record<string, unknown>; return item.resourceType === 'product' ? `product:${item.resourceId}` : item.resourceType === 'category' ? `category-level-${Number(meta.level || 1)}` : item.resourceType === 'editor' ? (item.key.startsWith('editor:siteInfo:') ? 'editor:siteInfo' : `editor:${String(meta.pageId || item.key.split(':')[1])}:${String(meta.componentId || item.resourceId)}`) : item.resourceType === 'seo' ? 'site-settings' : item.resourceType === 'system' ? `system:${item.key.split(':')[1]?.split('.')[0] || 'system'}` : `constant:${item.resourceId}`; };
+    const grouped = query.groupPage !== undefined || query.groupPageSize !== undefined;
+    const groupPage = Math.max(1, Number(query.groupPage) || 1); const groupPageSize = Math.min(50, Math.max(1, Number(query.groupPageSize) || 10));
+    const groupKeys = [...new Set(items.map(groupKey))]; const groupTotal = groupKeys.length;
+    if (grouped) { const selected = new Set(groupKeys.slice((groupPage - 1) * groupPageSize, groupPage * groupPageSize)); items = items.filter(item => selected.has(groupKey(item))); }
+    const { summary, contentSummary } = await this.summaries(siteId);
+    return { items: grouped ? items : items.slice((page - 1) * pageSize, page * pageSize), total: filteredTotal, page, pageSize, locale, summary, contentSummary, ...(grouped ? { groupPage, groupPageSize, groupTotal } : {}) };
   }
 
   async save(siteId: string, dto: SaveTranslationsDto) {
@@ -194,23 +235,35 @@ export class TranslationService {
         await manager.save(TranslationValue, manager.create(TranslationValue, { ...existing, unitId: unit.id, locale: dto.locale, value, sourceHash: unit.sourceHash }));
       }
     });
+    this.summaryCache.delete(siteId);
     return this.list(siteId, { locale: dto.locale, page: 1, pageSize: 50 });
   }
 
   async summary(siteId: string) {
-    const site = await this.sites.findOneByOrFail({ id: siteId });
-    const units = await this.units.find({ where: { siteId, isArchived: false, isRequired: true } });
-    const locales = (site.supportedLanguages || [site.defaultLanguage]).filter(locale => locale !== 'zh_CN');
-    const values = units.length && locales.length ? await this.values.find({ where: { unitId: In(units.map(item => item.id)), locale: In(locales) } }) : [];
-    return locales.map(locale => { const localized = values.filter(item => item.locale === locale); const completed = units.filter(unit => localized.some(value => value.unitId === unit.id && value.value.trim() && value.sourceHash === unit.sourceHash)).length; const stale = units.filter(unit => localized.some(value => value.unitId === unit.id && value.value.trim() && value.sourceHash !== unit.sourceHash)).length; return { locale, total: units.length, completed, stale, missing: units.length - completed - stale, percent: units.length ? Math.round(completed / units.length * 100) : 100 }; });
+    return (await this.summaries(siteId)).summary;
   }
 
   async contentSummary(siteId: string) {
+    return (await this.summaries(siteId)).contentSummary;
+  }
+
+  private async summaries(siteId: string) {
+    const cached = this.summaryCache.get(siteId);
+    if (cached && cached.expiresAt > Date.now()) return cached;
     const site = await this.sites.findOneByOrFail({ id: siteId });
     const units = await this.units.find({ where: { siteId, isArchived: false } });
     const locales = (site.supportedLanguages || [site.defaultLanguage]).filter(locale => locale !== 'zh_CN');
     const values = units.length && locales.length ? await this.values.find({ where: { unitId: In(units.map(item => item.id)), locale: In(locales) } }) : [];
-    return locales.map(locale => { const localized = values.filter(item => item.locale === locale); const completed = units.filter(unit => localized.some(value => value.unitId === unit.id && value.value.trim() && value.sourceHash === unit.sourceHash)).length; const stale = units.filter(unit => localized.some(value => value.unitId === unit.id && value.value.trim() && value.sourceHash !== unit.sourceHash)).length; return { locale, total: units.length, completed, stale, missing: units.length - completed - stale, percent: units.length ? Math.round(completed / units.length * 100) : 100 }; });
+    const byLocale = new Map(locales.map(locale => [locale, new Map(values.filter(value => value.locale === locale).map(value => [value.unitId, value]))]));
+    const calculate = (selectedUnits: TranslationUnit[]) => locales.map(locale => {
+      const localized = byLocale.get(locale)!;
+      let completed = 0; let stale = 0;
+      selectedUnits.forEach(unit => { const value = localized.get(unit.id); if (!value?.value.trim()) return; if (value.sourceHash === unit.sourceHash) completed += 1; else stale += 1; });
+      return { locale, total: selectedUnits.length, completed, stale, missing: selectedUnits.length - completed - stale, percent: selectedUnits.length ? Math.round(completed / selectedUnits.length * 100) : 100 };
+    });
+    const result = { expiresAt: Date.now() + 15_000, summary: calculate(units.filter(unit => unit.isRequired)), contentSummary: calculate(units) };
+    this.summaryCache.set(siteId, result);
+    return result;
   }
 
   async validateForPublish(siteId: string) {
@@ -259,15 +312,12 @@ export class TranslationService {
       };
     });
     const workbook = new ExcelJS.Workbook();
-    const groups = new Map<string, TranslationUnit[]>();
-    units.forEach(unit => { const id = this.organization(unit, allUnits).reuseGroupId; groups.set(id, [...(groups.get(id) || []), unit]); });
     const batch = workbook.addWorksheet('批量翻译');
     batch.addRow(BATCH_COLUMNS);
-    groups.forEach(group => {
-      const first = group[0]; const organization = this.organization(first, allUnits);
-      const current = [...new Set(group.map(unit => valueMap.get(unit.id)?.value || '').filter(Boolean))];
-      const status = group.every(unit => { const value = valueMap.get(unit.id); return value?.value.trim() && value.sourceHash === unit.sourceHash; }) ? '已完成' : group.some(unit => valueMap.get(unit.id)?.value.trim()) ? '部分完成' : '未翻译';
-      batch.addRow([this.taskTabLabel(organization.taskTab), organization.groupPath.join(' / '), this.fieldLabel(first), first.sourceText, locale, current.length === 1 ? current[0] : '', group.length, status, organization.reuseGroupId, group.map(unit => unit.id).join(';'), group.map(unit => unit.sourceHash).join(';')]);
+    units.forEach(unit => {
+      const organization = this.organization(unit, allUnits); const translated = valueMap.get(unit.id);
+      const status = !translated?.value.trim() ? '未翻译' : translated.sourceHash === unit.sourceHash ? '已完成' : '已过期';
+      batch.addRow([this.taskTabLabel(organization.taskTab), organization.groupPath.join(' / '), this.fieldLabel(unit), unit.sourceText, locale, translated?.value || '', 1, status, organization.reuseGroupId, unit.id, unit.sourceHash]);
     });
     [14, 30, 20, 48, 14, 48, 12, 12, 30, 48, 48].forEach((width, index) => { batch.getColumn(index + 1).width = width; });
     [9, 10, 11].forEach(column => { batch.getColumn(column).hidden = true; });
@@ -285,8 +335,8 @@ export class TranslationService {
     const guide = workbook.addWorksheet('填写说明');
     [
       ['多语言翻译填写说明'],
-      ['1', '优先在“批量翻译”填写译文，一行可安全应用到多个相同语义的使用位置。'],
-      ['2', '如某个位置需要不同译法，请在“单项覆盖”的“覆盖译文”列填写。'],
+      ['1', '在“批量翻译”填写译文，每一行只对应一个独立的翻译位置。'],
+      ['2', '如需覆盖某一行的批量译文，可在“单项覆盖”的“覆盖译文”列填写。'],
       ['3', '“完整明细”仅供审计，请勿修改；中文原文及隐藏技术列用于安全校验。'],
       ['4', 'HTML 内容可保留基础格式；脚本和危险标签会在导入时被清理。'],
       ['5', '标签、徽标等多值内容必须使用英文分号 ; 分隔，数量需与中文一致。'],
@@ -393,6 +443,7 @@ export class TranslationService {
         imported += 1;
       }
     });
+    if (imported) this.summaryCache.delete(siteId);
     await this.cache.del(this.importCacheKey(token));
     return {
       imported,
@@ -563,8 +614,7 @@ export class TranslationService {
     const semanticType = unit.resourceType === 'product' && unit.fieldKey.includes(':variant:') && tail === 'specification' ? 'product-variant-specification'
       : unit.resourceType === 'product' && unit.fieldKey.includes(':variant:') && tail === 'option' ? 'product-variant-option'
       : `${unit.resourceType}:${tail}`;
-    const safelyReusable = semanticType === 'product-variant-specification' || semanticType === 'product-variant-option';
-    const reuseGroupId = safelyReusable ? this.hash(`${semanticType}\n${unit.contentFormat}\n${unit.sourceText.trim()}`).slice(0, 24) : `unit:${unit.id}`;
+    const reuseGroupId = `unit:${unit.id}`;
     let groupPath: string[];
     if (unit.resourceType === 'product') groupPath = ['商品信息', this.businessObjectName(unit, units)];
     else if (unit.resourceType === 'category') groupPath = ['商品分类', this.businessObjectName(unit, units)];
