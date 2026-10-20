@@ -1,30 +1,34 @@
 import React, { useEffect, useState } from 'react';
 import { Button, Form, Typography, message } from 'antd';
 import {
+  ArrowRightOutlined,
+  GlobalOutlined,
+  InboxOutlined,
   LockOutlined,
   MobileOutlined,
   SafetyCertificateOutlined,
   ShopOutlined,
+  StarOutlined,
   UserOutlined,
 } from '@ant-design/icons';
-import { ArrowRight, Globe2, Package, Sparkles } from 'lucide-react';
-import { AppForm, AppFormItem, AppInput, AppPasswordInput, BrandMark } from '../../components/shared';
-import api from '../../services/api';
+import { AppForm, AppFormItem, AppInput, AppPasswordInput } from '../../components/shared/AppForm';
+import BrandMark from '../../components/shared/BrandMark';
 import { firstAuthorizedRoute } from '../../utils/navigation';
 
 type Captcha = { captchaId: string; image: string };
 type AuthResult = { accessToken: string; user: { role: string; account: string; name?: string }; tenant: { name: string; permissions?: string[] } | null };
+const loadApi = () => import('../../services/api').then(module => module.default);
 
 const capabilities = [
-  { icon: Package, label: '外贸 ERP' },
-  { icon: Globe2, label: '品牌独立站' },
+  { icon: InboxOutlined, label: '外贸 ERP' },
+  { icon: GlobalOutlined, label: '品牌独立站' },
 ];
 
 const LoginPage: React.FC = () => {
   const [mode] = useState<'login' | 'register'>('login');
   const [loading, setLoading] = useState(false);
   const [captcha, setCaptcha] = useState<Captcha | null>(null);
-  const loadCaptcha = async () => setCaptcha(await api.get<unknown, Captcha>('/auth/captcha'));
+  const loadCaptcha = async () => setCaptcha(await (await loadApi()).get<unknown, Captcha>('/auth/captcha'));
 
   useEffect(() => { if (mode === 'register') void loadCaptcha(); }, [mode]);
 
@@ -37,7 +41,7 @@ const LoginPage: React.FC = () => {
 
   const login = async (values: { account: string; password: string }) => {
     setLoading(true);
-    try { finish(await api.post<unknown, AuthResult>('/auth/login', values)); }
+    try { finish(await (await loadApi()).post<unknown, AuthResult>('/auth/login', values)); }
     finally { setLoading(false); }
   };
 
@@ -46,7 +50,7 @@ const LoginPage: React.FC = () => {
     setLoading(true);
     try {
       const { confirm: _confirm, ...registration } = values;
-      finish(await api.post<unknown, AuthResult>('/auth/register', { ...registration, captchaId: captcha.captchaId }));
+      finish(await (await loadApi()).post<unknown, AuthResult>('/auth/register', { ...registration, captchaId: captcha.captchaId }));
       message.success('注册成功');
     } catch {
       void loadCaptcha();
@@ -73,7 +77,7 @@ const LoginPage: React.FC = () => {
 
         <div className="relative z-10 max-w-2xl">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-violet-300/20 bg-white/10 px-4 py-2 text-xs font-medium text-violet-100 backdrop-blur">
-            <Sparkles size={14} /> 商户智能增长工作台
+            <StarOutlined className="text-sm" /> 商户智能增长工作台
           </div>
           <h1 className="relative whitespace-nowrap text-[clamp(2.35rem,4vw,4.25rem)] font-black leading-[1.08] tracking-[-.055em]">
             <span className="relative inline-block bg-gradient-to-r from-white via-violet-200 to-cyan-200 bg-clip-text pr-3 text-transparent drop-shadow-[0_8px_28px_rgba(103,232,249,.2)] after:absolute after:inset-x-1 after:-bottom-2 after:h-[3px] after:origin-left after:-rotate-1 after:rounded-full after:bg-gradient-to-r after:from-violet-400/80 after:via-cyan-300/70 after:to-transparent">让外贸增长，全程在线</span>
@@ -84,7 +88,7 @@ const LoginPage: React.FC = () => {
           <div className="mt-9 grid max-w-sm grid-cols-2 gap-3">
             {capabilities.map(({ icon: Icon, label }) => (
               <div key={label} className="rounded-2xl border border-white/10 bg-white/[.07] px-3 py-4 backdrop-blur-sm">
-                <Icon className="mb-3 text-violet-300" size={19} />
+                <Icon className="mb-3 text-[19px] text-violet-300" />
                 <span className="text-xs font-medium text-indigo-50/80">{label}</span>
               </div>
             ))}
@@ -120,7 +124,7 @@ const LoginPage: React.FC = () => {
                 <AppPasswordInput prefix={<LockOutlined />} autoComplete="current-password" placeholder="请输入登录密码" />
               </AppFormItem>
               <Button className="mt-1 !h-10 !rounded-xl !font-semibold" block type="primary" htmlType="submit" loading={loading}>
-                安全登录 <ArrowRight className="ml-1 inline" size={15} />
+                安全登录 <ArrowRightOutlined className="ml-1" />
               </Button>
             </AppForm>
           ) : (
@@ -148,7 +152,7 @@ const LoginPage: React.FC = () => {
                 </div>
               </AppFormItem>
               <Button className="!h-10 !rounded-xl !font-semibold" block type="primary" htmlType="submit" loading={loading}>
-                注册并创建商户 <ArrowRight className="ml-1 inline" size={15} />
+                注册并创建商户 <ArrowRightOutlined className="ml-1" />
               </Button>
               <p className="mb-0 mt-2 text-center text-[11px] text-gray-400">注册即表示同意服务条款与隐私政策</p>
             </AppForm>

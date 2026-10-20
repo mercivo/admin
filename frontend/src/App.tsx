@@ -10,10 +10,10 @@ import {
 } from "react-router-dom";
 import { ConfigProvider } from "antd";
 import antdZhCN from "antd/locale/zh_CN";
-import AdminLayout from "./components/layout/AdminLayout";
-import DemoNav from "./components/layout/DemoNav";
 import { can } from "./utils/permissions";
 import { firstAuthorizedRoute } from "./utils/navigation";
+const AdminLayout = lazy(() => import("./components/layout/AdminLayout"));
+const DemoNav = lazy(() => import("./components/layout/DemoNav"));
 const DashboardPage = lazy(() => import("./pages/Dashboard"));
 const ProductsPage = lazy(() => import("./pages/Products"));
 const ProductEditPage = lazy(() => import("./pages/ProductEdit"));

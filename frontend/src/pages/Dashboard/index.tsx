@@ -1,11 +1,17 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowRight, Banknote, Boxes, CircleDollarSign, ClipboardList, MessageSquareText, PackageCheck, ShoppingCart, Truck, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { dashboardApi, storefrontManageApi, type DashboardStats, type StorefrontOverview } from '../../services/api/index';
-import { AdminLoadError, AdminModuleSkeleton, AdminPageSkeleton, AppTable, CurrencySelect, LeadStatusTag, PageContent, PageHeader, SalesOrderStatusTag } from '../../components/shared';
+import { AdminLoadError, AdminModuleSkeleton, AdminPageSkeleton } from '../../components/shared/AdminLoadingState';
+import { AppTable } from '../../components/shared/AppTable';
+import { CurrencySelect } from '../../components/shared/CurrencySelect';
+import { LeadStatusTag } from '../../components/shared/LeadStatusTag';
+import { PageContent } from '../../components/shared/PageContent';
+import { PageHeader } from '../../components/shared/PageHeader';
+import { SalesOrderStatusTag } from '../../components/shared/SalesOrderStatusTag';
 import { useAdminAsyncState } from '../../hooks/useAdminAsyncState';
-import CategoryDonutChart from './CategoryDonutChart';
-import OrderTrendChart from './OrderTrendChart';
+const CategoryDonutChart = lazy(() => import('./CategoryDonutChart'));
+const OrderTrendChart = lazy(() => import('./OrderTrendChart'));
 
 const card = 'rounded-2xl border border-border bg-card shadow-sm';
 
@@ -14,6 +20,7 @@ const DashboardPage: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats>();
   const [storefront, setStorefront] = useState<StorefrontOverview>();
   const [currency, setCurrency] = useState('');
+  const [chartsReady, setChartsReady] = useState(false);
   const statsState = useAdminAsyncState();
   const storefrontState = useAdminAsyncState();
 
@@ -26,6 +33,12 @@ const DashboardPage: React.FC = () => {
   const loadStorefront = useCallback(() => storefrontState.execute(() => storefrontManageApi.overview()).then(({ value, current }) => { if (current) setStorefront(value); }).catch(() => undefined), [storefrontState.execute]);
   useEffect(() => { void loadStats(); }, [loadStats]);
   useEffect(() => { void loadStorefront(); }, [loadStorefront]);
+  useEffect(() => {
+    const schedule = window.requestIdleCallback || ((callback: IdleRequestCallback) => window.setTimeout(callback, 1));
+    const cancel = window.cancelIdleCallback || window.clearTimeout;
+    const handle = schedule(() => setChartsReady(true));
+    return () => cancel(handle);
+  }, []);
 
   const currencyOptions = useMemo(() => {
     const configured = stats?.currencies || [];
@@ -72,8 +85,8 @@ const DashboardPage: React.FC = () => {
     <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">{signals.map(({ label, value, path, icon: Icon, tone }) => <button key={label} onClick={() => navigate(path)} className={`${card} flex items-center gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md`}><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${tone}`}><Icon size={18}/></span><span><b className="text-xl">{value}</b><span className="mt-0.5 block text-xs text-muted-foreground">{label}</span></span></button>)}</div>
 
     <div className="grid items-stretch gap-5 xl:grid-cols-[1.5fr_.7fr]">
-      <section className={`${card} flex h-[390px] flex-col p-5`}><div className="mb-3 shrink-0"><h2 className="font-bold">销售与采购订单趋势（{new Date().getFullYear()}年）</h2><p className="mt-1 text-xs text-muted-foreground">按全部币种的订单数量统计，鼠标移入可查看当月销售与采购单量</p></div><div className="min-h-0 flex-1"><OrderTrendChart data={trend}/></div></section>
-      <section className={`${card} flex h-[390px] flex-col p-5`}><div className="shrink-0"><h2 className="font-bold">商品品类占比</h2><p className="mt-1 text-xs text-muted-foreground">按全部商品数量统计，不区分币种</p></div>{categories.length ? <div className="min-h-0 flex-1"><CategoryDonutChart data={categories}/></div> : <div className="grid flex-1 place-items-center text-sm text-muted-foreground">暂无数据</div>}</section>
+      <section className={`${card} flex h-[390px] flex-col p-5`}><div className="mb-3 shrink-0"><h2 className="font-bold">销售与采购订单趋势（{new Date().getFullYear()}年）</h2><p className="mt-1 text-xs text-muted-foreground">按全部币种的订单数量统计，鼠标移入可查看当月销售与采购单量</p></div><div className="min-h-0 flex-1">{chartsReady ? <Suspense fallback={<div className="h-full animate-pulse rounded-xl bg-secondary"/>}><OrderTrendChart data={trend}/></Suspense> : <div className="h-full animate-pulse rounded-xl bg-secondary"/>}</div></section>
+      <section className={`${card} flex h-[390px] flex-col p-5`}><div className="shrink-0"><h2 className="font-bold">商品品类占比</h2><p className="mt-1 text-xs text-muted-foreground">按全部商品数量统计，不区分币种</p></div>{categories.length ? <div className="min-h-0 flex-1">{chartsReady ? <Suspense fallback={<div className="h-full animate-pulse rounded-xl bg-secondary"/>}><CategoryDonutChart data={categories}/></Suspense> : <div className="h-full animate-pulse rounded-xl bg-secondary"/>}</div> : <div className="grid flex-1 place-items-center text-sm text-muted-foreground">暂无数据</div>}</section>
     </div>
 
     <div className="grid items-stretch gap-5 xl:grid-cols-2">
