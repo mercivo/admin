@@ -2,6 +2,7 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateCol
 
 @Entity('products')
 @Index('UQ_products_site_sku', ['siteId', 'sku'], { unique: true })
+@Index('IDX_products_site_status_created', ['siteId', 'status', 'createdAt'])
 export class Product {
   @PrimaryGeneratedColumn('uuid')
   id: string;

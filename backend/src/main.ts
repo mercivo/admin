@@ -6,6 +6,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import type { Request, Response } from 'express';
 import { maintenanceReadOnlyMiddleware } from './common/middleware/maintenance-read-only';
+import { RequestTimingInterceptor } from './common/interceptors/request-timing.interceptor';
 
 async function bootstrap() {
   const databaseTarget = process.env.DB_SOCKET_PATH
@@ -33,7 +34,7 @@ async function bootstrap() {
     }),
   );
 
-  app.useGlobalInterceptors(new TransformInterceptor());
+  app.useGlobalInterceptors(new RequestTimingInterceptor(), new TransformInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());
 
   const port = process.env.PORT || process.env.APP_PORT || 3000;

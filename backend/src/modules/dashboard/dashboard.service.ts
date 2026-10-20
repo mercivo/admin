@@ -32,19 +32,23 @@ export class DashboardService {
   ) {}
 
   async getStats(siteId: string) {
-    const [totalProducts, publishedProducts, pendingProducts, customers, dashboardConfig, site, salesStatus, purchaseStatus, pendingFunds, financialRows, monthlySales, monthlyPurchases] = await Promise.all([
+    const [totalProducts, publishedProducts, pendingProducts, customerSummary, dashboardConfig, site, salesStatus, purchaseStatus, pendingFunds, financialRows, salesMonthly, purchaseMonthly] = await Promise.all([
       this.productRepository.count({ where: { siteId } }),
       this.productRepository.count({ where: { siteId, status: 'published' } }),
       this.productRepository.count({ where: { siteId, status: 'pending' } }),
-      this.customerRepository.find({ where: { siteId } }),
+      this.customerRepository.createQueryBuilder('customer')
+        .select('COUNT(customer.id)', 'count')
+        .addSelect('COALESCE(SUM(customer.total_amount), 0)', 'totalAmount')
+        .where('customer.site_id = :siteId', { siteId })
+        .getRawOne<{ count: string; totalAmount: string }>(),
       this.configRepository.findOne({ where: { key: `${siteId}:dashboard` } }).then(async scoped => scoped || this.configRepository.findOne({ where: { key: 'dashboard' } })),
       this.siteRepository.findOne({ where: { id: siteId } }),
       this.salesOrderRepository.createQueryBuilder('orders').select('orders.status', 'status').addSelect('COUNT(orders.id)', 'count').where('orders.site_id = :siteId', { siteId }).groupBy('orders.status').getRawMany(),
       this.purchaseOrderRepository.createQueryBuilder('orders').select('orders.status', 'status').addSelect('COUNT(orders.id)', 'count').where('orders.site_id = :siteId', { siteId }).groupBy('orders.status').getRawMany(),
       this.financeRepository.count({ where: { siteId, status: 'pending' } }),
       this.financeRepository.createQueryBuilder('transaction').select('transaction.currency', 'currency').addSelect("SUM(CASE WHEN transaction.type = 'receipt' AND transaction.status = 'confirmed' THEN transaction.amount ELSE 0 END)", 'receipts').addSelect("SUM(CASE WHEN transaction.type = 'payment' AND transaction.status = 'confirmed' THEN transaction.amount ELSE 0 END)", 'payments').where('transaction.site_id = :siteId', { siteId }).groupBy('transaction.currency').getRawMany(),
-      this.monthlyCounts(this.salesOrderRepository, siteId),
-      this.monthlyCounts(this.purchaseOrderRepository, siteId),
+      this.monthlyBreakdown(this.salesOrderRepository, siteId, false),
+      this.monthlyBreakdown(this.purchaseOrderRepository, siteId, true),
     ]);
 
     const topProducts = await this.productRepository.find({
@@ -61,11 +65,9 @@ export class DashboardService {
     const warningThreshold = Math.max(0, Number(warningConfig.threshold) || 0);
     const availableStock = '(balance.on_hand - balance.reserved)';
     const lowStockCondition = warningEnabled ? `${availableStock} <= :warningThreshold` : `${availableStock} <= 0`;
-    const [salesAmounts, purchaseAmounts, salesMonthly, purchaseMonthly, topSellingProducts, latestSalesOrders, lowStockCount, lowStockProducts, categoryDistribution, salesCategoryDistribution] = await Promise.all([
+    const [salesAmounts, purchaseAmounts, topSellingProducts, latestSalesOrders, lowStockCount, lowStockProducts, categoryDistribution, salesCategoryDistribution] = await Promise.all([
       this.salesOrderRepository.createQueryBuilder('orders').select('orders.currency', 'currency').addSelect("SUM(CASE WHEN orders.status <> 'cancelled' THEN orders.total_amount ELSE 0 END)", 'total').addSelect("SUM(CASE WHEN orders.status <> 'cancelled' AND YEAR(orders.created_at) = YEAR(CURRENT_DATE()) AND MONTH(orders.created_at) = MONTH(CURRENT_DATE()) THEN orders.total_amount ELSE 0 END)", 'currentMonth').where('orders.site_id = :siteId', { siteId }).groupBy('orders.currency').getRawMany(),
       this.purchaseOrderRepository.createQueryBuilder('orders').select('orders.currency', 'currency').addSelect("SUM(CASE WHEN orders.status NOT IN ('draft', 'cancelled') THEN orders.total_amount ELSE 0 END)", 'total').addSelect("SUM(CASE WHEN orders.status NOT IN ('draft', 'cancelled') AND YEAR(orders.created_at) = YEAR(CURRENT_DATE()) AND MONTH(orders.created_at) = MONTH(CURRENT_DATE()) THEN orders.total_amount ELSE 0 END)", 'currentMonth').where('orders.site_id = :siteId', { siteId }).groupBy('orders.currency').getRawMany(),
-      this.monthlyAmounts(this.salesOrderRepository, siteId, false),
-      this.monthlyAmounts(this.purchaseOrderRepository, siteId, true),
       this.salesOrderRepository.manager.createQueryBuilder().select('orders.currency', 'currency').addSelect('line.product_id', 'productId').addSelect('line.product_name', 'name').addSelect('line.product_sku', 'sku').addSelect('SUM(line.quantity)', 'quantity').addSelect('SUM(line.amount)', 'amount').from('sales_order_lines', 'line').innerJoin('sales_orders', 'orders', 'orders.id = line.order_id').where('orders.site_id = :siteId', { siteId }).andWhere("orders.status <> 'cancelled'").groupBy('orders.currency').addGroupBy('line.product_id').addGroupBy('line.product_name').addGroupBy('line.product_sku').orderBy('SUM(line.amount)', 'DESC').getRawMany(),
       this.salesOrderRepository.createQueryBuilder('orders').leftJoin(Customer, 'customer', 'customer.id = orders.customer_id').select('orders.id', 'id').addSelect('orders.order_no', 'orderNo').addSelect('customer.name', 'customerName').addSelect('orders.currency', 'currency').addSelect('orders.total_amount', 'amount').addSelect('orders.status', 'status').addSelect('orders.created_at', 'createdAt').where('orders.site_id = :siteId', { siteId }).orderBy('orders.created_at', 'DESC').limit(5).getRawMany(),
       this.balanceRepository.createQueryBuilder('balance').where('balance.site_id = :siteId', { siteId }).andWhere(lowStockCondition, { warningThreshold }).getCount(),
@@ -81,8 +83,8 @@ export class DashboardService {
       totalProducts,
       publishedProducts,
       pendingProducts,
-      totalCustomers: customers.length,
-      customerValue: customers.reduce((sum, customer) => sum + Number(customer.totalAmount), 0),
+      totalCustomers: Number(customerSummary?.count || 0),
+      customerValue: Number(customerSummary?.totalAmount || 0),
       siteStatus: site?.status || 'draft',
       orders: {
         salesTotal: salesStatus.reduce((sum, row) => sum + Number(row.count), 0),
@@ -96,7 +98,12 @@ export class DashboardService {
       financials: currencyCodes.map(currency => ({ currency, salesAmount: Number(salesAmounts.find(row => row.currency === currency)?.total || 0), purchaseAmount: Number(purchaseAmounts.find(row => row.currency === currency)?.total || 0), currentMonthSales: Number(salesAmounts.find(row => row.currency === currency)?.currentMonth || 0), currentMonthPurchases: Number(purchaseAmounts.find(row => row.currency === currency)?.currentMonth || 0), receipts: Number(financialRows.find(row => row.currency === currency)?.receipts || 0), payments: Number(financialRows.find(row => row.currency === currency)?.payments || 0), monthly: Array.from({ length: 12 }, (_, index) => ({ month: index + 1, label: `${index + 1}月`, sales: Number(salesMonthly.find(row => row.currency === currency && Number(row.month) === index + 1)?.amount || 0), purchases: Number(purchaseMonthly.find(row => row.currency === currency && Number(row.month) === index + 1)?.amount || 0) })) })),
       monthlyOrders: Array.from({ length: 12 }, (_, index) => {
         const month = `${new Date().getFullYear()}-${String(index + 1).padStart(2, '0')}`;
-        return { month, label: `${index + 1}月`, sales: Number(monthlySales.find(row => row.month === month)?.count || 0), purchases: Number(monthlyPurchases.find(row => row.month === month)?.count || 0) };
+        return {
+          month,
+          label: `${index + 1}月`,
+          sales: salesMonthly.filter(row => row.month === month).reduce((sum, row) => sum + Number(row.count), 0),
+          purchases: purchaseMonthly.filter(row => row.month === month).reduce((sum, row) => sum + Number(row.count), 0),
+        };
       }),
       traffic: Array.isArray((dashboardConfig?.value as { traffic?: unknown[] } | undefined)?.traffic) ? (dashboardConfig?.value as { traffic: unknown[] }).traffic : [],
       topProducts: topProducts.map((p) => ({ name: p.nameZh, sku: p.sku, stock: p.stock, status: p.status })),
@@ -112,11 +119,18 @@ export class DashboardService {
     };
   }
 
-  private monthlyCounts(repository: Repository<SalesOrder> | Repository<PurchaseOrder>, siteId: string) {
-    return repository.createQueryBuilder('orders').select("DATE_FORMAT(orders.created_at, '%Y-%m')", 'month').addSelect('COUNT(orders.id)', 'count').where('orders.site_id = :siteId', { siteId }).andWhere('YEAR(orders.created_at) = YEAR(CURRENT_DATE())').andWhere("orders.status <> 'cancelled'").groupBy("DATE_FORMAT(orders.created_at, '%Y-%m')").getRawMany();
-  }
-
-  private monthlyAmounts(repository: Repository<SalesOrder> | Repository<PurchaseOrder>, siteId: string, purchase: boolean) {
-    return repository.createQueryBuilder('orders').select('orders.currency', 'currency').addSelect('MONTH(orders.created_at)', 'month').addSelect('SUM(orders.total_amount)', 'amount').where('orders.site_id = :siteId', { siteId }).andWhere('YEAR(orders.created_at) = YEAR(CURRENT_DATE())').andWhere(purchase ? "orders.status NOT IN ('draft', 'cancelled')" : "orders.status <> 'cancelled'").groupBy('orders.currency').addGroupBy('MONTH(orders.created_at)').getRawMany();
+  private monthlyBreakdown(repository: Repository<SalesOrder> | Repository<PurchaseOrder>, siteId: string, purchase: boolean) {
+    return repository.createQueryBuilder('orders')
+      .select('orders.currency', 'currency')
+      .addSelect("DATE_FORMAT(orders.created_at, '%Y-%m')", 'month')
+      .addSelect('COUNT(orders.id)', 'count')
+      .addSelect(purchase ? "SUM(CASE WHEN orders.status <> 'draft' THEN orders.total_amount ELSE 0 END)" : 'SUM(orders.total_amount)', 'amount')
+      .where('orders.site_id = :siteId', { siteId })
+      .andWhere('orders.created_at >= MAKEDATE(YEAR(CURRENT_DATE()), 1)')
+      .andWhere('orders.created_at < MAKEDATE(YEAR(CURRENT_DATE()) + 1, 1)')
+      .andWhere("orders.status <> 'cancelled'")
+      .groupBy('orders.currency')
+      .addGroupBy("DATE_FORMAT(orders.created_at, '%Y-%m')")
+      .getRawMany();
   }
 }

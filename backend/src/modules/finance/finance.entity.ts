@@ -25,6 +25,7 @@ export type FinancePaymentMethod =
   "type",
   "transactionDate",
 ])
+@Index("IDX_finance_transactions_site_status_created", ["siteId", "status", "createdAt"])
 export class FinanceTransaction {
   @PrimaryGeneratedColumn("uuid") id: string;
   @Column({ name: "tenant_id", length: 36 }) tenantId: string;

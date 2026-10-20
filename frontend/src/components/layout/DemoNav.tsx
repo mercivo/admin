@@ -13,7 +13,8 @@ import {
   Tags,
   ContactRound,
 } from 'lucide-react';
-import { BrandMark, ChangePasswordModal } from '../shared';
+import BrandMark from '../shared/BrandMark';
+import { ChangePasswordModal } from '../shared/ChangePasswordModal';
 import { can } from '../../utils/permissions';
 
 // ─────────────── Path to PageId mapping ───────────────

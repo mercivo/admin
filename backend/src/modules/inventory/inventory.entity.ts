@@ -31,6 +31,7 @@ export class Warehouse {
   ["warehouseId", "productId", "variantKey"],
   { unique: true },
 )
+@Index("IDX_inventory_balances_site_warehouse_product", ["siteId", "warehouseId", "productId"])
 export class InventoryBalance {
   @PrimaryGeneratedColumn("uuid") id: string;
   @Column({ name: "tenant_id", length: 36 }) tenantId: string;

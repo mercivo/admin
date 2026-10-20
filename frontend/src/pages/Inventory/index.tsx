@@ -206,6 +206,7 @@ const InventoryPage: React.FC = () => {
   };
   const loadWarehouseOptions = async () => setWarehouses(await inventoryApi.warehouseOptions());
   const loadStockOptions = async () => setStocks(await inventoryApi.stockOptions());
+  const previousKeyword = useRef(keyword);
   useEffect(() => {
     if (module === "warehouses") void workspaceApi.getSettings().then(workspace => setWarehouseLimit(workspace.billing.limits.warehouses)).catch(() => setWarehouseLimit(null));
   }, [module]);
@@ -215,7 +216,10 @@ const InventoryPage: React.FC = () => {
   useEffect(() => {
     const requestId = ++listRequestRef.current;
     setLoading(true);
-    const timer = window.setTimeout(() => void loadList(requestId, module), 250);
+    const delay = previousKeyword.current === keyword ? 0 : 250;
+    previousKeyword.current = keyword;
+    if (!delay) { void loadList(requestId, module); return; }
+    const timer = window.setTimeout(() => void loadList(requestId, module), delay);
     return () => window.clearTimeout(timer);
   }, [module, pagination.current, pagination.pageSize, keyword, warehouseFilter, statusFilter]);
   useEffect(() => { pagination.reset(); }, [module, keyword, warehouseFilter, statusFilter]);

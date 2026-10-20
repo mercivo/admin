@@ -3,8 +3,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Dropdown, message } from "antd";
 import type { MenuProps } from "antd";
 import { can } from "../../utils/permissions";
-import api from "../../services/api";
-import { ChangePasswordModal } from "../shared";
+import { getCurrentSession } from "../../services/session";
+import { ChangePasswordModal } from "../shared/ChangePasswordModal";
 import {
   ChevronDown,
   ChevronRight,
@@ -262,8 +262,7 @@ const AdminSidebar: React.FC = () => {
     return () => window.removeEventListener("mercivo-user-updated", refreshIdentity);
   }, []);
   useEffect(() => {
-    api
-      .get<unknown, { permissions?: string[] }>("/auth/me")
+    getCurrentSession()
       .then((session) => {
         const tenant = JSON.parse(
           localStorage.getItem("mercivo_tenant") || "{}",

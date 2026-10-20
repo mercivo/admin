@@ -12,6 +12,7 @@ export type SalesOrderStatus =
 
 @Entity("sales_orders")
 @Index("UQ_sales_orders_site_no", ["siteId", "orderNo"], { unique: true })
+@Index("IDX_sales_orders_site_status_created", ["siteId", "status", "createdAt"])
 export class SalesOrder {
   @PrimaryGeneratedColumn("uuid") id: string;
   @Column({ name: "tenant_id", length: 36 }) tenantId: string;

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   DatePicker,
   Descriptions,
@@ -111,6 +111,7 @@ const SalesPage: React.FC = () => {
   const [loadedModule, setLoadedModule] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [keyword, setKeyword] = useState("");
+  const previousKeyword = useRef(keyword);
   const [status, setStatus] = useState<string>();
   const [salesConfig, setSalesConfig] =
     useState<SalesConfig>(DEFAULT_SALES_CONFIG);
@@ -184,7 +185,10 @@ const SalesPage: React.FC = () => {
     void loadSalesConfig();
   }, []);
   useEffect(() => {
-    const timer = window.setTimeout(() => void loadList(), 250);
+    const delay = previousKeyword.current === keyword ? 0 : 250;
+    previousKeyword.current = keyword;
+    if (!delay) { void loadList(); return; }
+    const timer = window.setTimeout(() => void loadList(), delay);
     return () => window.clearTimeout(timer);
   }, [module, pagination.current, pagination.pageSize, keyword, status]);
   useEffect(() => {

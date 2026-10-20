@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { DatePicker, Descriptions, Input, InputNumber, message, Select, Tag } from "antd";
 import dayjs, { Dayjs } from "dayjs";
 import { BarChart3, CheckCircle2, Eye, Plus, Search, XCircle } from "lucide-react";
@@ -78,6 +78,7 @@ const FinancePage: React.FC = () => {
   const [loadedModule, setLoadedModule] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [keyword, setKeyword] = useState("");
+  const previousKeyword = useRef(keyword);
   const [status, setStatus] = useState<string>();
   const [range, setRange] = useState<[Dayjs, Dayjs]>([dayjs().subtract(29, "day"), dayjs()]);
   const [statisticsYear, setStatisticsYear] = useState(dayjs().year());
@@ -116,7 +117,10 @@ const FinancePage: React.FC = () => {
     }
   };
   useEffect(() => {
-    const timer = window.setTimeout(() => void load(), 250);
+    const delay = previousKeyword.current === keyword ? 0 : 250;
+    previousKeyword.current = keyword;
+    if (!delay) { void load(); return; }
+    const timer = window.setTimeout(() => void load(), delay);
     return () => window.clearTimeout(timer);
   }, [module, pagination.current, pagination.pageSize, keyword, status, statisticsYear, statisticsCurrency, range[0].valueOf(), range[1].valueOf()]);
   useEffect(() => { workspaceApi.getConfig<CurrencyConfig>('currency').then(config => { setCurrencies(config.currencies.filter(item => item.enabled)); setStatisticsCurrency(config.salesDefaultCurrency || config.defaultCurrency); }).catch(() => undefined); }, []);

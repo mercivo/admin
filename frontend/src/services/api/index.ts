@@ -1,5 +1,6 @@
 import api from "../api";
 import type { Product, ProductCategory } from "../../types";
+import { cachedRequest, invalidateCachedRequest } from "../requestCache";
 
 // ---- 扩展类型定义 ----
 export interface DashboardStats {
@@ -618,7 +619,7 @@ export const productCategoryApi = {
 };
 
 export const workspaceApi = {
-  getSettings: () => api.get<any, WorkspaceSettings>("/workspace/settings"),
+  getSettings: () => cachedRequest("workspace/settings", () => api.get<any, WorkspaceSettings>("/workspace/settings")),
   updateAccount: (data: WorkspaceSettings["account"]) =>
     api.put<any, WorkspaceSettings>("/workspace/settings/account", {
       enterpriseName: data.enterpriseName,
@@ -626,23 +627,23 @@ export const workspaceApi = {
       phone: data.phone,
       email: data.email,
       timezone: "Asia/Shanghai",
-    }),
+    }).then((value) => { invalidateCachedRequest("workspace/settings"); return value; }),
   updateSiteInfo: (data: Pick<WorkspaceSettings["site"], "name" | "description" | "logoUrl">) =>
     api.put("/workspace/settings/site-info", {
       name: data.name,
       description: data.description,
       logoUrl: data.logoUrl,
-    }),
+    }).then((value) => { invalidateCachedRequest("workspace/settings"); return value; }),
   updateSiteLanguages: (data: Pick<WorkspaceSettings["site"], "defaultLanguage" | "supportedLanguages">) =>
     api.put("/workspace/settings/site-languages", {
       defaultLanguage: data.defaultLanguage,
       supportedLanguages: data.supportedLanguages,
-    }),
+    }).then((value) => { invalidateCachedRequest("workspace/settings"); return value; }),
   getSiteContact: <T>() => api.get<any, T>("/workspace/settings/site-contact"),
   updateSiteContact: <T extends object>(value: T) => api.put<any, T>("/workspace/settings/site-contact", { value }),
-  getConfig: <T>(key: string) => api.get<any, T>(`/workspace/config/${key}`),
+  getConfig: <T>(key: string) => cachedRequest(`workspace/config/${key}`, () => api.get<any, T>(`/workspace/config/${key}`)),
   updateConfig: <T extends object>(key: string, value: T) =>
-    api.put<any, T>(`/workspace/config/${key}`, { value }),
+    api.put<any, T>(`/workspace/config/${key}`, { value }).then((result) => { invalidateCachedRequest(`workspace/config/${key}`); return result; }),
   listTeam: () => api.get<any, TeamMember[]>("/workspace/team"),
   teamPermissions: () =>
     api.get<any, PermissionItem[]>("/workspace/team/permissions"),
@@ -790,19 +791,19 @@ export const inventoryApi = {
     }),
   warehouses: (params?: Record<string, string | number | undefined>) =>
     api.get<any, Paged<Warehouse>>("/inventory/warehouses", { params }),
-  warehouseOptions: () =>
-    api.get<any, Warehouse[]>("/inventory/warehouse-options"),
+  warehouseOptions: () => cachedRequest("inventory/warehouse-options", () =>
+    api.get<any, Warehouse[]>("/inventory/warehouse-options")),
   stockOptions: (warehouseId?: string) =>
     api.get<any, InventoryStock[]>("/inventory/stock-options", {
       params: { warehouseId },
     }),
   createWarehouse: (data: WarehouseInput) =>
-    api.post<any, Warehouse>("/inventory/warehouses", data),
+    api.post<any, Warehouse>("/inventory/warehouses", data).then((value) => { invalidateCachedRequest("inventory/warehouse-options"); return value; }),
   updateWarehouse: (id: string, data: WarehouseInput) =>
-    api.put<any, Warehouse>(`/inventory/warehouses/${id}`, data),
+    api.put<any, Warehouse>(`/inventory/warehouses/${id}`, data).then((value) => { invalidateCachedRequest("inventory/warehouse-options"); return value; }),
   setDefaultWarehouse: (id: string) =>
-    api.patch<any, Warehouse>(`/inventory/warehouses/${id}/default`),
-  removeWarehouse: (id: string) => api.delete(`/inventory/warehouses/${id}`),
+    api.patch<any, Warehouse>(`/inventory/warehouses/${id}/default`).then((value) => { invalidateCachedRequest("inventory/warehouse-options"); return value; }),
+  removeWarehouse: (id: string) => api.delete(`/inventory/warehouses/${id}`).then((value) => { invalidateCachedRequest("inventory/warehouse-options"); return value; }),
   counts: (params?: Record<string, string | number | undefined>) =>
     api.get<any, Paged<StockCount>>("/inventory/counts", { params }),
   createCount: (data: { warehouseId: string; remark?: string }) =>

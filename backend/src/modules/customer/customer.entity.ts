@@ -1,6 +1,7 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity('customers')
+@Index('IDX_customers_site_created', ['siteId', 'createdAt'])
 export class Customer {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ name: 'tenant_id', length: 36 }) tenantId: string;

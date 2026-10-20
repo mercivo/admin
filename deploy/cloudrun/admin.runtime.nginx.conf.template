@@ -42,7 +42,12 @@ server {
     try_files $uri $uri/ /index.html;
   }
 
+  location = /index.html {
+    add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+  }
+
   location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf)$ {
     expires 30d;
+    add_header Cache-Control "public, max-age=2592000, immutable" always;
   }
 }

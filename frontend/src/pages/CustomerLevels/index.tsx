@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Empty, Form, Input, InputNumber, Select, Tag, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { Edit3, KeyRound, Plus, Search, Trash2, Users } from 'lucide-react';
@@ -27,6 +27,7 @@ const CustomerLevelsPage: React.FC = () => {
   const [form] = Form.useForm();
   const [levelForm] = Form.useForm();
   const pagination = useTablePagination();
+  const previousKeyword = useRef(keyword);
 
   const loadCustomers = async () => {
     setLoading(true);
@@ -40,7 +41,13 @@ const CustomerLevelsPage: React.FC = () => {
     setLevels(await customerApi.levels());
   };
   useEffect(() => { void loadSettings().catch(() => message.error('客户设置加载失败')); }, []);
-  useEffect(() => { const timer = window.setTimeout(() => void loadCustomers(), 250); return () => window.clearTimeout(timer); }, [pagination.current, pagination.pageSize, keyword, level]);
+  useEffect(() => {
+    const delay = previousKeyword.current === keyword ? 0 : 250;
+    previousKeyword.current = keyword;
+    if (!delay) { void loadCustomers(); return; }
+    const timer = window.setTimeout(() => void loadCustomers(), delay);
+    return () => window.clearTimeout(timer);
+  }, [pagination.current, pagination.pageSize, keyword, level]);
   useEffect(() => { pagination.reset(); }, [keyword, level]);
   const openEditor = (item: Customer | null) => {
     setEditing(item);
