@@ -132,7 +132,7 @@ export class SiteService {
     site.publishedVersionId = version.id; site.status = 'published'; await this.siteRepo.save(site); return version;
   }
   async resolvePublished(hostname: string, siteSlug?: string, requestedLanguage?: string) {
-    const { site, version } = await this.resolveSiteVersion(hostname, siteSlug);
+    const { site, version } = await this.resolveSiteVersion(hostname, siteSlug, requestedLanguage, true);
     const snapshot = version.snapshot as Record<string, any>;
     const [systemConfig, liveProducts, liveCategoryEntries, liveI18n] = await Promise.all([
       this.configRepo.findOne({ where: { key: `${site.id}:system` } }),
@@ -184,7 +184,7 @@ export class SiteService {
     const basePath = siteKey ? `/${encodeURIComponent(siteKey)}` : '';
     return `User-agent: *\n${noindex ? 'Disallow: /' : 'Disallow: /api/'}\n${noindex ? '' : 'Allow: /\n'}\nSitemap: ${origin}${basePath}/sitemap.xml\n`;
   }
-  private async resolveSiteVersion(hostname: string, siteSlug?: string) {
+  private async resolveSiteVersion(hostname: string, siteSlug?: string, requestedLanguage?: string, includeNotice = false) {
     let site: Site | null = null;
     const normalizedHost = this.normalizeHost(hostname);
     if (siteSlug) {
@@ -198,7 +198,15 @@ export class SiteService {
     }
     if (!site || site.status !== 'published' || !site.publishedVersionId) throw new NotFoundException({ errorCode: 'SITE_NOT_FOUND_OR_UNPUBLISHED', message: 'Published site not found' });
     const tenant = await this.tenantRepo.findOne({ where: { id: site.tenantId } });
-    if (!tenant || tenant.status !== 'active' || (tenant.expiresAt && tenant.expiresAt.getTime() <= Date.now())) throw new NotFoundException({ errorCode: 'SITE_NOT_FOUND_OR_UNPUBLISHED', message: 'Published site not found' });
+    if (!tenant || tenant.status !== 'active') throw new NotFoundException({ errorCode: 'SITE_NOT_FOUND_OR_UNPUBLISHED', message: 'Published site not found' });
+    if (tenant.expiresAt && tenant.expiresAt.getTime() <= Date.now()) {
+      const data = includeNotice ? await this.translations.publicSiteAccessNotice(site.id, 'planExpired', requestedLanguage) : null;
+      throw new ForbiddenException({ errorCode: 'SITE_PLAN_EXPIRED', message: 'Tenant plan expired', data });
+    }
+    if (!(tenant.permissions || []).includes('site.publish')) {
+      const data = includeNotice ? await this.translations.publicSiteAccessNotice(site.id, 'publishPermission', requestedLanguage) : null;
+      throw new ForbiddenException({ errorCode: 'SITE_PUBLISH_PERMISSION_REQUIRED', message: 'Site publish permission required', data });
+    }
     const version = await this.versionRepo.findOne({ where: { id: site.publishedVersionId, siteId: site.id } });
     if (!version) throw new NotFoundException({ errorCode: 'SITE_NOT_FOUND_OR_UNPUBLISHED', message: 'Published version not found' });
     return { site, version };

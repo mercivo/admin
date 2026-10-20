@@ -18,8 +18,9 @@ type Product = { id: string; nameZh: string; description?: string; seoTitle?: st
 type ProductCategory = { code: string; label: string; parentCode?: string | null; sort: number };
 type SeoConfig = { title?: string; description?: string; keywords?: string; shareImage?: string; canonicalUrl?: string; robots?: string };
 type PublishedSite = { siteId: string; versionId: string; version: number; locale?: string; site: { name: string; slug: string; logoUrl?: string; defaultLanguage: string; supportedLanguages?: string[]; defaultCurrency: string; currencySymbol?: string; guestAccessEnabled?: boolean; guestPriceMode?: 'base' | 'hidden' | 'percentage' }; config: Record<string, unknown>; seo?: SeoConfig; products: Product[]; categories?: ProductCategory[]; i18n?: { sourceLocale: string; locales: string[]; messages: Record<string, Record<string, string>> } };
-type PublicErrorCode = 'SITE_NOT_FOUND_OR_UNPUBLISHED' | 'CONTACT_NAME_REQUIRED' | 'CONTACT_METHOD_REQUIRED' | 'PURCHASE_REQUIREMENTS_REQUIRED' | 'INQUIRY_SUBMIT_FAILED' | 'SERVICE_UNAVAILABLE' | 'NETWORK_ERROR' | 'UNKNOWN_ERROR';
-class PublicApiError extends Error { constructor(readonly errorCode: PublicErrorCode, message: string) { super(message); } }
+type PublicErrorCode = 'SITE_NOT_FOUND_OR_UNPUBLISHED' | 'SITE_PLAN_EXPIRED' | 'SITE_PUBLISH_PERMISSION_REQUIRED' | 'CONTACT_NAME_REQUIRED' | 'CONTACT_METHOD_REQUIRED' | 'PURCHASE_REQUIREMENTS_REQUIRED' | 'INQUIRY_SUBMIT_FAILED' | 'SERVICE_UNAVAILABLE' | 'NETWORK_ERROR' | 'UNKNOWN_ERROR';
+type PublicAccessNotice = { locale?: string; title: string; description: string };
+class PublicApiError extends Error { constructor(readonly errorCode: PublicErrorCode, message: string, readonly data?: PublicAccessNotice) { super(message); } }
 type FormFieldKey = 'name' | 'contact' | 'email' | 'company' | 'phone' | 'country' | 'requirements';
 type FormField = { key: FormFieldKey; label: string; enabled: boolean; required: boolean };
 type SiteInfo = { brandLogoUrl?: string; contactDetails: { email: string; phone: string; whatsapp: string; address: string; hours: string }; contactLabels?: { email: string; phone: string; whatsapp: string; address: string; hours: string }; contactItems?: Array<{ id: string; label: string; content: string }>; contactModalTitle?: string; contactModalSubtitle?: string };
@@ -49,7 +50,7 @@ const routeProductId = () => {
   if (!match) return null;
   try { return decodeURIComponent(match[1]); } catch { return match[1]; }
 };
-const api = async <T,>(path: string, init?: RequestInit): Promise<T> => { let res: Response; try { res = await fetch(path, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers || {}) } }); } catch { throw new PublicApiError('NETWORK_ERROR', 'Network request failed'); } const body = await res.json().catch(() => ({})); if (!res.ok) throw new PublicApiError(body.errorCode || (res.status >= 500 ? 'SERVICE_UNAVAILABLE' : 'UNKNOWN_ERROR'), Array.isArray(body.message) ? body.message.join('; ') : body.message || 'Request failed'); return body.data as T; };
+const api = async <T,>(path: string, init?: RequestInit): Promise<T> => { let res: Response; try { res = await fetch(path, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers || {}) } }); } catch { throw new PublicApiError('NETWORK_ERROR', 'Network request failed'); } const body = await res.json().catch(() => ({})); if (!res.ok) throw new PublicApiError(body.errorCode || (res.status >= 500 ? 'SERVICE_UNAVAILABLE' : 'UNKNOWN_ERROR'), Array.isArray(body.message) ? body.message.join('; ') : body.message || 'Request failed', body.data); return body.data as T; };
 const legacyImageOrigin = 'https://image.aihubflux.com/';
 const gcsImageOrigin = 'https://storage.googleapis.com/mercivo-images-753805870951/';
 const imageUrl = (id: string) => id.startsWith(legacyImageOrigin)
@@ -159,7 +160,7 @@ const ContactModal = ({ open, onClose, info, title, subtitle, themeColor }: { op
 
 function App() {
   const [site, setSite] = useState<PublishedSite | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<{ code: PublicErrorCode; notice?: PublicAccessNotice } | null>(null);
   const [contactOpen, setContactOpen] = useState(false);
   const [productCategory, setProductCategory] = useState('__all__');
   const [productSubcategory, setProductSubcategory] = useState('__all__');
@@ -171,8 +172,8 @@ function App() {
   const [inquiry, setInquiry] = useState<Record<FormFieldKey, string>>({ name: '', contact: '', email: '', company: '', phone: '', country: '', requirements: '' });
   const [inquiryState, setInquiryState] = useState<'idle' | 'submitting' | 'success' | 'error' | 'validation'>('idle');
   const [inquiryErrorCode, setInquiryErrorCode] = useState<PublicErrorCode>('INQUIRY_SUBMIT_FAILED');
-  const loadSite = () => { const params = new URLSearchParams(); if (querySite) params.set('site', querySite); const requested = new URLSearchParams(location.search).get('lang'); if (requested) params.set('lang', requested); return api<PublishedSite>(`/api/v1/public/site${params.size ? `?${params}` : ''}`).then(data => { setSite(data); setLanguage(normalizeLocaleCode(data.locale || data.site.defaultLanguage)); applySeo(data, routeProductId()); setError(''); }); };
-  useEffect(() => { loadSite().catch(err => setError(err instanceof PublicApiError ? err.errorCode : 'UNKNOWN_ERROR')); }, [querySite]);
+  const loadSite = () => { const params = new URLSearchParams(); if (querySite) params.set('site', querySite); const requested = new URLSearchParams(location.search).get('lang'); if (requested) params.set('lang', requested); return api<PublishedSite>(`/api/v1/public/site${params.size ? `?${params}` : ''}`).then(data => { setSite(data); setLanguage(normalizeLocaleCode(data.locale || data.site.defaultLanguage)); applySeo(data, routeProductId()); setError(null); }); };
+  useEffect(() => { loadSite().catch(err => setError(err instanceof PublicApiError ? { code: err.errorCode, notice: err.data } : { code: 'UNKNOWN_ERROR' })); }, [querySite]);
   useEffect(() => { const syncRoute = () => { const productId = routeProductId(); setActiveProductId(productId); if (site) applySeo(site, productId); }; window.addEventListener('popstate', syncRoute); return () => window.removeEventListener('popstate', syncRoute); }, [site]);
   const submitInquiry = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -327,14 +328,21 @@ function App() {
     if (target?.id) document.getElementById(`section-${target.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
   const platform = platformMessages(requestedPlatformLocale());
+  const isSiteAccessDenied = error?.code === 'SITE_PLAN_EXPIRED' || error?.code === 'SITE_PUBLISH_PERMISSION_REQUIRED';
+  if (error && isSiteAccessDenied) return <main className="site-access-notice-page">
+    <section className="site-access-notice" role="alert">
+      <h1>{error.notice?.title || platform.unavailable}</h1>
+      <p>{error.notice?.description || platform.unavailableDescription}</p>
+    </section>
+  </main>;
   if (error) return <main className="unavailable-page">
     <section className="unavailable-card" role="alert">
       <MercivoLogo />
       <div className="unavailable-icon"><Globe2 /></div>
-      <h1>{platform.unavailable}</h1>
-      <p>{platform.unavailableDescription}</p>
+      <h1>{error.notice?.title || platform.unavailable}</h1>
+      <p>{error.notice?.description || platform.unavailableDescription}</p>
       <p className="unavailable-help">{platform.administratorHelp}</p>
-      <button type="button" onClick={() => { setError(''); loadSite().catch(err => setError(err instanceof PublicApiError ? err.errorCode : 'UNKNOWN_ERROR')); }}><span>{platform.retry}</span><ArrowRight /></button>
+      <button type="button" onClick={() => { setError(null); loadSite().catch(err => setError(err instanceof PublicApiError ? { code: err.errorCode, notice: err.data } : { code: 'UNKNOWN_ERROR' })); }}><span>{platform.retry}</span><ArrowRight /></button>
       <small>{platform.support}</small>
     </section>
   </main>;

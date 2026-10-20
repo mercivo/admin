@@ -113,10 +113,12 @@
 .site-editor-controls button:not(.ant-btn):not([data-site-preview]){font-size:14px;border-radius:6px;transition:all .2s cubic-bezier(.645,.045,.355,1)}
 .site-editor-controls button:not(.ant-btn):not([data-site-preview]):focus-visible{outline:0;box-shadow:0 0 0 2px rgba(139,124,246,.14)}
 .site-editor-controls button:not(.ant-btn):not([data-site-preview]):disabled{cursor:not-allowed;color:rgba(0,0,0,.25);opacity:.55}
-.site-editor-controls .editor-toolbar-button{height:32px;padding:4px 15px;border:1px solid var(--editor-border);background:#fff;color:var(--editor-text);display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:400}
-.site-editor-controls .editor-toolbar-button:hover{color:var(--editor-primary);border-color:var(--editor-primary)}
-.site-editor-controls .editor-toolbar-button-primary{height:32px;padding:4px 15px;border:1px solid var(--editor-primary);background:var(--editor-primary);color:var(--editor-primary-contrast);display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:400;box-shadow:0 4px 12px color-mix(in srgb,var(--editor-primary) 24%,transparent)}
-.site-editor-controls .editor-toolbar-button-primary:hover{filter:brightness(1.04)}
+.site-editor-controls .editor-toolbar-actions{display:flex;align-items:center;gap:6px;padding-left:2px}
+.site-editor-controls .editor-toolbar-tooltip-target{display:inline-flex}
+.site-editor-controls .editor-toolbar-action{display:grid;width:34px;height:34px;place-items:center;border:1px solid var(--editor-border);background:#fff;color:var(--editor-text)}
+.site-editor-controls .editor-toolbar-action:hover:not(:disabled){border-color:var(--editor-primary);background:var(--editor-primary-soft);color:var(--editor-primary)}
+.site-editor-controls .editor-toolbar-action.is-primary{border-color:var(--editor-primary);background:var(--editor-primary);color:var(--editor-primary-contrast);box-shadow:0 4px 12px color-mix(in srgb,var(--editor-primary) 24%,transparent)}
+.site-editor-controls .editor-toolbar-action.is-primary:hover:not(:disabled){background:var(--editor-primary);color:var(--editor-primary-contrast);filter:brightness(1.04)}
 .site-editor-controls .editor-icon-group{display:flex;overflow:hidden;border:1px solid var(--editor-border);border-radius:6px;background:#fff}
 .site-editor-controls .editor-icon-group button{width:32px;height:30px;border:0;border-radius:0!important;background:#fff;display:grid;place-items:center}
 .site-editor-controls .editor-icon-group button+button{border-left:1px solid var(--editor-border)}
@@ -138,8 +140,12 @@
 .site-editor-controls [data-editor-canvas] aside>div.mt-4.border-t{display:none}
 .site-editor-controls [data-editor-canvas] .min-w-0.flex-1>div.mb-5>button{display:none}
 .site-editor-controls [data-editor-canvas] .group .mt-auto.flex button:last-child{display:none}
+.site-editor-controls [data-editor-canvas] .site-product-card-image{background:#f5f6f4;box-shadow:inset 0 0 0 1px #e5e8e4}
+.site-editor-controls [data-editor-canvas] .site-product-card-image>img,.site-editor-controls [data-editor-canvas] .site-product-card-image>[role="img"]{background-color:transparent!important}
 .site-editor-controls [data-editor-canvas] .site-editor-product-name{display:block;height:20px;margin:0;overflow:hidden;line-height:20px;text-overflow:ellipsis;white-space:nowrap}
-.site-editor-controls [data-editor-canvas] .site-editor-product-summary{display:-webkit-box;max-height:38px;margin:4px 0 0;overflow:hidden;line-height:19px;word-break:break-word;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.site-editor-controls [data-editor-canvas] .site-editor-product-summary{display:-webkit-box;max-height:38px;margin:4px 0 10px;overflow:hidden;line-height:19px;word-break:break-word;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.site-editor-controls [data-editor-canvas] .site-editor-product-summary+[class~="my-2.5"]{margin-top:0}
+.site-editor-controls [data-editor-canvas] .site-editor-product-summary+[class~="my-2.5"]:empty{display:none}
 .site-editor-controls [data-editor-canvas] .site-editor-product-category{display:none}
 .site-editor-controls [data-editor-canvas] [data-testid="site-product-purchase-info"]{align-items:flex-start;border-top:0;padding-top:0;text-align:left}
 .site-editor-controls [data-editor-canvas] [data-testid="site-product-moq"]{order:1;margin-bottom:4px;color:var(--site-theme);font-size:10px;font-weight:400;line-height:15px}

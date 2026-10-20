@@ -130,8 +130,12 @@ const PurchasePage: React.FC = () => {
   const [detail, setDetail] = useState<PurchaseOrder | PurchaseReceipt | null>(
     null,
   );
-  const pagination = useTablePagination();
-  const load = async () => {
+  const pagination = useTablePagination(module);
+  const listRequestRef = useRef(0);
+  const load = async (
+    requestId = ++listRequestRef.current,
+    requestedModule = module,
+  ) => {
     setLoading(true);
     try {
       const params = {
@@ -140,24 +144,29 @@ const PurchasePage: React.FC = () => {
         keyword,
         status,
       };
-      if (module === "receipts") {
+      if (requestedModule === "receipts") {
         const result = await purchaseApi.receipts(params);
+        if (requestId !== listRequestRef.current) return;
         setReceipts(result.items);
         pagination.reconcile(result.total);
-      } else if (module === "suppliers") {
+      } else if (requestedModule === "suppliers") {
         const result = await purchaseApi.suppliers(params);
+        if (requestId !== listRequestRef.current) return;
         setSuppliers(result.items);
         pagination.reconcile(result.total);
       } else {
         const result = await purchaseApi.orders(params);
+        if (requestId !== listRequestRef.current) return;
         setOrders(result.items);
         pagination.reconcile(result.total);
       }
     } catch {
-      message.error("采购数据加载失败");
+      if (requestId === listRequestRef.current) message.error("采购数据加载失败");
     } finally {
-      setLoadedModule(module);
-      setLoading(false);
+      if (requestId === listRequestRef.current) {
+        setLoadedModule(requestedModule);
+        setLoading(false);
+      }
     }
   };
   useEffect(() => {
@@ -175,14 +184,14 @@ const PurchasePage: React.FC = () => {
       .catch(() => undefined);
   }, []);
   useEffect(() => {
+    const requestId = ++listRequestRef.current;
     const delay = previousKeyword.current === keyword ? 0 : 250;
     previousKeyword.current = keyword;
-    if (!delay) { void load(); return; }
-    const timer = window.setTimeout(() => void load(), delay);
-    return () => window.clearTimeout(timer);
+    if (!delay) { void load(requestId, module); return () => { listRequestRef.current += 1; }; }
+    const timer = window.setTimeout(() => void load(requestId, module), delay);
+    return () => { window.clearTimeout(timer); listRequestRef.current += 1; };
   }, [module, pagination.current, pagination.pageSize, keyword, status]);
   useEffect(() => {
-    pagination.reset();
     setStatus(undefined);
   }, [module]);
   const loadOptions = async () => {

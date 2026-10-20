@@ -285,6 +285,22 @@ test('guest access disabled copy is configurable in the system copy tab', async 
   await expect(card.getByText('游客禁止访问说明', { exact: true })).toBeVisible();
 });
 
+test('site access notices are configurable in their own public-copy group', async ({ page }) => {
+  await prepare(page, {
+    system: [
+      item({ key: 'system:siteAccess.planExpiredTitle', resourceType: 'system', resourceId: 'storefront', sourceText: '站点暂时无法访问', meta: { section: 'siteAccess' } }),
+      item({ key: 'system:siteAccess.planExpiredDescription', resourceType: 'system', resourceId: 'storefront', sourceText: '当前租户套餐已过期，请联系站点管理员续费后再访问。', meta: { section: 'siteAccess' } }),
+      item({ key: 'system:siteAccess.publishPermissionTitle', resourceType: 'system', resourceId: 'storefront', sourceText: '站点暂时无法访问', meta: { section: 'siteAccess' } }),
+      item({ key: 'system:siteAccess.publishPermissionDescription', resourceType: 'system', resourceId: 'storefront', sourceText: '当前租户没有独立站发布权限，请联系站点管理员升级套餐后再访问。', meta: { section: 'siteAccess' } }),
+    ],
+  });
+  await page.goto(`${frontendBaseUrl}/storefront-translations`);
+  await page.getByRole('tab', { name: '公共文案', exact: true }).click();
+  const card = page.locator('article').filter({ has: page.getByRole('heading', { name: '站点访问提示', exact: true }) });
+  await expect(card.getByText('套餐过期标题', { exact: true })).toBeVisible();
+  await expect(card.getByText('无发布权限说明', { exact: true })).toBeVisible();
+});
+
 test('category levels use Chinese numerals without card descriptions', async ({ page }) => {
   await prepare(page, {
     category: [

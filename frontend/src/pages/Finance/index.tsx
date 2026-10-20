@@ -89,44 +89,54 @@ const FinancePage: React.FC = () => {
   const [detail, setDetail] = useState<FinanceTransaction | null>(null);
   const [cancelTarget, setCancelTarget] = useState<FinanceTransaction | null>(null);
   const [cancelReason, setCancelReason] = useState("");
-  const pagination = useTablePagination();
+  const pagination = useTablePagination(module);
+  const listRequestRef = useRef(0);
 
-  const load = async () => {
+  const load = async (
+    requestId = ++listRequestRef.current,
+    requestedModule = module,
+  ) => {
     setLoading(true);
     try {
-      if (isStatistics) {
-        setStatistics(await financeApi.statistics({ year: statisticsYear, currency: statisticsCurrency }));
+      if (requestedModule === "statistics") {
+        const result = await financeApi.statistics({ year: statisticsYear, currency: statisticsCurrency });
+        if (requestId !== listRequestRef.current) return;
+        setStatistics(result);
       } else {
         const dates = { startDate: range[0].format("YYYY-MM-DD"), endDate: range[1].format("YYYY-MM-DD") };
-        const result = await (isReceipt ? financeApi.receipts : financeApi.payments)({
+        const result = await (requestedModule === "receipts" ? financeApi.receipts : financeApi.payments)({
           page: pagination.current,
           pageSize: pagination.pageSize,
           keyword,
           status,
           ...dates,
         });
+        if (requestId !== listRequestRef.current) return;
         setRows(result.items);
         setSummary(result.summary);
         pagination.reconcile(result.total);
       }
     } catch {
-      message.error("财务数据加载失败");
+      if (requestId === listRequestRef.current) message.error("财务数据加载失败");
     } finally {
-      setLoadedModule(module);
-      setLoading(false);
+      if (requestId === listRequestRef.current) {
+        setLoadedModule(requestedModule);
+        setLoading(false);
+      }
     }
   };
   useEffect(() => {
+    const requestId = ++listRequestRef.current;
     const delay = previousKeyword.current === keyword ? 0 : 250;
     previousKeyword.current = keyword;
-    if (!delay) { void load(); return; }
-    const timer = window.setTimeout(() => void load(), delay);
-    return () => window.clearTimeout(timer);
+    if (!delay) { void load(requestId, module); return () => { listRequestRef.current += 1; }; }
+    const timer = window.setTimeout(() => void load(requestId, module), delay);
+    return () => { window.clearTimeout(timer); listRequestRef.current += 1; };
   }, [module, pagination.current, pagination.pageSize, keyword, status, statisticsYear, statisticsCurrency, range[0].valueOf(), range[1].valueOf()]);
   useEffect(() => { workspaceApi.getConfig<CurrencyConfig>('currency').then(config => { setCurrencies(config.currencies.filter(item => item.enabled)); setStatisticsCurrency(config.salesDefaultCurrency || config.defaultCurrency); }).catch(() => undefined); }, []);
   useEffect(() => {
     pagination.reset();
-  }, [module, keyword, status, range[0].valueOf(), range[1].valueOf()]);
+  }, [keyword, status, range[0].valueOf(), range[1].valueOf()]);
   useEffect(() => {
     setStatus(undefined);
   }, [module]);

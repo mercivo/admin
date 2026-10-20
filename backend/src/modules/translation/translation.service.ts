@@ -85,6 +85,8 @@ const STOREFRONT_CONSTANTS: Record<string, string> = { 'storefront.productBadge'
 const SYSTEM_COPY: Record<string, string> = {
   'empty.products': '当前分类暂无商品', 'empty.categories': '暂无分类', 'empty.contactInformation': '暂无联系信息',
   'guestAccess.disabledTitle': '暂不开放游客访问', 'guestAccess.disabledDescription': '当前站点仅对授权客户开放，请联系站点管理员获取访问权限。',
+  'siteAccess.planExpiredTitle': '站点暂时无法访问', 'siteAccess.planExpiredDescription': '当前租户套餐已过期，请联系站点管理员续费后再访问。',
+  'siteAccess.publishPermissionTitle': '站点暂时无法访问', 'siteAccess.publishPermissionDescription': '当前租户没有独立站发布权限，请联系站点管理员升级套餐后再访问。',
   'inquiry.submitting': '提交中…', 'inquiry.preview': '预览模式不会提交询盘。',
   'inquiry.validation': '请完整填写联系人、联系方式和采购需求。', 'inquiry.success': '询盘已提交，我们将尽快与您联系。',
   'apiErrors.SITE_NOT_FOUND_OR_UNPUBLISHED': '站点不存在或尚未发布。',
@@ -283,6 +285,20 @@ export class TranslationService {
     const messages: Record<string, Record<string, string>> = { zh_CN: Object.fromEntries(units.map(item => [item.fieldKey, item.sourceText])) };
     locales.filter(item => item !== 'zh_CN').forEach(locale => { messages[locale] = Object.fromEntries(units.map(unit => [unit.fieldKey, values.find(value => value.unitId === unit.id && value.locale === locale)?.value || ''])); });
     return { sourceLocale: 'zh_CN', locales, messages };
+  }
+
+  async publicSiteAccessNotice(siteId: string, reason: 'planExpired' | 'publishPermission', requestedLanguage?: string) {
+    const bundle = await this.messages(siteId);
+    const locale = requestedLanguage && bundle.locales.includes(requestedLanguage) ? requestedLanguage : bundle.locales[0] || bundle.sourceLocale;
+    const source = bundle.messages[bundle.sourceLocale] || {};
+    const localized = bundle.messages[locale] || {};
+    const titleKey = `system:siteAccess.${reason}Title`;
+    const descriptionKey = `system:siteAccess.${reason}Description`;
+    return {
+      locale,
+      title: localized[titleKey] || source[titleKey] || '站点暂时无法访问',
+      description: localized[descriptionKey] || source[descriptionKey] || '请联系站点管理员确认套餐与发布权限。',
+    };
   }
 
   async exportWorkbook(siteId: string, locale: string, query: TranslationExportQueryDto = {}) {

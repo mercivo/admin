@@ -278,7 +278,7 @@ export const PERMISSION_CATALOG: PermissionCatalogItem[] = [
   secondary("独立站", "menu.site", "站点设计", "group.site"),
   page("站点设计", "page.site.editor", "站点设计页面", "menu.site"),
   button("站点设计", "site.edit", "保存站点内容", "menu.site"),
-  button("站点设计", "site.publish", "发布/回滚站点", "menu.site"),
+  button("站点设计", "site.publish", "发布站点", "menu.site"),
   secondary("独立站", "menu.storefront.translations", "多语言内容", "group.site"),
   page("多语言内容", "page.site.translations", "多语言内容页面", "menu.storefront.translations"),
   button("多语言内容", "site.translation.edit", "编辑多语言内容", "menu.storefront.translations"),

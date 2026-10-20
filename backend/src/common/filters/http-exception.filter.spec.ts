@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { HttpExceptionFilter } from './http-exception.filter';
 
 describe('HttpExceptionFilter', () => {
@@ -37,5 +37,12 @@ describe('HttpExceptionFilter', () => {
   it('adds a stable error code to unavailable public sites', () => {
     const result = run(new NotFoundException('Published site not found'), '/api/v1/public/site');
     expect(result.body.errorCode).toBe('SITE_NOT_FOUND_OR_UNPUBLISHED');
+  });
+
+  it('preserves public access error codes and safe localized notices', () => {
+    const data = { locale: 'en_US', title: 'Site unavailable', description: 'The current plan has expired.' };
+    const result = run(new ForbiddenException({ errorCode: 'SITE_PLAN_EXPIRED', message: 'Tenant plan expired', data }), '/api/v1/public/site?lang=en_US');
+    expect(result.status).toHaveBeenCalledWith(403);
+    expect(result.body).toMatchObject({ errorCode: 'SITE_PLAN_EXPIRED', data });
   });
 });

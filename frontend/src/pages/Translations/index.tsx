@@ -26,6 +26,10 @@ const systemFieldMeta: Record<string, { name: string; usage: string }> = {
   'system:empty.contactInformation': { name: '联系信息空数据', usage: '联系我们弹窗没有配置联系信息时显示' },
   'system:guestAccess.disabledTitle': { name: '游客禁止访问标题', usage: '关闭“允许游客访问”后在独立站显示' },
   'system:guestAccess.disabledDescription': { name: '游客禁止访问说明', usage: '关闭“允许游客访问”后在独立站显示' },
+  'system:siteAccess.planExpiredTitle': { name: '套餐过期标题', usage: '租户套餐过期后在独立站显示' },
+  'system:siteAccess.planExpiredDescription': { name: '套餐过期说明', usage: '租户套餐过期后在独立站显示' },
+  'system:siteAccess.publishPermissionTitle': { name: '无发布权限标题', usage: '租户没有独立站发布权限时显示' },
+  'system:siteAccess.publishPermissionDescription': { name: '无发布权限说明', usage: '租户没有独立站发布权限时显示' },
 };
 const apiErrorFieldNames: Record<string, string> = {
   'system:apiErrors.SITE_NOT_FOUND_OR_UNPUBLISHED': '站点不可访问',
@@ -56,6 +60,8 @@ const fieldRenderOrder = (item: TranslationItem) => {
   const commonOrder = [
     'system:empty.products', 'system:empty.categories', 'system:empty.contactInformation',
     'system:guestAccess.disabledTitle', 'system:guestAccess.disabledDescription',
+    'system:siteAccess.planExpiredTitle', 'system:siteAccess.planExpiredDescription',
+    'system:siteAccess.publishPermissionTitle', 'system:siteAccess.publishPermissionDescription',
     'system:inquiry.submitting', 'system:inquiry.preview', 'system:inquiry.validation', 'system:inquiry.success',
     'system:apiErrors.SITE_NOT_FOUND_OR_UNPUBLISHED', 'system:apiErrors.CONTACT_NAME_REQUIRED', 'system:apiErrors.CONTACT_METHOD_REQUIRED',
     'system:apiErrors.PURCHASE_REQUIREMENTS_REQUIRED', 'system:apiErrors.INQUIRY_SUBMIT_FAILED', 'system:apiErrors.SERVICE_UNAVAILABLE',
@@ -169,7 +175,7 @@ const TranslationsPage: React.FC = () => {
       else if (item.resourceType === 'category') { const level = Number(item.meta?.level || 1); key = `category-level-${level}`; title = `${['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'][level] || level}级分类`; }
       else if (item.resourceType === 'editor') { const page = String(item.meta?.pageId || item.key.split(':')[1]); key = item.key.startsWith('editor:siteInfo:') ? 'editor:siteInfo' : `editor:${page}:${item.meta?.componentId || item.resourceId}`; title = String(item.meta?.componentName || pageLabels[page] || '页面内容'); description = item.meta?.pageName ? `所属页面：${item.meta.pageName}` : undefined; }
       else if (item.resourceType === 'seo') { key = 'site-settings'; title = '站点设置'; description = '站点搜索引擎标题、描述和关键词。'; }
-      else if (item.resourceType === 'system') { const section = item.key.split(':')[1]?.split('.')[0] || 'system'; const names: Record<string, string> = { guestAccess: '游客访问提示', empty: '空数据文案', inquiry: '询盘交互', apiErrors: '公开接口反馈' }; key = `system:${section}`; title = names[section] || '公共交互'; }
+      else if (item.resourceType === 'system') { const section = item.key.split(':')[1]?.split('.')[0] || 'system'; const names: Record<string, string> = { guestAccess: '游客访问提示', siteAccess: '站点访问提示', empty: '空数据文案', inquiry: '询盘交互', apiErrors: '公开接口反馈' }; key = `system:${section}`; title = names[section] || '公共交互'; }
       else if (item.resourceType === 'constant') { key = `constant:${item.resourceId}`; title = item.resourceId === 'product' ? '商品标记与属性' : '导航与展示文案'; }
       byKey.set(key, [...(byKey.get(key) || []), item]); details.set(key, { title, description, code });
     });

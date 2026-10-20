@@ -246,12 +246,13 @@ test('site editor shows identity and requires a release note before publishing',
   await page.goto(`${process.env.FRONTEND_BASE_URL || 'http://localhost:8088'}/site-editor`);
   await expect(page.getByRole('link', { name: '站点设计' })).toBeVisible();
   await expect(page.getByRole('button', { name: '站点预览' })).toBeVisible();
-  const actionLabels = await page.locator('.editor-toolbar-button, .editor-toolbar-button-primary').allTextContents();
-  expect(actionLabels.slice(-4)).toEqual(['保存草稿', '站点预览', '查看已发布站点', '发布站点']);
-  await expect(page.getByRole('button', { name: '保存草稿' })).toHaveCSS('font-weight', '400');
-  await expect(page.getByRole('button', { name: '站点预览' })).toHaveCSS('font-weight', '400');
+  const toolbarActions = page.locator('.editor-toolbar-action');
+  await expect(toolbarActions).toHaveCount(4);
+  expect(await toolbarActions.allTextContents()).toEqual(['', '', '', '']);
+  await expect(page.getByRole('button', { name: '保存草稿' })).toHaveCSS('width', '34px');
+  await expect(page.getByRole('button', { name: '站点预览' })).toHaveCSS('width', '34px');
   await expect(page.getByRole('button', { name: '查看已发布站点' })).toBeDisabled();
-  await expect(page.getByRole('button', { name: '发布站点', exact: true })).toHaveCSS('font-weight', '400');
+  await expect(page.getByRole('button', { name: '发布站点', exact: true })).toHaveClass(/is-primary/);
   await expect(page.getByText('内容结构', { exact: true })).toHaveCount(0);
   await expect(page.getByText('编辑当前区块的内容、样式与交互', { exact: true })).toHaveCount(0);
   const rightTabs = page.locator('.editor-right-tabs button');

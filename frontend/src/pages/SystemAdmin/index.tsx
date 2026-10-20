@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DatePicker, Dropdown, Empty, Input, InputNumber, Select, Table, Tag, message } from 'antd';
 import type { MenuProps } from 'antd';
 import {
@@ -77,23 +77,23 @@ const SystemAdminPage: React.FC = () => {
   const [tenantStatus, setTenantStatus] = useState<'all' | Tenant['status']>('all');
   const [loading, setLoading] = useState(true);
   const [loadedModule, setLoadedModule] = useState<ModuleId | null>(null);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [failedModule, setFailedModule] = useState<ModuleId | null>(null);
   const [saving, setSaving] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const tenantPagination = useTablePagination();
-  const orderPagination = useTablePagination();
+  const tenantPagination = useTablePagination(module);
+  const orderPagination = useTablePagination(module);
   const [tenantSummary, setTenantSummary] = useState({ maxProducts: 0, maxMembers: 0, maxWarehouses: 0 });
+  const requestSequence = useRef(0);
 
-  const loadTenants = async () => {
-    const result = await api.get<unknown, Paged<Tenant> & { summary: typeof tenantSummary }>('/system/tenants', { params: { page: tenantPagination.current, pageSize: tenantPagination.pageSize, keyword: keyword || undefined, status: tenantStatus === 'all' ? undefined : tenantStatus } });
-    setTenants(result.items); tenantPagination.reconcile(result.total); setTenantSummary(result.summary);
-  };
   const loadPage = async () => {
+    const requestedModule = module;
+    const requestId = ++requestSequence.current;
     setLoading(true);
-    setLoadFailed(false);
+    setFailedModule(value => value === requestedModule ? null : value);
     try {
-      if (module === 'overview') {
+      if (requestedModule === 'overview') {
         const result = await api.get<unknown, Partial<Analytics>>('/system/analytics');
+        if (requestSequence.current !== requestId) return;
         setAnalytics({
           ...EMPTY_ANALYTICS,
           ...result,
@@ -105,19 +105,39 @@ const SystemAdminPage: React.FC = () => {
           planDistribution: Array.isArray(result.planDistribution) ? result.planDistribution : [],
           topTenants: Array.isArray(result.topTenants) ? result.topTenants : [],
         });
-      } else if (module === 'merchants' || module === 'quotas') {
-        await loadTenants();
-      } else if (module === 'plans') {
-        setPlans(await api.get<unknown, PlanItem[]>('/system/plans'));
-      } else if (module === 'orders') {
+      } else if (requestedModule === 'merchants' || requestedModule === 'quotas') {
+        const result = await api.get<unknown, Paged<Tenant> & { summary: typeof tenantSummary }>('/system/tenants', { params: { page: tenantPagination.current, pageSize: tenantPagination.pageSize, keyword: keyword || undefined, status: tenantStatus === 'all' ? undefined : tenantStatus } });
+        if (requestSequence.current !== requestId) return;
+        setTenants(result.items);
+        tenantPagination.reconcile(result.total);
+        setTenantSummary(result.summary);
+      } else if (requestedModule === 'plans') {
+        const result = await api.get<unknown, PlanItem[]>('/system/plans');
+        if (requestSequence.current !== requestId) return;
+        setPlans(result);
+      } else if (requestedModule === 'orders') {
         const result = await api.get<unknown, Paged<PlatformOrder>>('/system/orders', { params: { page: orderPagination.current, pageSize: orderPagination.pageSize } });
-        setOrders(result.items); orderPagination.reconcile(result.total);
+        if (requestSequence.current !== requestId) return;
+        setOrders(result.items);
+        orderPagination.reconcile(result.total);
       }
-      setLoadedModule(module);
-    } catch { setLoadFailed(true); message.error('系统管理数据加载失败'); }
-    finally { setLoading(false); }
+      if (requestSequence.current === requestId) setLoadedModule(requestedModule);
+    } catch {
+      if (requestSequence.current === requestId) {
+        setFailedModule(requestedModule);
+        message.error('系统管理数据加载失败');
+      }
+    } finally {
+      if (requestSequence.current === requestId) setLoading(false);
+    }
   };
-  useEffect(() => { const timer = window.setTimeout(() => void loadPage(), 250); return () => window.clearTimeout(timer); }, [module, tenantPagination.current, tenantPagination.pageSize, orderPagination.current, orderPagination.pageSize, keyword, tenantStatus]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadPage(), 250);
+    return () => {
+      window.clearTimeout(timer);
+      requestSequence.current += 1;
+    };
+  }, [module, tenantPagination.current, tenantPagination.pageSize, orderPagination.current, orderPagination.pageSize, keyword, tenantStatus]);
   useEffect(() => { tenantPagination.reset(); }, [keyword, tenantStatus]);
   const filteredTenants = tenants;
   const loadEditorOptions = async () => {
@@ -304,7 +324,7 @@ const SystemAdminPage: React.FC = () => {
       </aside>
 
       <main className="min-w-0 flex-1 overflow-auto p-6"><PageContent>
-        {loading && loadedModule !== module ? <><PageHeader module={module}/><AdminPageSkeleton variant={module === 'overview' ? 'dashboard' : module === 'plans' ? 'cards' : 'table'}/></> : loadFailed && loadedModule !== module ? <><PageHeader module={module}/><AdminLoadError title="系统管理数据加载失败" onRetry={() => void loadPage()}/></> : <>
+        {loadedModule !== module ? <><PageHeader module={module}/>{failedModule === module ? <AdminLoadError title="系统管理数据加载失败" onRetry={() => void loadPage()}/> : <AdminPageSkeleton variant={module === 'overview' ? 'dashboard' : module === 'plans' ? 'cards' : 'table'}/>}</> : <>
         {module === 'overview' && <><PageHeader module={module}/>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><MetricCard label="租户运营" value={`${analytics?.lifecycle.active || 0} / ${analytics?.lifecycle.total || 0}`} icon={Building2} tone="bg-emerald-50 text-emerald-600" note={`${analytics?.lifecycle.paidTenants || 0} 家付费套餐租户`}/><MetricCard label="ERP 业务资产" value={(analytics?.business.products || 0) + (analytics?.business.customers || 0)} icon={Package} tone="bg-indigo-50 text-indigo-600" note={`${analytics?.business.products || 0} 商品 · ${analytics?.business.customers || 0} 客户`}/><MetricCard label="独立站发布率" value={`${analytics?.business.sites ? Math.round(analytics.business.publishedSites / analytics.business.sites * 100) : 0}%`} icon={Globe2} tone="bg-sky-50 text-sky-600" note={`${analytics?.business.publishedSites || 0} / ${analytics?.business.sites || 0} 已发布`}/><MetricCard label="运营风险租户" value={analytics?.lifecycle.atRisk || 0} icon={AlertTriangle} tone="bg-red-50 text-red-600" note="停用、已过期或 7 天内到期（已去重）"/></div>
 

@@ -170,7 +170,7 @@ const InventoryPage: React.FC = () => {
   );
   const [saving, setSaving] = useState(false);
   const [warehouseLimit, setWarehouseLimit] = useState<number | null>(null);
-  const pagination = useTablePagination();
+  const pagination = useTablePagination(module);
 
   const loadList = async (
     requestId = ++listRequestRef.current,
@@ -222,7 +222,7 @@ const InventoryPage: React.FC = () => {
     const timer = window.setTimeout(() => void loadList(requestId, module), delay);
     return () => window.clearTimeout(timer);
   }, [module, pagination.current, pagination.pageSize, keyword, warehouseFilter, statusFilter]);
-  useEffect(() => { pagination.reset(); }, [module, keyword, warehouseFilter, statusFilter]);
+  useEffect(() => { pagination.reset(); }, [keyword, warehouseFilter, statusFilter]);
   useEffect(
     () => () => {
       if (ledgerKeywordTimerRef.current)

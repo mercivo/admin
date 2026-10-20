@@ -21,7 +21,11 @@ describe('SiteService single site model', () => {
   const config = {
     get: jest.fn((key: string) => key === 'STOREFRONT_PREVIEW_HOSTS' ? 'site.aihubflux.com' : undefined),
   };
-  const translations = { validateForPublish: jest.fn(), messages: jest.fn().mockResolvedValue({ sourceLocale: 'zh_CN', locales: ['zh_CN'], messages: { zh_CN: {} } }) };
+  const translations = {
+    validateForPublish: jest.fn(),
+    messages: jest.fn().mockResolvedValue({ sourceLocale: 'zh_CN', locales: ['zh_CN'], messages: { zh_CN: {} } }),
+    publicSiteAccessNotice: jest.fn().mockResolvedValue({ locale: 'zh_CN', title: '站点暂时无法访问', description: '访问权限已关闭。' }),
+  };
   const service = new SiteService(
     tenantRepo as any,
     siteRepo as any,
@@ -40,7 +44,7 @@ describe('SiteService single site model', () => {
   it('resolves the shared storefront path by tenant id or site slug', async () => {
     const publishedSite = { id: 'site-1', tenantId: 'tenant-1', slug: 'shop-one', status: 'published', publishedVersionId: 'version-1' };
     siteRepo.findOne.mockResolvedValue(publishedSite);
-    tenantRepo.findOne.mockResolvedValue({ id: 'tenant-1', status: 'active', expiresAt: null });
+    tenantRepo.findOne.mockResolvedValue({ id: 'tenant-1', status: 'active', expiresAt: null, permissions: ['site.publish'] });
     emptyRepo.findOne.mockResolvedValue({ id: 'version-1', siteId: 'site-1' });
 
     await expect(service.resolvePublicSite('site.aihubflux.com', 'tenant-1')).resolves.toBe(publishedSite);
@@ -54,7 +58,7 @@ describe('SiteService single site model', () => {
       .mockResolvedValueOnce({ id: 'version-domain', siteId: 'site-domain', snapshot: { site: {}, products: [] } })
       .mockResolvedValueOnce(null);
     siteRepo.findOne.mockResolvedValue(publishedSite);
-    tenantRepo.findOne.mockResolvedValue({ id: 'tenant-domain', status: 'active', expiresAt: null });
+    tenantRepo.findOne.mockResolvedValue({ id: 'tenant-domain', status: 'active', expiresAt: null, permissions: ['site.publish'] });
 
     await expect(service.resolvePublished('SHOP.EXAMPLE.COM:443')).resolves.toMatchObject({ siteId: 'site-domain', versionId: 'version-domain' });
     expect(emptyRepo.findOne).toHaveBeenNthCalledWith(1, { where: { hostname: 'shop.example.com', status: 'active' } });
@@ -71,13 +75,37 @@ describe('SiteService single site model', () => {
       .mockResolvedValueOnce([{ id: 'live-product', siteId: 'site-live', status: 'published', basePrice: 99, currencyPrices: { CNY: { basePrice: 128 } }, variants: [] }])
       .mockResolvedValueOnce([{ code: 'live-category', label: '实时分类', parentCode: null, sort: 1 }]);
     siteRepo.findOne.mockResolvedValue(publishedSite);
-    tenantRepo.findOne.mockResolvedValue({ id: 'tenant-live', status: 'active', expiresAt: null });
+    tenantRepo.findOne.mockResolvedValue({ id: 'tenant-live', status: 'active', expiresAt: null, permissions: ['site.publish'] });
 
     await expect(service.resolvePublished('live.example.com')).resolves.toMatchObject({
       config: { themeColor: '#123456' },
       products: [expect.objectContaining({ id: 'live-product', basePrice: 128, price: '128.00' })],
       categories: [{ code: 'live-category', label: '实时分类', parentCode: null, sort: 1 }],
     });
+  });
+
+  it.each([
+    ['SITE_PLAN_EXPIRED', { permissions: ['site.publish'], expiresAt: new Date(Date.now() - 1_000) }],
+    ['SITE_PUBLISH_PERMISSION_REQUIRED', { permissions: [], expiresAt: null }],
+  ])('blocks published site content with %s while retaining the published version', async (errorCode, tenantState) => {
+    siteRepo.findOne.mockResolvedValue({ id: 'site-blocked', tenantId: 'tenant-blocked', slug: 'blocked', status: 'published', publishedVersionId: 'version-blocked' });
+    tenantRepo.findOne.mockResolvedValue({ id: 'tenant-blocked', status: 'active', ...tenantState });
+    emptyRepo.findOne.mockResolvedValue({ id: 'version-blocked', siteId: 'site-blocked' });
+
+    await expect(service.resolvePublished('site.aihubflux.com', 'blocked', 'zh_CN')).rejects.toMatchObject({
+      response: { errorCode, data: expect.objectContaining({ title: '站点暂时无法访问' }) },
+    });
+    await expect(service.sitemap('site.aihubflux.com', 'blocked')).rejects.toMatchObject({ response: { errorCode } });
+    await expect(service.robots('site.aihubflux.com', 'blocked')).rejects.toMatchObject({ response: { errorCode } });
+    expect(siteRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('denies domain authorization when the tenant lacks publish permission', async () => {
+    emptyRepo.findOne.mockResolvedValueOnce({ id: 'domain-1', hostname: 'blocked.example.com', siteId: 'site-blocked', status: 'active' });
+    siteRepo.findOne.mockResolvedValue({ id: 'site-blocked', tenantId: 'tenant-blocked', status: 'published', publishedVersionId: 'version-blocked' });
+    tenantRepo.findOne.mockResolvedValue({ id: 'tenant-blocked', status: 'active', expiresAt: null, permissions: [] });
+
+    await expect(service.authorizeDomain('blocked.example.com')).resolves.toBe(false);
   });
 
   it('allows creating the merchant single draft site', async () => {

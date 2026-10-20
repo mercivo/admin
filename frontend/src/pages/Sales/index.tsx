@@ -122,18 +122,23 @@ const SalesPage: React.FC = () => {
   const [detail, setDetail] = useState<SalesOrder | SalesShipment | null>(null);
   const [pendingOrderAction, setPendingOrderAction] =
     useState<PendingOrderAction | null>(null);
-  const pagination = useTablePagination();
+  const pagination = useTablePagination(module);
+  const listRequestRef = useRef(0);
 
-  const loadList = async () => {
+  const loadList = async (
+    requestId = ++listRequestRef.current,
+    requestedModule = module,
+  ) => {
     setLoading(true);
     try {
-      if (module === "shipments") {
+      if (requestedModule === "shipments") {
         const result = await salesApi.shipments({
           page: pagination.current,
           pageSize: pagination.pageSize,
           keyword,
           status,
         });
+        if (requestId !== listRequestRef.current) return;
         setShipments(result.items);
         pagination.reconcile(result.total);
       } else {
@@ -143,14 +148,17 @@ const SalesPage: React.FC = () => {
           keyword,
           status,
         });
+        if (requestId !== listRequestRef.current) return;
         setOrders(result.items);
         pagination.reconcile(result.total);
       }
     } catch {
-      message.error("销售数据加载失败");
+      if (requestId === listRequestRef.current) message.error("销售数据加载失败");
     } finally {
-      setLoadedModule(module);
-      setLoading(false);
+      if (requestId === listRequestRef.current) {
+        setLoadedModule(requestedModule);
+        setLoading(false);
+      }
     }
   };
   const loadOrderOptions = async () => {
@@ -185,15 +193,16 @@ const SalesPage: React.FC = () => {
     void loadSalesConfig();
   }, []);
   useEffect(() => {
+    const requestId = ++listRequestRef.current;
     const delay = previousKeyword.current === keyword ? 0 : 250;
     previousKeyword.current = keyword;
-    if (!delay) { void loadList(); return; }
-    const timer = window.setTimeout(() => void loadList(), delay);
-    return () => window.clearTimeout(timer);
+    if (!delay) { void loadList(requestId, module); return () => { listRequestRef.current += 1; }; }
+    const timer = window.setTimeout(() => void loadList(requestId, module), delay);
+    return () => { window.clearTimeout(timer); listRequestRef.current += 1; };
   }, [module, pagination.current, pagination.pageSize, keyword, status]);
   useEffect(() => {
     pagination.reset();
-  }, [module, keyword, status]);
+  }, [keyword, status]);
   const productOptions = useMemo(
     () =>
       products.flatMap((product) =>

@@ -20,7 +20,7 @@ test('uploaded relative image URLs are not rewritten as Unsplash IDs', () => {
 test('product images stay fully visible and centered in the storefront', () => {
   const styles = readFileSync(resolve(process.cwd(), '../storefront/src/styles.css'), 'utf8');
   const storefront = readFileSync(resolve(process.cwd(), '../storefront/src/main.tsx'), 'utf8');
-  expect(styles).toContain('.product-image{background:#fff}.product-image img{object-fit:contain;object-position:center}');
+  expect(styles).toContain('.product-image{background:#f5f6f4;box-shadow:inset 0 0 0 1px #e5e8e4}.product-image img{object-fit:contain;object-position:center}');
   expect(styles).toContain('.product:hover .product-image img{transform:none}');
   expect(storefront).toContain('fit=max');
   expect(storefront).not.toContain('fit=crop');
