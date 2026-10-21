@@ -51,6 +51,7 @@ describe('PurchaseService', () => {
   it('creates purchase orders as confirmed and immediately adds in-transit stock', async () => {
     const balance = { inTransit: 2 };
     const createdOrders: Array<Record<string, unknown>> = [];
+    const createdLines: Array<Record<string, unknown>> = [];
     const manager = {
       findOne: jest.fn(async (entity) => {
         if (entity === Supplier) return { id: 'supplier-1', status: 'active' };
@@ -58,7 +59,10 @@ describe('PurchaseService', () => {
         if (entity === InventoryBalance) return balance;
         return null;
       }),
-      find: jest.fn(async (entity) => entity === Product ? [{ id: 'product-1', nameZh: '商品', sku: 'SKU-1', variants: [] }] : []),
+      find: jest.fn(async (entity) => entity === Product ? [
+        { id: 'product-1', nameZh: '商品一', sku: 'SKU-1', variants: [] },
+        { id: 'product-2', nameZh: '商品二', sku: 'SKU-2', variants: [] },
+      ] : []),
       count: jest.fn().mockResolvedValue(0),
       create: jest.fn((entity, value) => {
         if (entity === PurchaseOrder) {
@@ -66,7 +70,11 @@ describe('PurchaseService', () => {
           createdOrders.push(order);
           return order;
         }
-        if (entity === PurchaseOrderLine) return { ...value, id: 'line-1' };
+        if (entity === PurchaseOrderLine) {
+          const line = { ...value, id: `line-${createdLines.length + 1}` };
+          createdLines.push(line);
+          return line;
+        }
         return value;
       }),
       save: jest.fn(async (value) => value),
@@ -89,14 +97,21 @@ describe('PurchaseService', () => {
         supplierId: 'supplier-1',
         warehouseId: 'warehouse-1',
         currency: 'CNY',
-        lines: [{ productId: 'product-1', variantKey: 'BASE', quantity: 5, unitPrice: 10 }],
+        lines: [
+          { productId: 'product-2', variantKey: 'BASE', quantity: 5, unitPrice: 10 },
+          { productId: 'product-1', variantKey: 'BASE', quantity: 3, unitPrice: 20 },
+        ],
       },
       { tenantId: 'tenant-1', siteId: 'site-1', userId: 'user-1' },
     );
 
     expect(id).toBe('order-1');
     expect(createdOrders[0]).toMatchObject({ status: 'confirmed', confirmedAt: expect.any(Date) });
-    expect(balance.inTransit).toBe(7);
+    expect(createdLines).toMatchObject([
+      { productId: 'product-2', sortOrder: 0 },
+      { productId: 'product-1', sortOrder: 1 },
+    ]);
+    expect(balance.inTransit).toBe(10);
   });
 
   it('returns purchase order decimal fields as numbers for editable forms', async () => {
@@ -121,6 +136,10 @@ describe('PurchaseService', () => {
 
     expect(result).toMatchObject({ amount: 100, taxAmount: 1, shippingFee: 2, totalAmount: 103 });
     expect(result.lines[0]).toMatchObject({ unitPrice: 50, amount: 100 });
+    expect((service as any).orderLines.find).toHaveBeenCalledWith({
+      where: { orderId: expect.anything() },
+      order: { sortOrder: 'ASC', id: 'ASC' },
+    });
   });
 
   it('rejects purchase orders for a warehouse locked by stock counting', async () => {

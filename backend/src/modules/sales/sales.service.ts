@@ -430,7 +430,7 @@ export class SalesService {
     const productMap = new Map(
       products.map((product) => [product.id, product]),
     );
-    const prepared = dto.lines.map((input) => {
+    const prepared = dto.lines.map((input, sortOrder) => {
       const product = productMap.get(input.productId);
       const variantKey = input.variantKey || BASE_VARIANT;
       if (!product) throw new BadRequestException("订单包含无效商品");
@@ -441,6 +441,7 @@ export class SalesService {
       if (variantKey !== BASE_VARIANT && !variant)
         throw new BadRequestException("商品规格不存在");
       return {
+        sortOrder,
         productId: product.id,
         variantKey,
         productName: product.nameZh,
@@ -539,7 +540,10 @@ export class SalesService {
   private async attachOrders(orders: SalesOrder[], siteId: string) {
     if (!orders.length) return [];
     const [lines, customers, warehouses] = await Promise.all([
-      this.orderLines.find({ where: { orderId: In(orders.map((x) => x.id)) } }),
+      this.orderLines.find({
+        where: { orderId: In(orders.map((x) => x.id)) },
+        order: { sortOrder: "ASC", id: "ASC" },
+      }),
       this.customers.find({ where: { siteId } }),
       this.warehouses.find({ where: { siteId } }),
     ]);
@@ -578,6 +582,7 @@ export class SalesService {
         this.warehouses.find({ where: { siteId } }),
         this.orderLines.find({
           where: { orderId: In(shipments.map((x) => x.orderId)) },
+          order: { sortOrder: "ASC", id: "ASC" },
         }),
       ]);
     const orderMap = new Map(orders.map((x) => [x.id, x]));
@@ -593,6 +598,12 @@ export class SalesService {
         warehouseName: warehouseMap.get(item.warehouseId) || "",
         lines: lines
           .filter((line) => line.shipmentId === item.id)
+          .sort(
+            (left, right) =>
+              (orderLineMap.get(left.orderLineId)?.sortOrder ?? 0) -
+                (orderLineMap.get(right.orderLineId)?.sortOrder ?? 0) ||
+              left.id.localeCompare(right.id),
+          )
           .map((line) => ({
             ...line,
             productName: orderLineMap.get(line.orderLineId)?.productName || "",

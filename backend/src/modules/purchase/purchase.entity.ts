@@ -90,6 +90,7 @@ export class PurchaseOrder {
 export class PurchaseOrderLine {
   @PrimaryGeneratedColumn("uuid") id: string;
   @Column({ name: "order_id", length: 36 }) orderId: string;
+  @Column({ name: "sort_order", type: "int", default: 0 }) sortOrder: number;
   @Column({ name: "product_id", length: 36 }) productId: string;
   @Column({ name: "variant_key", length: 36, default: "BASE" })
   variantKey: string;

@@ -450,7 +450,7 @@ export class PurchaseService {
     const productMap = new Map(
       products.map((product) => [product.id, product]),
     );
-    const prepared = dto.lines.map((input) => {
+    const prepared = dto.lines.map((input, sortOrder) => {
       const product = productMap.get(input.productId);
       const variantKey = input.variantKey || BASE_VARIANT;
       if (!product) throw new BadRequestException("订单包含无效商品");
@@ -461,6 +461,7 @@ export class PurchaseService {
       if (variantKey !== BASE_VARIANT && !variant)
         throw new BadRequestException("商品规格不存在");
       return {
+        sortOrder,
         productId: product.id,
         variantKey,
         productName: product.nameZh,
@@ -571,6 +572,7 @@ export class PurchaseService {
     const [lines, suppliers, warehouses] = await Promise.all([
       this.orderLines.find({
         where: { orderId: In(rows.map((row) => row.id)) },
+        order: { sortOrder: "ASC", id: "ASC" },
       }),
       this.suppliers.find({ where: { siteId } }),
       this.warehouses.find({ where: { siteId } }),
@@ -605,6 +607,7 @@ export class PurchaseService {
     const orderLines = orders.length
       ? await this.orderLines.find({
           where: { orderId: In(orders.map((row) => row.id)) },
+          order: { sortOrder: "ASC", id: "ASC" },
         })
       : [];
     const suppliers = await this.suppliers.find({ where: { siteId } });
@@ -624,6 +627,12 @@ export class PurchaseService {
         warehouseName: warehouseMap.get(row.warehouseId)?.name || "-",
         lines: receiptLines
           .filter((line) => line.receiptId === row.id)
+          .sort(
+            (left, right) =>
+              (orderLineMap.get(left.orderLineId)?.sortOrder ?? 0) -
+                (orderLineMap.get(right.orderLineId)?.sortOrder ?? 0) ||
+              left.id.localeCompare(right.id),
+          )
           .map((line) => ({
             ...line,
             productName: orderLineMap.get(line.orderLineId)?.productName || "-",
