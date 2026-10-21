@@ -109,8 +109,29 @@ export class SalesService {
   }
 
   async updateOrder(id: string, dto: SalesOrderDto, user: AuthUser) {
-    await this.requireOrder(id, user.siteId);
-    throw new BadRequestException("销售订单创建后已预占库存，不支持编辑");
+    await this.dataSource.transaction(async (manager) => {
+      const order = await manager.findOne(SalesOrder, {
+        where: { id, siteId: user.siteId },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!order) throw new NotFoundException("销售订单不存在");
+      if (order.status !== "cancelled")
+        throw new BadRequestException("仅已取消销售订单可以重新编辑");
+      if (
+        await manager.exists(SalesShipment, {
+          where: { orderId: id, siteId: user.siteId },
+        })
+      )
+        throw new BadRequestException("订单已有出库记录，不可重新编辑");
+      if (
+        await manager.exists(FinanceTransaction, {
+          where: { orderId: id, siteId: user.siteId },
+        })
+      )
+        throw new BadRequestException("订单已有财务流水，不可重新编辑");
+      await this.saveOrder(manager, order, dto, user);
+    });
+    return this.getOrder(id, user);
   }
 
   async confirmOrder(id: string, user: AuthUser) {

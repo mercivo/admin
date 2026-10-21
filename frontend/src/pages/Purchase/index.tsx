@@ -58,8 +58,17 @@ import {
 } from "../../components/shared";
 import { useTablePagination } from "../../hooks/useTablePagination";
 import { can } from "../../utils/permissions";
+import {
+  availableProductVariantValues,
+  productVariantValue,
+} from "../../utils/productVariant";
 
-type OrderDraft = PurchaseOrderInput & { id?: string };
+type OrderDraftLine = PurchaseOrderInput["lines"][number] & { clientId: string };
+type OrderDraft = Omit<PurchaseOrderInput, "lines"> & {
+  id?: string;
+  orderNo?: string;
+  lines: OrderDraftLine[];
+};
 type ReceiptDraft = {
   order: PurchaseOrder;
   remark: string;
@@ -76,6 +85,10 @@ const blankSupplier = (): SupplierInput => ({
   status: "active",
   remark: "",
 });
+let draftLineSequence = 0;
+const draftLine = (
+  value: PurchaseOrderInput["lines"][number],
+): OrderDraftLine => ({ ...value, clientId: `purchase-line-${++draftLineSequence}` });
 const blankOrder = (currency: string): OrderDraft => ({
   supplierId: "",
   warehouseId: "",
@@ -84,7 +97,7 @@ const blankOrder = (currency: string): OrderDraft => ({
   shippingFee: 0,
   expectedDate: undefined,
   remark: "",
-  lines: [{ productId: "", variantKey: "BASE", quantity: 1, unitPrice: 0 }],
+  lines: [draftLine({ productId: "", variantKey: "BASE", quantity: 1, unitPrice: 0 })],
 });
 const orderStatus: Record<string, { color: string; label: string }> = {
   draft: { color: "default", label: "草稿" },
@@ -203,6 +216,7 @@ const PurchasePage: React.FC = () => {
     setSuppliers(supplierRows);
     setWarehouses(warehouseRows);
     setProducts(productRows);
+    return productRows;
   };
   const productOptions = useMemo(
     () =>
@@ -244,6 +258,39 @@ const PurchasePage: React.FC = () => {
       message.error("采购选项加载失败");
     }
   };
+  const editOrder = async (order: PurchaseOrder) => {
+    try {
+      const productRows = await loadOptions();
+      const availableValues = availableProductVariantValues(productRows);
+      setOrderDraft({
+        id: order.id,
+        orderNo: order.orderNo,
+        supplierId: order.supplierId,
+        warehouseId: order.warehouseId,
+        currency: order.currency,
+        taxAmount: Number(order.taxAmount),
+        shippingFee: Number(order.shippingFee),
+        expectedDate: order.expectedDate || undefined,
+        remark: order.remark,
+        lines: order.lines.map((line) => draftLine({
+          productId: availableValues.has(
+            productVariantValue(line.productId, line.variantKey),
+          )
+            ? line.productId
+            : "",
+          variantKey: availableValues.has(
+            productVariantValue(line.productId, line.variantKey),
+          )
+            ? line.variantKey
+            : "BASE",
+          quantity: Number(line.quantity),
+          unitPrice: Number(line.unitPrice),
+        })),
+      });
+    } catch {
+      message.error("采购选项加载失败");
+    }
+  };
   const saveOrder = async () => {
     if (
       !orderDraft?.supplierId ||
@@ -254,8 +301,28 @@ const PurchasePage: React.FC = () => {
       return void message.warning("请完整填写供应商、入库仓库和商品明细");
     setSaving(true);
     try {
-      await purchaseApi.createOrder(orderDraft);
-      message.success("采购订单已创建并计入在途库存");
+      const payload: PurchaseOrderInput = {
+        supplierId: orderDraft.supplierId,
+        warehouseId: orderDraft.warehouseId,
+        currency: orderDraft.currency,
+        taxAmount: Number(orderDraft.taxAmount || 0),
+        shippingFee: Number(orderDraft.shippingFee || 0),
+        expectedDate: orderDraft.expectedDate,
+        remark: orderDraft.remark,
+        lines: orderDraft.lines.map(({ clientId: _clientId, ...line }) => ({
+          ...line,
+          quantity: Number(line.quantity),
+          unitPrice: Number(line.unitPrice),
+        })),
+      };
+      orderDraft.id
+        ? await purchaseApi.updateOrder(orderDraft.id, payload)
+        : await purchaseApi.createOrder(payload);
+      message.success(
+        orderDraft.id
+          ? "采购订单已更新并重新计入在途库存"
+          : "采购订单已创建并计入在途库存",
+      );
       setOrderDraft(null);
       await load();
     } finally {
@@ -575,6 +642,15 @@ const PurchasePage: React.FC = () => {
                       </TableActionButton>
                     )}
                   {row.status === "cancelled" &&
+                    can("purchase.order.create") && (
+                      <TableActionButton
+                        title="重新编辑"
+                        onClick={() => void editOrder(row)}
+                      >
+                        <Edit3 size={15} />
+                      </TableActionButton>
+                    )}
+                  {row.status === "cancelled" &&
                     can("purchase.order.cancel") && (
                       <TableActionButton
                         title="删除订单"
@@ -662,9 +738,9 @@ const PurchasePage: React.FC = () => {
         open={!!orderDraft}
         width={980}
         className="sales-workflow-modal"
-        title="新建采购订单"
-        description="填写订单与到货信息，提交后商品数量将自动计入在途库存"
-        okText="创建并计入在途库存"
+        title={orderDraft?.id ? `重新编辑采购订单 · ${orderDraft.orderNo}` : "新建采购订单"}
+        description={orderDraft?.id ? "保存后订单将恢复为待入库，并重新计入在途库存" : "填写订单与到货信息，提交后商品数量将自动计入在途库存"}
+        okText={orderDraft?.id ? "保存并恢复待入库" : "创建并计入在途库存"}
         confirmLoading={saving}
         footerLeft={
           orderDraft ? (
@@ -755,7 +831,7 @@ const PurchasePage: React.FC = () => {
             <ModalFormField label="商品明细" required>
               <AppEditableTable
                 className="purchase-order-lines-table"
-                rowKey={(_, index) => index}
+                rowKey="clientId"
                 dataSource={orderDraft.lines}
                 emptyText="暂无商品明细，请添加商品"
                 columns={[
@@ -770,16 +846,21 @@ const PurchasePage: React.FC = () => {
                     className="w-full"
                     showSearch
                     optionFilterProp="label"
-                    popupMatchSelectWidth={false}
-                    popupClassName="product-spec-dropdown"
-                    dropdownStyle={{ minWidth: 520, maxWidth: 'calc(100vw - 32px)' }}
+                    popupMatchSelectWidth={520}
+                    classNames={{ popup: { root: "product-spec-dropdown" } }}
+                    listHeight={320}
                     optionRender={(option) => <span title={String(option.label)}>{option.label}</span>}
                     variant="borderless"
                     size="small"
                     placeholder="请选择商品"
                     value={
-                      line.productId
-                        ? `${line.productId}:${line.variantKey}`
+                      line.productId && productOptions.some(
+                        (option) => option.value === productVariantValue(
+                          line.productId,
+                          line.variantKey,
+                        ),
+                      )
+                        ? productVariantValue(line.productId, line.variantKey)
                         : undefined
                     }
                     options={productOptions}
@@ -864,12 +945,12 @@ const PurchasePage: React.FC = () => {
                     ...orderDraft,
                     lines: [
                       ...orderDraft.lines,
-                      {
+                      draftLine({
                         productId: "",
                         variantKey: "BASE",
                         quantity: 1,
                         unitPrice: 0,
-                      },
+                      }),
                     ],
                   })
                 }
@@ -1173,15 +1254,17 @@ const PurchasePage: React.FC = () => {
             <Table<PurchaseOrderLine | PurchaseReceiptLine>
               size="middle"
               rowKey="id"
-            pagination={false}
+              pagination={false}
               dataSource={detail.lines}
-              scroll={{ x: 680, y: 320 }}
+              scroll={{ x: "totalAmount" in detail ? 1000 : 690 }}
               title={() => <span className="sales-content-title">商品明细</span>}
-            columns={[
-                { title: "商品", dataIndex: "productName", render: displayValue },
-                { title: "规格", dataIndex: "variantLabel", render: displayValue },
+              columns={[
+                { title: "商品", dataIndex: "productName", width: 280, ellipsis: true, render: displayValue },
+                { title: "规格", dataIndex: "variantLabel", width: 240, ellipsis: true, render: displayValue },
                 {
                   title: "数量",
+                  width: 170,
+                  align: "right",
                   render: (_, row) =>
                     "receivedQuantity" in row
                       ? `${row.quantity}（已入 ${row.receivedQuantity}）`
@@ -1189,11 +1272,11 @@ const PurchasePage: React.FC = () => {
                 },
                 ...("totalAmount" in detail
                   ? [
-                      { title: "单价", dataIndex: "unitPrice", render: (value: number) => money(value, detail.currency, config.currencies) },
-                      { title: "金额", dataIndex: "amount", render: (value: number) => money(value, detail.currency, config.currencies) },
+                      { title: "单价", dataIndex: "unitPrice", width: 150, align: "right" as const, render: (value: number) => money(value, detail.currency, config.currencies) },
+                      { title: "金额", dataIndex: "amount", width: 160, align: "right" as const, render: (value: number) => money(value, detail.currency, config.currencies) },
                     ]
                   : []),
-            ]}
+              ]}
             />
           </div>
         )}

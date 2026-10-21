@@ -13,6 +13,7 @@ import {
 import dayjs from "dayjs";
 import {
   AlertCircle,
+  Edit3,
   Eye,
   PackageCheck,
   Plus,
@@ -62,8 +63,17 @@ import {
 } from "../../components/shared";
 import { can } from "../../utils/permissions";
 import { useTablePagination } from "../../hooks/useTablePagination";
+import {
+  availableProductVariantValues,
+  productVariantValue,
+} from "../../utils/productVariant";
 
-type OrderDraft = SalesOrderInput & { id?: string };
+type OrderDraftLine = SalesOrderInput["lines"][number] & { clientId: string };
+type OrderDraft = Omit<SalesOrderInput, "lines"> & {
+  id?: string;
+  orderNo?: string;
+  lines: OrderDraftLine[];
+};
 type ShipmentDraft = {
   order: SalesOrder;
   deliveryMethod: "offline" | "logistics";
@@ -76,6 +86,11 @@ type PendingOrderAction = {
   type: "cancel" | "delete";
   order: SalesOrder;
 };
+let draftLineSequence = 0;
+const draftLine = (value: SalesOrderInput["lines"][number]): OrderDraftLine => ({
+  ...value,
+  clientId: `sales-line-${++draftLineSequence}`,
+});
 const emptyOrder = (currency: string): OrderDraft => ({
   customerId: "",
   warehouseId: "",
@@ -86,7 +101,7 @@ const emptyOrder = (currency: string): OrderDraft => ({
   contactName: "",
   contactPhone: "",
   remark: "",
-  lines: [{ productId: "", variantKey: "BASE", quantity: 1, unitPrice: 0 }],
+  lines: [draftLine({ productId: "", variantKey: "BASE", quantity: 1, unitPrice: 0 })],
 });
 const primaryButton =
   "inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50";
@@ -174,6 +189,7 @@ const SalesPage: React.FC = () => {
     setWarehouses(warehouseRes);
     setProducts(productRes);
     setStocks(stockRes);
+    return productRes;
   };
   const loadSalesConfig = async () => {
     const configured = await workspaceApi
@@ -246,6 +262,42 @@ const SalesPage: React.FC = () => {
       message.error("销售选项加载失败");
     }
   };
+  const editOrder = async (order: SalesOrder) => {
+    try {
+      const productRows = await loadOrderOptions();
+      const availableValues = availableProductVariantValues(productRows);
+      setOrderDraft({
+        id: order.id,
+        orderNo: order.orderNo,
+        customerId: order.customerId,
+        warehouseId: order.warehouseId,
+        currency: order.currency,
+        discount: order.discount,
+        shippingFee: order.shippingFee,
+        deliveryDate: order.deliveryDate || undefined,
+        shippingAddress: order.shippingAddress,
+        contactName: order.contactName,
+        contactPhone: order.contactPhone,
+        remark: order.remark,
+        lines: order.lines.map((line) => draftLine({
+          productId: availableValues.has(
+            productVariantValue(line.productId, line.variantKey),
+          )
+            ? line.productId
+            : "",
+          variantKey: availableValues.has(
+            productVariantValue(line.productId, line.variantKey),
+          )
+            ? line.variantKey
+            : "BASE",
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
+        })),
+      });
+    } catch {
+      message.error("销售选项加载失败");
+    }
+  };
 
   const saveOrder = async () => {
     if (
@@ -257,8 +309,27 @@ const SalesPage: React.FC = () => {
       return void message.warning("请完整填写客户、仓库和商品明细");
     setSaving(true);
     try {
-      await salesApi.createOrder(orderDraft);
-      message.success("订单已创建并预占库存");
+      const payload: SalesOrderInput = {
+        customerId: orderDraft.customerId,
+        warehouseId: orderDraft.warehouseId,
+        currency: orderDraft.currency,
+        discount: orderDraft.discount,
+        shippingFee: orderDraft.shippingFee,
+        deliveryDate: orderDraft.deliveryDate,
+        shippingAddress: orderDraft.shippingAddress,
+        contactName: orderDraft.contactName,
+        contactPhone: orderDraft.contactPhone,
+        remark: orderDraft.remark,
+        lines: orderDraft.lines.map(({ clientId: _clientId, ...line }) => line),
+      };
+      orderDraft.id
+        ? await salesApi.updateOrder(orderDraft.id, payload)
+        : await salesApi.createOrder(payload);
+      message.success(
+        orderDraft.id
+          ? "销售订单已更新并重新预占库存"
+          : "订单已创建并预占库存",
+      );
       setOrderDraft(null);
       await Promise.all([loadList(), refreshStockOptions()]);
     } catch {
@@ -509,6 +580,15 @@ const SalesPage: React.FC = () => {
                         </TableActionButton>
                       )}
                     {row.status === "cancelled" &&
+                      can("sales.order.create") && (
+                        <TableActionButton
+                          title="重新编辑"
+                          onClick={() => void editOrder(row)}
+                        >
+                          <Edit3 size={15} />
+                        </TableActionButton>
+                      )}
+                    {row.status === "cancelled" &&
                       can("sales.order.cancel") && (
                         <TableActionButton
                           title="删除订单"
@@ -624,9 +704,9 @@ const SalesPage: React.FC = () => {
         open={!!orderDraft}
         width={980}
         className="sales-workflow-modal"
-        title="新建销售订单"
-        description="填写订单与交付信息，提交后将自动预占对应仓库库存"
-        okText="创建并预占库存"
+        title={orderDraft?.id ? `重新编辑销售订单 · ${orderDraft.orderNo}` : "新建销售订单"}
+        description={orderDraft?.id ? "保存后订单将恢复为待出库，并重新预占对应仓库库存" : "填写订单与交付信息，提交后将自动预占对应仓库库存"}
+        okText={orderDraft?.id ? "保存并恢复待出库" : "创建并预占库存"}
         confirmLoading={saving}
         footerLeft={
           orderDraft ? (
@@ -744,7 +824,7 @@ const SalesPage: React.FC = () => {
             <ModalFormField label="商品明细" required>
               <AppEditableTable
                 className="sales-order-lines-table"
-                rowKey={(_, i) => i}
+                rowKey="clientId"
                 dataSource={orderDraft.lines}
                 emptyText="暂无商品明细，请添加商品"
                 columns={[
@@ -760,16 +840,21 @@ const SalesPage: React.FC = () => {
                     className="w-full"
                     showSearch
                     optionFilterProp="label"
-                    popupMatchSelectWidth={false}
-                    popupClassName="product-spec-dropdown"
-                    dropdownStyle={{ minWidth: 520, maxWidth: 'calc(100vw - 32px)' }}
+                    popupMatchSelectWidth={520}
+                    classNames={{ popup: { root: "product-spec-dropdown" } }}
+                    listHeight={320}
                     optionRender={(option) => <span title={String(option.label)}>{option.label}</span>}
                     placeholder="请选择商品规格"
                     variant="borderless"
                     size="small"
                     value={
-                      line.productId
-                        ? `${line.productId}:${line.variantKey}`
+                      line.productId && productOptions.some(
+                        (option) => option.value === productVariantValue(
+                          line.productId,
+                          line.variantKey,
+                        ),
+                      )
+                        ? productVariantValue(line.productId, line.variantKey)
                         : undefined
                     }
                     onChange={(value) => selectProduct(index, value)}
@@ -841,12 +926,12 @@ const SalesPage: React.FC = () => {
                     ...orderDraft,
                     lines: [
                       ...orderDraft.lines,
-                      {
+                      draftLine({
                         productId: "",
                         variantKey: "BASE",
                         quantity: 1,
                         unitPrice: 0,
-                      },
+                      }),
                     ],
                   })
                 }
@@ -1263,7 +1348,7 @@ const SalesPage: React.FC = () => {
               rowKey="id"
               pagination={false}
               dataSource={detail.lines}
-              scroll={{ x: 680, y: 320 }}
+              scroll={{ x: "totalAmount" in detail ? 1000 : 690 }}
               title={() => (
                 <span className="sales-content-title">商品明细</span>
               )}
@@ -1271,15 +1356,21 @@ const SalesPage: React.FC = () => {
                 {
                   title: "商品",
                   dataIndex: "productName",
+                  width: 280,
+                  ellipsis: true,
                   render: displayValue,
                 },
                 {
                   title: "规格",
                   dataIndex: "variantLabel",
+                  width: 240,
+                  ellipsis: true,
                   render: displayValue,
                 },
                 {
                   title: "数量",
+                  width: 170,
+                  align: "right",
                   render: (_, row) =>
                     "shippedQuantity" in row
                       ? `${row.quantity}（已出 ${row.shippedQuantity}）`
@@ -1290,12 +1381,16 @@ const SalesPage: React.FC = () => {
                       {
                         title: "单价",
                         dataIndex: "unitPrice",
+                        width: 150,
+                        align: "right" as const,
                         render: (value: number) =>
                           money(value, detail.currency, salesConfig.currencies),
                       },
                       {
                         title: "金额",
                         dataIndex: "amount",
+                        width: 160,
+                        align: "right" as const,
                         render: (value: number) =>
                           money(value, detail.currency, salesConfig.currencies),
                       },

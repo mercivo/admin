@@ -153,9 +153,29 @@ export class PurchaseService {
     return this.getOrder(id, user);
   }
   async updateOrder(id: string, dto: PurchaseOrderDto, user: AuthUser) {
-    await this.requireOrder(id, user.siteId);
-    void dto;
-    throw new BadRequestException("采购订单创建后已计入在途库存，不支持编辑");
+    await this.dataSource.transaction(async (manager) => {
+      const order = await manager.findOne(PurchaseOrder, {
+        where: { id, siteId: user.siteId },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!order) throw new NotFoundException("采购订单不存在");
+      if (order.status !== "cancelled")
+        throw new BadRequestException("仅已取消采购订单可以重新编辑");
+      if (
+        await manager.exists(PurchaseReceipt, {
+          where: { orderId: id, siteId: user.siteId },
+        })
+      )
+        throw new BadRequestException("订单已有入库记录，不可重新编辑");
+      if (
+        await manager.exists(FinanceTransaction, {
+          where: { orderId: id, siteId: user.siteId },
+        })
+      )
+        throw new BadRequestException("订单已有财务流水，不可重新编辑");
+      await this.saveOrder(manager, dto, user, order);
+    });
+    return this.getOrder(id, user);
   }
   async confirmOrder(id: string, user: AuthUser) {
     await this.requireOrder(id, user.siteId);
@@ -378,6 +398,7 @@ export class PurchaseService {
     manager: EntityManager,
     dto: PurchaseOrderDto,
     user: AuthUser,
+    existing: PurchaseOrder | null = null,
   ) {
     const [supplier, warehouse, products] = await Promise.all([
       manager.findOne(Supplier, {
@@ -458,9 +479,10 @@ export class PurchaseService {
     const shippingFee = money(dto.shippingFee || 0);
     const saved = await manager.save(
       manager.create(PurchaseOrder, {
+        ...(existing || {}),
         tenantId: user.tenantId,
         siteId: user.siteId,
-        orderNo: makeNo("PO"),
+        orderNo: existing?.orderNo || makeNo("PO"),
         supplierId: supplier.id,
         warehouseId: warehouse.id,
         currency,
@@ -471,10 +493,11 @@ export class PurchaseService {
         status: "confirmed",
         expectedDate: dto.expectedDate || null,
         remark: dto.remark || "",
-        createdBy: user.userId,
+        createdBy: existing?.createdBy || user.userId,
         confirmedAt: new Date(),
       }),
     );
+    if (existing) await manager.delete(PurchaseOrderLine, { orderId: saved.id });
     const savedLines = await manager.save(
       prepared.map((line) =>
         manager.create(PurchaseOrderLine, { ...line, orderId: saved.id }),
@@ -556,9 +579,19 @@ export class PurchaseService {
     const warehouseMap = new Map(warehouses.map((row) => [row.id, row]));
     return rows.map((row) => ({
       ...row,
+      amount: Number(row.amount),
+      taxAmount: Number(row.taxAmount),
+      shippingFee: Number(row.shippingFee),
+      totalAmount: Number(row.totalAmount),
       supplierName: supplierMap.get(row.supplierId)?.name || "-",
       warehouseName: warehouseMap.get(row.warehouseId)?.name || "-",
-      lines: lines.filter((line) => line.orderId === row.id),
+      lines: lines
+        .filter((line) => line.orderId === row.id)
+        .map((line) => ({
+          ...line,
+          unitPrice: Number(line.unitPrice),
+          amount: Number(line.amount),
+        })),
     }));
   }
   private async attachReceipts(rows: PurchaseReceipt[], siteId: string) {
