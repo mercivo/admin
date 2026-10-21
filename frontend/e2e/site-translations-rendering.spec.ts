@@ -39,7 +39,7 @@ const i18n = { sourceLocale: 'zh_CN', locales: ['zh_CN', 'en_US'], messages: { z
 
 const prepareAdmin = async (page: Page) => {
   await page.addInitScript(() => {
-    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin', siteId: 'site-1' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: ['page.site.editor', 'site.edit', 'site.publish'] }));
   });

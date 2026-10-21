@@ -42,7 +42,7 @@ test.beforeEach(async ({ page }) => {
     'group.sales', 'sales.order.create', 'sales.order.cancel', 'sales.shipment.create',
   ];
   await page.addInitScript(() => {
-    localStorage.setItem('mercivo_access_token', 'sales-ui-test-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin', account: 'sales-ui-test' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({
       permissions: [

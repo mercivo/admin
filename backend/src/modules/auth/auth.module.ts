@@ -22,7 +22,7 @@ import { MemoryCaptchaStore } from './captcha-store';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('jwt.secret') || 'replace-this-secret',
-        signOptions: { expiresIn: 7 * 24 * 60 * 60 },
+        signOptions: { expiresIn: configService.get<number>('jwt.expiresIn') || 24 * 60 * 60 },
       }),
     }),
   ],

@@ -65,7 +65,7 @@ test('shared modal wrappers enforce the common shell and allow business widths',
 test('product preview, delete and batch dialogs render through the unified shell', async ({ page }) => {
   const permissions = ['group.products', 'menu.products', 'page.products', 'product.edit', 'product.delete'];
   await page.addInitScript(value => {
-    localStorage.setItem('mercivo_access_token', 'modal-e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: value }));
   }, permissions);

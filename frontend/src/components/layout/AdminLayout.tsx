@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Dropdown, message } from "antd";
 import type { MenuProps } from "antd";
 import { can } from "../../utils/permissions";
+import { clearSession } from "../../services/authStorage";
 import { getCurrentSession } from "../../services/session";
 import { ChangePasswordModal } from "../shared/ChangePasswordModal";
 import {
@@ -417,9 +418,7 @@ const AdminSidebar: React.FC = () => {
             items: userMenuItems,
             onClick: ({ key }) => {
               if (key === "logout") {
-                localStorage.removeItem("mercivo_access_token");
-                localStorage.removeItem("mercivo_user");
-                localStorage.removeItem("mercivo_tenant");
+                clearSession();
                 window.location.assign("/login");
               } else if (key === "change-password") {
                 setPasswordModalOpen(true);

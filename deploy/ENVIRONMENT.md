@@ -24,7 +24,7 @@
 | `SYSTEM_ADMIN_USERNAME` | 唯一保留的系统管理员用户名 | 否 |
 | `SYSTEM_ADMIN_PASSWORD` | 系统管理员初始化/重置密码 | 是 |
 | `JWT_SECRET` | JWT 签名密钥，本地与线上必须不同 | 是 |
-| `JWT_EXPIRES_IN` | 登录令牌有效期，例如 `7d` | 否 |
+| `JWT_EXPIRES_IN` | 登录令牌有效期，生产固定为 `24h` | 否 |
 | `CORS_ORIGINS` | 允许跨域访问 API 的来源列表 | 否 |
 | `STOREFRONT_PREVIEW_HOSTS` | 允许作为前台预览入口的 Host 列表 | 否 |
 | `STOREFRONT_CNAME_TARGET` | 租户 CNAME 引导目标；本地使用 `localhost` | 否 |

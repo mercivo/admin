@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { JwtStrategy } from "./jwt.strategy";
 
 describe("JwtStrategy plan permissions", () => {
+  const activeIat = () => Math.floor(Date.now() / 1000) - 60;
   it("keeps administrator-configured ERP permissions for an existing session", async () => {
     const user = {
       id: "user-1",
@@ -42,6 +43,7 @@ describe("JwtStrategy plan permissions", () => {
       role: "admin",
       tenantId: "tenant-1",
       siteId: "site-1",
+      iat: activeIat(),
     });
 
     expect(result.permissions).toEqual(["group.sales", "group.purchase"]);
@@ -57,7 +59,7 @@ describe("JwtStrategy plan permissions", () => {
     const config = { get: jest.fn().mockReturnValue("test-secret") } as unknown as ConfigService;
     const strategy = new JwtStrategy(config, users as never, tenants as never, plans as never);
 
-    const result = await strategy.validate({ sub: "user-1", account: "admin", role: "admin", tenantId: "tenant-1", siteId: "site-1" });
+    const result = await strategy.validate({ sub: "user-1", account: "admin", role: "admin", tenantId: "tenant-1", siteId: "site-1", iat: activeIat() });
 
     expect(result.permissions).toEqual(["group.sales"]);
     expect(plans.findOne).not.toHaveBeenCalled();
@@ -70,7 +72,22 @@ describe("JwtStrategy plan permissions", () => {
     const config = { get: jest.fn().mockReturnValue("test-secret") } as unknown as ConfigService;
     const strategy = new JwtStrategy(config, users as never, tenants as never, {} as never);
 
-    await expect(strategy.validate({ sub: "member-1", account: "member@example.com", role: "member", tenantId: "tenant-1", siteId: "site-1" }))
+    await expect(strategy.validate({ sub: "member-1", account: "member@example.com", role: "member", tenantId: "tenant-1", siteId: "site-1", iat: activeIat() }))
       .rejects.toThrow("商户已停用");
+  });
+
+  it.each([
+    ['missing', undefined],
+    ['invalid', Number.NaN],
+    ['future', Math.floor(Date.now() / 1000) + 60],
+    ['older than 24 hours', Math.floor(Date.now() / 1000) - 24 * 60 * 60],
+  ])('rejects a %s issued-at claim before querying account data', async (_label, iat) => {
+    const users = { findOne: jest.fn() };
+    const config = { get: jest.fn().mockReturnValue('test-secret') } as unknown as ConfigService;
+    const strategy = new JwtStrategy(config, users as never, {} as never, {} as never);
+
+    await expect(strategy.validate({ sub: 'user-1', account: 'admin', role: 'admin', tenantId: null, siteId: null, iat }))
+      .rejects.toThrow('登录已失效，请重新登录');
+    expect(users.findOne).not.toHaveBeenCalled();
   });
 });

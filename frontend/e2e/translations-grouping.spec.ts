@@ -20,7 +20,7 @@ const prepare = async (page: Page, itemsByType: Record<string, ReturnType<typeof
   const requestedTypes: string[] = [];
   const contentTotal = Object.values(itemsByType).flat().length;
   await page.addInitScript(() => {
-    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: ['page.site.editor', 'page.site.translations', 'site.translation.edit'] }));
   });
@@ -62,7 +62,7 @@ const prepare = async (page: Page, itemsByType: Record<string, ReturnType<typeof
 
 test('translation loading states prevent empty content from flashing', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: ['page.site.editor', 'page.site.translations'] }));
   });
@@ -96,7 +96,7 @@ test('translation loading states prevent empty content from flashing', async ({ 
 
 test('translation sidebar renders a skeleton whenever the content tab changes', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: ['page.site.editor', 'page.site.translations'] }));
   });
@@ -128,7 +128,7 @@ test('translation sidebar renders a skeleton whenever the content tab changes', 
 
 test('each tab change requests exactly one business-group page', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: ['page.site.editor', 'page.site.translations'] }));
   });
@@ -155,7 +155,7 @@ test('each tab change requests exactly one business-group page', async ({ page }
 
 test('translation empty-language state appears only after settings load and keeps a training-sized height', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: ['page.site.editor', 'page.site.translations'] }));
   });
@@ -520,7 +520,7 @@ test('keeps the classic field card and sticky quick navigation while using all-c
 
 test('keeps only export, import and save actions and preserves their workflows', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: ['page.site.editor', 'page.site.translations', 'site.translation.edit'] }));
   });

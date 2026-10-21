@@ -25,7 +25,7 @@ const defaultSiteInfoForTest = {
 
 async function authenticate(page: Page) {
   await page.addInitScript(value => {
-    localStorage.setItem('mercivo_access_token', 'storefront-release-e2e');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin', siteId: 'site-1' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: value }));
   }, permissions);

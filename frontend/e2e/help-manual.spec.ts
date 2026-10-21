@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 const installIdentity = async (page: Page, role: 'member' | 'system_admin' = 'member', permissions: string[] = []) => {
   await page.addInitScript(({ identityRole, granted }) => {
-    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: identityRole, account: 'member@example.com', name: identityRole === 'member' ? '普通成员' : '系统管理员' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ name: '培训测试企业', permissions: granted }));
   }, { identityRole: role, granted: permissions });

@@ -14,6 +14,7 @@ import {
 import { AppForm, AppFormItem, AppInput, AppPasswordInput } from '../../components/shared/AppForm';
 import BrandMark from '../../components/shared/BrandMark';
 import { firstAuthorizedRoute } from '../../utils/navigation';
+import { ACCESS_TOKEN_KEY, TENANT_KEY, USER_KEY } from '../../services/authStorage';
 
 type Captcha = { captchaId: string; image: string };
 type AuthResult = { accessToken: string; user: { role: string; account: string; name?: string }; tenant: { name: string; permissions?: string[] } | null };
@@ -28,14 +29,18 @@ const LoginPage: React.FC = () => {
   const [mode] = useState<'login' | 'register'>('login');
   const [loading, setLoading] = useState(false);
   const [captcha, setCaptcha] = useState<Captcha | null>(null);
+  const [sessionExpired] = useState(() => new URLSearchParams(location.search).get('reason') === 'session-expired');
   const loadCaptcha = async () => setCaptcha(await (await loadApi()).get<unknown, Captcha>('/auth/captcha'));
 
   useEffect(() => { if (mode === 'register') void loadCaptcha(); }, [mode]);
+  useEffect(() => {
+    if (sessionExpired) history.replaceState(null, '', '/login');
+  }, [sessionExpired]);
 
   const finish = (result: AuthResult) => {
-    localStorage.setItem('mercivo_access_token', result.accessToken);
-    localStorage.setItem('mercivo_user', JSON.stringify(result.user));
-    if (result.tenant) localStorage.setItem('mercivo_tenant', JSON.stringify(result.tenant));
+    localStorage.setItem(ACCESS_TOKEN_KEY, result.accessToken);
+    localStorage.setItem(USER_KEY, JSON.stringify(result.user));
+    if (result.tenant) localStorage.setItem(TENANT_KEY, JSON.stringify(result.tenant));
     location.assign(result.user.role === 'system_admin' ? '/system' : firstAuthorizedRoute(result.tenant?.permissions || []));
   };
 
@@ -114,6 +119,12 @@ const LoginPage: React.FC = () => {
               {mode === 'login' ? '登录迈犀沃，继续管理外贸业务全流程' : '填写信息，即刻开启 14 天免费试用'}
             </Typography.Text>
           </div>
+
+          {sessionExpired && (
+            <div role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+              登录已失效，请重新登录
+            </div>
+          )}
 
           {mode === 'login' ? (
             <AppForm className="[&_.ant-form-item]:!mb-4 [&_.ant-form-item-label]:!pb-1.5" onFinish={login}>

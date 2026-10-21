@@ -16,7 +16,7 @@ const supplier = {
 
 test('supplier management hides internal and removed fields and aligns placeholders with labels', async ({ page }) => {
   await page.addInitScript(({ permissions }) => {
-    localStorage.setItem('mercivo_access_token', 'supplier-ui-test-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions }));
   }, { permissions });

@@ -4,7 +4,7 @@ const permissions = ['page.storefront.leads', 'storefront.lead.assign', 'storefr
 
 test('lead pool supports manual creation and the three-stage workflow', async ({ page }) => {
   await page.addInitScript(value => {
-    localStorage.setItem('mercivo_access_token', 'lead-e2e');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin', siteId: 'site-1' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: value }));
   }, permissions);
@@ -69,7 +69,7 @@ test('lead pool supports manual creation and the three-stage workflow', async ({
 test('只有跟进和处理权限时不显示指派操作', async ({ page }) => {
   const manageOnly = ['group.site', 'menu.storefront.leads', 'page.storefront.leads', 'storefront.lead.manage'];
   await page.addInitScript(value => {
-    localStorage.setItem('mercivo_access_token', 'lead-manage-only');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'member', siteId: 'site-1' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: value }));
   }, manageOnly);

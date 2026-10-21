@@ -20,7 +20,7 @@ const order = {
 
 test('purchase order creation matches the simplified sales-order flow', async ({ page }) => {
   await page.addInitScript(({ permissions }) => {
-    localStorage.setItem('mercivo_access_token', 'purchase-order-ui-test-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions }));
   }, { permissions });

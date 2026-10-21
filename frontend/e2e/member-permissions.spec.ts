@@ -4,7 +4,7 @@ const permissions = ['group.system', 'menu.team', 'page.settings.team', 'setting
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(value => {
-    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ name: '验收企业', permissions: value }));
   }, permissions);

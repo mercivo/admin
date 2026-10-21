@@ -24,7 +24,7 @@ const product = {
 
 const prepareMerchant = async (page: Page) => {
   await page.addInitScript(() => {
-    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin', account: '13800000000' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: ['page.products', 'product.create', 'product.edit'] }));
   });

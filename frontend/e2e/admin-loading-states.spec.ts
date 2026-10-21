@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const auth = async (page: import('@playwright/test').Page, permissions: string[]) => {
   await page.addInitScript(({ permissions }) => {
-    localStorage.setItem('mercivo_access_token', 'loading-state-e2e');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin', siteId: 'site-1' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ name: '加载态测试企业', permissions }));
   }, { permissions });
@@ -105,7 +105,7 @@ test('库存模块切换时统一显示骨架且不闪烁空态', async ({ page 
 
 const systemAdminAuth = async (page: import('@playwright/test').Page) => {
   await page.addInitScript(() => {
-    localStorage.setItem('mercivo_access_token', 'system-loading-state-e2e');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'system_admin', account: 'admin' }));
   });
 };

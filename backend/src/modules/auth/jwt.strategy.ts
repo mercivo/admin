@@ -9,6 +9,8 @@ import { Tenant } from '../site/tenant.entity';
 import { Plan } from '../system/plan.entity';
 import { migrateFinanceWorkflowPermissions, withPermissionParents } from '../system/permission-catalog';
 
+export const MAX_SESSION_AGE_SECONDS = 24 * 60 * 60;
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
@@ -24,7 +26,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: string; account: string; role: 'system_admin' | 'admin' | 'member'; tenantId: string | null; siteId: string | null }) {
+  async validate(payload: { sub: string; account: string; role: 'system_admin' | 'admin' | 'member'; tenantId: string | null; siteId: string | null; iat?: number }) {
+    const issuedAt = payload.iat;
+    const now = Math.floor(Date.now() / 1000);
+    if (!Number.isInteger(issuedAt) || !issuedAt || issuedAt > now || now - issuedAt >= MAX_SESSION_AGE_SECONDS) {
+      throw new UnauthorizedException('登录已失效，请重新登录');
+    }
     const user = await this.users.findOne({ where: { id: payload.sub } });
     if (!user || user.status !== 'active') throw new UnauthorizedException('账号已失效');
     let tenant: Tenant | null = null;

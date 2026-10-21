@@ -38,7 +38,7 @@ test('login capability cards center icons above their labels', async ({ page }) 
 
 test('system administrator creates a tenant and resets its password', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('mercivo_access_token', 'system-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'system_admin', account: 'admin' }));
   });
   let createPayload: any;
@@ -80,7 +80,7 @@ test('system administrator creates a tenant and resets its password', async ({ p
 test('tenant account settings changes password and notification center is absent', async ({ page }) => {
   const permissions = ['page.dashboard', 'page.settings', 'page.settings.account', 'menu.settings'];
   await page.addInitScript(value => {
-    localStorage.setItem('mercivo_access_token', 'tenant-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin', account: '13800000000', name: '验收租户' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ name: '验收租户', permissions: value }));
   }, permissions);

@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from "react";
+import React, { Suspense, lazy, useEffect } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -12,6 +12,7 @@ import { ConfigProvider } from "antd";
 import antdZhCN from "antd/locale/zh_CN";
 import { can } from "./utils/permissions";
 import { firstAuthorizedRoute } from "./utils/navigation";
+import { clearSession, getAccessToken, isSessionValid, redirectToExpiredLogin, sessionExpiresAt } from "./services/authStorage";
 const AdminLayout = lazy(() => import("./components/layout/AdminLayout"));
 const DemoNav = lazy(() => import("./components/layout/DemoNav"));
 const DashboardPage = lazy(() => import("./pages/Dashboard"));
@@ -49,12 +50,38 @@ const BackendLayout: React.FC = () => (
   </AdminLayout>
 );
 
-const Protected = () =>
-  localStorage.getItem("mercivo_access_token") ? (
-    <Outlet />
-  ) : (
-    <Navigate to="/login" replace />
-  );
+const SessionExpiryWatcher = () => {
+  useEffect(() => {
+    const checkSession = () => {
+      const token = getAccessToken();
+      if (!token || !isSessionValid(token)) redirectToExpiredLogin();
+    };
+    const token = getAccessToken();
+    const expiresAt = token ? sessionExpiresAt(token) : null;
+    const timeout = expiresAt === null
+      ? undefined
+      : window.setTimeout(checkSession, Math.max(0, Math.min(expiresAt - Date.now(), 2_147_483_647)));
+    const onVisibilityChange = () => { if (document.visibilityState === 'visible') checkSession(); };
+    window.addEventListener('focus', checkSession);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      if (timeout !== undefined) window.clearTimeout(timeout);
+      window.removeEventListener('focus', checkSession);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, []);
+  return <Outlet />;
+};
+
+const Protected = () => {
+  const token = getAccessToken();
+  if (!token) return <Navigate to="/login" replace />;
+  if (!isSessionValid(token)) {
+    clearSession();
+    return <Navigate to="/login?reason=session-expired" replace />;
+  }
+  return <SessionExpiryWatcher />;
+};
 const currentRole = () => {
   try {
     return JSON.parse(localStorage.getItem("mercivo_user") || "{}")

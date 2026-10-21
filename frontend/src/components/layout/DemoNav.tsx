@@ -16,6 +16,7 @@ import {
 import BrandMark from '../shared/BrandMark';
 import { ChangePasswordModal } from '../shared/ChangePasswordModal';
 import { can } from '../../utils/permissions';
+import { clearSession } from '../../services/authStorage';
 
 // ─────────────── Path to PageId mapping ───────────────
 
@@ -178,7 +179,7 @@ const DemoNav: React.FC = () => {
         </Tooltip>
 
         {/* User Avatar */}
-        <Dropdown menu={{ items: userMenuItems, onClick: ({ key }) => { if (key === 'logout') { localStorage.removeItem('mercivo_access_token'); localStorage.removeItem('mercivo_user'); localStorage.removeItem('mercivo_tenant'); window.location.assign('/login'); } else if (key === 'change-password') setPasswordModalOpen(true); else handleNav(key); } }} trigger={['click']} placement="bottomRight">
+        <Dropdown menu={{ items: userMenuItems, onClick: ({ key }) => { if (key === 'logout') { clearSession(); window.location.assign('/login'); } else if (key === 'change-password') setPasswordModalOpen(true); else handleNav(key); } }} trigger={['click']} placement="bottomRight">
           <button className="flex items-center gap-2 hover:bg-secondary rounded-xl px-1.5 py-1 transition-colors flex-shrink-0">
             <span className="grid h-7 w-7 place-items-center rounded-full bg-primary text-[10px] font-bold text-white ring-2 ring-primary/20">{accountName.slice(-2)}</span>
             <span className="max-w-36 truncate text-xs font-semibold text-foreground">{accountName}</span>

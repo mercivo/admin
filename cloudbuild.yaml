@@ -73,11 +73,11 @@ steps:
       - --cpu=1
       - --memory=512Mi
       - --concurrency=40
-      - --min=0
+      - --min=1
       - --max=1
-      - --min-instances=0
+      - --min-instances=1
       - --max-instances=1
-      - --set-env-vars=NODE_ENV=production,DB_HOST=localhost,DB_PORT=3306,DB_USERNAME=${_DB_USER},DB_DATABASE=${_DB_NAME},DB_SOCKET_PATH=/cloudsql/${_CLOUD_SQL_INSTANCE},DB_SYNCHRONIZE=false,CORS_ORIGINS=https://placeholder.invalid,STOREFRONT_PREVIEW_HOSTS=localhost,STOREFRONT_CNAME_TARGET=${_STOREFRONT_CNAME_TARGET},TRUST_PROXY_HOPS=1,SYSTEM_ADMIN_BOOTSTRAP_ENABLED=false,SEED_DATA_ENABLED=false,DB_POOL_MAX=5,MAINTENANCE_READ_ONLY=${_MAINTENANCE_READ_ONLY},GCS_PROJECT_ID=${PROJECT_ID},GCS_BUCKET=mercivo-images-753805870951,GCS_PUBLIC_BASE_URL=https://storage.googleapis.com/mercivo-images-753805870951,GCS_OBJECT_PREFIX=production
+      - --set-env-vars=NODE_ENV=production,DB_HOST=localhost,DB_PORT=3306,DB_USERNAME=${_DB_USER},DB_DATABASE=${_DB_NAME},DB_SOCKET_PATH=/cloudsql/${_CLOUD_SQL_INSTANCE},DB_SYNCHRONIZE=false,CORS_ORIGINS=https://placeholder.invalid,STOREFRONT_PREVIEW_HOSTS=localhost,STOREFRONT_CNAME_TARGET=${_STOREFRONT_CNAME_TARGET},TRUST_PROXY_HOPS=1,SYSTEM_ADMIN_BOOTSTRAP_ENABLED=false,SEED_DATA_ENABLED=false,DB_POOL_MAX=5,MAINTENANCE_READ_ONLY=${_MAINTENANCE_READ_ONLY},JWT_EXPIRES_IN=24h,GCS_PROJECT_ID=${PROJECT_ID},GCS_BUCKET=mercivo-images-753805870951,GCS_PUBLIC_BASE_URL=https://storage.googleapis.com/mercivo-images-753805870951,GCS_OBJECT_PREFIX=production
       - --set-secrets=DB_PASSWORD=mercivo-db-password:latest,JWT_SECRET=mercivo-jwt-secret:latest
       - --quiet
 

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('mercivo_access_token', 'member-account-e2e');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'member', account: '13900000000', name: '销售小李' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ name: '验收企业', permissions: ['page.dashboard', 'menu.dashboard'] }));
   });

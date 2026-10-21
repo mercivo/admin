@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { message } from 'antd';
+import { getAccessToken, redirectToExpiredLogin } from './authStorage';
 
 const ADMIN_LOCALE = 'zh-CN';
 
@@ -35,7 +36,7 @@ export const getApiErrorMessage = (error: unknown): string => {
 };
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('mercivo_access_token');
+  const token = getAccessToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
   config.headers['Accept-Language'] = ADMIN_LOCALE;
   config.headers['X-Locale'] = ADMIN_LOCALE;
@@ -51,9 +52,10 @@ api.interceptors.response.use(
   },
   (error: unknown) => {
     const axiosError = axios.isAxiosError(error) ? error : undefined;
-    if (axiosError?.response?.status === 401 && location.pathname !== '/login') {
-      localStorage.removeItem('mercivo_access_token');
-      location.assign('/login');
+    const isLoginRequest = axiosError?.config?.url?.replace(/\?.*$/, '').endsWith('/auth/login');
+    if (axiosError?.response?.status === 401 && !isLoginRequest && location.pathname !== '/login') {
+      redirectToExpiredLogin();
+      return Promise.reject(error);
     }
     message.error(getApiErrorMessage(error));
     return Promise.reject(error);

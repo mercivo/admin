@@ -55,7 +55,7 @@ test('merchant admin must authenticate and can load products', async ({ page }) 
 
 test('product creation uses real rich text and cloud image controls', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: ['page.products', 'product.create', 'page.customers'] }));
   });
@@ -118,7 +118,7 @@ test('product creation uses real rich text and cloud image controls', async ({ p
 
 test('new product customer-management link uses the unified customer route', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: ['page.products', 'product.create', 'page.customers'] }));
   });
@@ -142,7 +142,7 @@ test('new product customer-management link uses the unified customer route', asy
 
 test('product category uses the shared primary action and Ant Design modal without exposing internal codes', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ name: '验收商户', permissions: ['page.product-categories'] }));
   });
@@ -171,7 +171,7 @@ test('product category uses the shared primary action and Ant Design modal witho
 
 test('product category tree table expands every parent by default', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: ['page.product-categories'] }));
   });
@@ -201,7 +201,7 @@ test('product category tree table expands every parent by default', async ({ pag
 
 test('product management renders an Ant Design category tree in the customer-level sidebar layout', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: ['page.products', 'product.create', 'product-category.manage'] }));
   });
@@ -293,7 +293,7 @@ test('product management renders an Ant Design category tree in the customer-lev
 test('storefront product pool is a read-only category tree and synced product table', async ({ page }) => {
   const permissions = ['group.site', 'menu.storefront.products', 'page.storefront.products'];
   await page.addInitScript(value => {
-    localStorage.setItem('mercivo_access_token', 'storefront-product-pool-e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: value }));
   }, permissions);
@@ -357,7 +357,7 @@ test('storefront product pool is a read-only category tree and synced product ta
 
 test('customer management exposes only profile fields and sends a statistics-free payload', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: ['page.customers', 'customer.create'] }));
   });

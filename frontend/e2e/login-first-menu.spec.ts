@@ -5,7 +5,7 @@ test('登录后跳转到当前用户有权限的第一个菜单', async ({ page 
   await page.route('**/api/v1/**', route => {
     const url = route.request().url();
     if (url.endsWith('/auth/login')) return route.fulfill({ json: { data: {
-      accessToken: 'e2e-token',
+      accessToken: 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature',
       user: { userId: 'member-1', account: '13800000001', role: 'member', tenantId: 'tenant-1', siteId: 'site-1' },
       tenant: { id: 'tenant-1', name: '验收企业', permissions },
     } } });

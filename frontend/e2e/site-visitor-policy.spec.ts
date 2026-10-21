@@ -4,7 +4,7 @@ const product = { id: 'guest-product', nameZh: '游客商品', description: '<p>
 
 const prepare = async (page: Page, guestAccessEnabled: boolean, guestPriceMode: 'base' | 'hidden', tags: string[] = [], permissions = ['page.site.editor', 'site.edit', 'site.publish']) => {
   await page.addInitScript((grantedPermissions: string[]) => {
-    localStorage.setItem('mercivo_access_token', 'e2e-token');
+    localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin', siteId: 'site-1' }));
     localStorage.setItem('mercivo_tenant', JSON.stringify({ permissions: grantedPermissions }));
   }, permissions);
