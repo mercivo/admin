@@ -240,25 +240,6 @@ function App() {
   const formSection = section('form');
   const footerSection = section('footer');
   const contactModalSection = section('contactModal');
-  const sectionBackgroundStyle = (value?: EditorSection): React.CSSProperties | undefined => {
-    if (!value?.backgroundColor && !value?.sectionBackgroundImage) return undefined;
-    const opacity = Math.min(100, Math.max(0, value.backgroundOpacity ?? 100)) / 100;
-    const hex = (value.backgroundColor || '#FFFFFF').replace('#', '');
-    const rgb = /^[0-9a-f]{6}$/i.test(hex) ? [0, 2, 4].map(index => parseInt(hex.slice(index, index + 2), 16)).join(',') : '255,255,255';
-    return { backgroundColor: `rgba(${rgb},${opacity})`, ...(value.sectionBackgroundImage ? { backgroundImage: `linear-gradient(rgba(${rgb},${opacity}),rgba(${rgb},${opacity})),url(${value.sectionBackgroundImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}) };
-  };
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => editorSections.forEach(item => {
-      const anchor = anchorId(item, item.type);
-      const selector = item.type === 'header' ? '.nav' : ['products', 'text', 'form', 'footer', 'hero'].includes(item.type) && anchor ? `#${CSS.escape(anchor)}` : '';
-      const element = selector ? document.querySelector<HTMLElement>(selector) : null;
-      if (!element) return;
-      const style = sectionBackgroundStyle(item);
-      element.classList.toggle('site-custom-background', !!style);
-      if (style) Object.assign(element.style, style);
-    }));
-    return () => cancelAnimationFrame(frame);
-  }, [editorSections]);
   useEffect(() => { document.documentElement.style.setProperty('--product-columns', String(Math.min(4, Math.max(2, Number(productSection?.columns) || 3)))); }, [productSection?.columns]);
   const siteLanguages = [...new Set((site?.site.supportedLanguages || [site?.site.defaultLanguage || 'zh_CN']).map(normalizeLocaleCode))];
   const themeColor = typeof site?.config.themeColor === 'string' ? site.config.themeColor : '#1A3D2E';

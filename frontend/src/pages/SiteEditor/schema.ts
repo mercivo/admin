@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react';
+
 export type SectionType = 'header' | 'hero' | 'text' | 'products' | 'form' | 'contactModal' | 'footer';
 export type InspectorTab = 'content' | 'style' | 'events';
 export type NavItem = { id: string; label: string; targetId: string };
@@ -38,6 +40,65 @@ export const requiredInquiryFields: FormField[] = [{ key: 'name', label: '联系
 export const defaultHeroTrustItems = (): TrustItem[] => [{ id: 'quality', title: '品质保障', description: '严格质检与稳定品质' }, { id: 'service', title: '专业服务', description: '一对一采购咨询' }, { id: 'customization', title: '灵活定制', description: '支持品牌与包装定制' }, { id: 'reputation', title: '全球口碑', description: '服务海外品牌客户' }];
 export const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 export const isFixedSection = (type: SectionType) => type === 'header' || type === 'footer';
+
+const clampOpacity = (value: number) => Math.min(100, Math.max(0, value));
+const colorWithOpacity = (color: string, opacity: number) => {
+  const hex = color.replace('#', '');
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return color;
+  const rgb = [0, 2, 4].map(index => parseInt(hex.slice(index, index + 2), 16)).join(',');
+  return `rgba(${rgb},${clampOpacity(opacity) / 100})`;
+};
+
+export type ResolvedSectionBackground = {
+  color: string;
+  opacity: number;
+  inheritsTheme: boolean;
+  usesModuleDefault: boolean;
+  defaultLabel: '使用模块默认' | '跟随主题' | '跟随主题·加深';
+  image: string;
+  scrim?: string;
+  style?: CSSProperties;
+};
+
+export const resolveSectionBackground = (section: Section, themeColor = '#FFFFFF', themeOpacity = 100): ResolvedSectionBackground => {
+  const defaults: Record<SectionType, { color: string; opacity: number; theme: boolean; darken?: boolean; scrim?: string }> = {
+    header: { color: '#FFFFFF', opacity: 100, theme: false, scrim: 'rgba(255,255,255,.88)' },
+    hero: { color: themeColor, opacity: themeOpacity, theme: true },
+    products: { color: '#FFFFFF', opacity: 100, theme: false, scrim: 'rgba(255,255,255,.88)' },
+    text: { color: '#F8F6F2', opacity: 100, theme: false, scrim: 'rgba(255,255,255,.82)' },
+    form: { color: themeColor, opacity: themeOpacity, theme: true, scrim: 'rgba(8,20,15,.72)' },
+    contactModal: { color: '#FFFFFF', opacity: 100, theme: false },
+    footer: { color: themeColor, opacity: themeOpacity, theme: true, darken: true, scrim: 'rgba(0,0,0,.55)' },
+  };
+  const fallback = defaults[section.type];
+  const isDefault = section.backgroundColor === undefined && section.backgroundOpacity === undefined;
+  const inheritsTheme = isDefault && fallback.theme;
+  const usesModuleDefault = isDefault && !fallback.theme;
+  const color = section.backgroundColor || fallback.color;
+  const opacity = clampOpacity(section.backgroundOpacity ?? fallback.opacity);
+  const image = section.sectionBackgroundImage || (section.type === 'form' ? section.backgroundImageUrl || '' : '');
+  const baseColor = colorWithOpacity(color, opacity);
+  const backgroundColor = fallback.darken ? `color-mix(in srgb,${baseColor} 52%,black)` : baseColor;
+  const imageLayer = image ? section.type === 'hero' || !fallback.scrim ? `url(${image})` : `linear-gradient(${fallback.scrim},${fallback.scrim}),url(${image})` : undefined;
+  return {
+    color,
+    opacity,
+    inheritsTheme,
+    usesModuleDefault,
+    defaultLabel: inheritsTheme ? (fallback.darken ? '跟随主题·加深' : '跟随主题') : '使用模块默认',
+    image,
+    scrim: fallback.scrim,
+    style: {
+      backgroundColor,
+      ...(imageLayer ? {
+        backgroundImage: imageLayer,
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        backgroundSize: 'cover',
+      } : {}),
+    },
+  };
+};
 
 export const createSection = (type: SectionType): Section => ({
   id: newId(), type, visible: true, title: COMPONENT_DEFINITIONS[type].label,
