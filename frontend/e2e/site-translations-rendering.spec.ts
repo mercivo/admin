@@ -4,11 +4,16 @@ const adminBaseUrl = process.env.FRONTEND_BASE_URL || 'http://localhost:8088';
 const storefrontBaseUrl = process.env.STOREFRONT_BASE_URL || 'http://localhost:8080';
 
 const config = {
-  status: 'draft', version: 1, page: 'home', themeColor: '#1A3D2E', themeOpacity: 100,
+  status: 'draft', version: 1, page: 'home', themeColor: '#2F6FED', themeOpacity: 100,
   siteInfo: { brandLogoUrl: '', contactModalTitle: '联系我们', contactModalSubtitle: '中文联系说明', contactLabels: {}, contactDetails: {}, contactItems: [] },
   pages: { home: { sections: [
     { id: 'header-1', type: 'header', visible: true, title: '中文品牌', eyebrow: '中文公告', showEyebrow: true, navItems: [{ id: 'nav-products', label: '产品', targetId: 'products-1' }] },
-    { id: 'hero-1', type: 'hero', visible: true, title: '中文主标题', subtitle: '中文副标题', eyebrow: '中文眉标', buttonText: '查看产品', secondaryButtonText: '获取报价', buttonAction: 'products-1', secondaryButtonAction: 'contactModal', showButton: true, showEyebrow: true, showSecondaryButton: true, showTrustBar: false },
+    { id: 'hero-1', type: 'hero', visible: true, title: '中文主标题', subtitle: '中文副标题', eyebrow: '中文眉标', buttonText: '查看产品', secondaryButtonText: '获取报价', buttonAction: 'products-1', secondaryButtonAction: 'contactModal', showButton: true, showEyebrow: true, showSecondaryButton: true, showTrustBar: true, trustItems: [
+      { id: 'quality', title: '品质保障', description: 'Strict Quality Inspection and Consistent Quality' },
+      { id: 'service', title: '专业服务', description: 'One-on-One Procurement Consultation' },
+      { id: 'custom', title: '灵活定制', description: 'Brand and Packaging Customization Supported' },
+      { id: 'delivery', title: '全球交付', description: 'Serving Overseas Markets Reliably' },
+    ] },
     { id: 'products-1', type: 'products', visible: true, title: '中文产品标题', subtitle: '中文产品说明', eyebrow: '中文产品眉标', buttonText: '联系我们', buttonAction: 'contactModal', showButton: true, showEyebrow: true, showPrice: true, showMoq: true, showCategories: true, columns: 3 },
     { id: 'contact-1', type: 'contactModal', visible: false, title: '联系我们', subtitle: '中文联系说明' },
     { id: 'footer-1', type: 'footer', visible: true, title: '中文企业', subtitle: '中文企业说明', copyrightText: '中文版权信息', navItems: [], socialLinks: [], showContact: true },
@@ -68,12 +73,35 @@ const selectEnglish = async (page: Page, selector: string) => {
 const expectPurchaseInfoStacked = async (page: Page) => {
   const purchaseInfo = page.getByTestId('site-product-purchase-info').first();
   await expect(purchaseInfo).toHaveCSS('flex-direction', 'column');
-  await expect(purchaseInfo).toHaveCSS('align-items', 'flex-end');
+  await expect(purchaseInfo).toHaveCSS('align-items', 'flex-start');
   const [price, moq] = await Promise.all([purchaseInfo.getByTestId('site-product-price').boundingBox(), purchaseInfo.getByTestId('site-product-moq').boundingBox()]);
   expect(price).not.toBeNull();
   expect(moq).not.toBeNull();
-  expect(moq!.y).toBeGreaterThanOrEqual(price!.y + price!.height);
-  expect(Math.abs((moq!.x + moq!.width) - (price!.x + price!.width))).toBeLessThanOrEqual(1);
+  expect(price!.y).toBeGreaterThanOrEqual(moq!.y + moq!.height);
+  expect(Math.abs(moq!.x - price!.x)).toBeLessThanOrEqual(1);
+};
+
+const expectSharedCopyLayout = async (page: Page) => {
+  const values = await page.locator('[data-editor-canvas]').first().evaluate(element => {
+    const heroCopy = element.querySelector('.editor-hero-copy') as HTMLElement;
+    const heroTitle = heroCopy.querySelector('h2') as HTMLElement;
+    const productDescription = element.querySelector('.editor-products-description') as HTMLElement;
+    const copyStyle = getComputedStyle(heroCopy);
+    const titleStyle = getComputedStyle(heroTitle);
+    return {
+      heroWidth: parseFloat(copyStyle.width),
+      fontFamily: copyStyle.fontFamily,
+      titleLineRatio: parseFloat(titleStyle.lineHeight) / parseFloat(titleStyle.fontSize),
+      titleWrap: titleStyle.textWrap,
+      productWidth: parseFloat(getComputedStyle(productDescription).width),
+    };
+  });
+  expect(values.heroWidth).toBeGreaterThanOrEqual(700);
+  expect(values.heroWidth).toBeLessThanOrEqual(920);
+  expect(values.fontFamily).toContain('system-ui');
+  expect(values.titleLineRatio).toBeCloseTo(1.12, 1);
+  expect(values.titleWrap).toBe('balance');
+  expect(values.productWidth).toBeGreaterThanOrEqual(520);
 };
 
 test('site design canvas renders saved English page and product translations', async ({ page }) => {
@@ -157,6 +185,87 @@ test('product badge filters only show translated theme-aware options and support
   await expect(filters.getByRole('checkbox', { name: 'Recommended', exact: true })).toBeVisible();
 });
 
+test('product pagination keeps the site theme color in the editor canvas and draft preview', async ({ page }) => {
+  const productItems = Array.from({ length: 11 }, (_, index) => ({
+    ...product,
+    id: `product-${index + 1}`,
+    nameZh: `分页商品 ${index + 1}`,
+    hot: false,
+    badge: '',
+  }));
+  await prepareAdmin(page, i18n, productItems);
+  await page.goto(`${adminBaseUrl}/site-editor`);
+
+  const editorActivePage = page.locator('.editor-canvas-scroll .ant-pagination-item-active');
+  await expect(editorActivePage.locator('a')).toHaveCSS('color', 'rgb(47, 111, 237)');
+  await expect(editorActivePage).toHaveCSS('border-color', 'rgb(47, 111, 237)');
+
+  await page.goto(`${adminBaseUrl}/site-preview`);
+  const previewActivePage = page.locator('[data-site-preview-page] .ant-pagination-item-active');
+  await expect(previewActivePage.locator('a')).toHaveCSS('color', 'rgb(47, 111, 237)');
+  await expect(previewActivePage).toHaveCSS('border-color', 'rgb(47, 111, 237)');
+  await page.locator('.ant-pagination-next').click();
+  await expect(page.locator('.ant-pagination-item-active')).toContainText('2');
+});
+
+test('hero service promises use readable type and center each icon-text group', async ({ page }) => {
+  await prepareAdmin(page);
+  await page.goto(`${adminBaseUrl}/site-editor`);
+  const firstItem = page.locator('.editor-canvas-scroll .editor-hero-trust-item').first();
+  const text = firstItem.locator(':scope > span');
+  await expect(firstItem).toHaveCSS('display', 'grid');
+  await expect(firstItem).toHaveCSS('justify-content', 'center');
+  await expect(text.locator('strong')).toHaveCSS('font-size', '14px');
+  await expect(text.locator('small')).toHaveCSS('font-size', '12px');
+  const [itemBox, iconBox, textBox] = await Promise.all([firstItem.boundingBox(), firstItem.locator(':scope > div').boundingBox(), text.boundingBox()]);
+  expect(itemBox).not.toBeNull();
+  expect(iconBox).not.toBeNull();
+  expect(textBox).not.toBeNull();
+  expect(textBox!.width).toBeGreaterThanOrEqual(170);
+  expect(Math.abs((iconBox!.x + textBox!.x + textBox!.width) / 2 - (itemBox!.x + itemBox!.width / 2))).toBeLessThanOrEqual(1);
+
+  await page.getByRole('button', { name: '移动视图' }).click();
+  await expect(text.locator('small')).toHaveCSS('font-size', '12px');
+  expect((await text.boundingBox())!.width).toBeGreaterThanOrEqual(120);
+});
+
+test('shared storefront typography keeps hero and product copy at comfortable responsive widths', async ({ page }) => {
+  await prepareAdmin(page);
+  await page.goto(`${adminBaseUrl}/site-editor`);
+
+  const canvas = page.locator('.editor-canvas-scroll [data-editor-canvas]');
+  const heroCopy = canvas.locator('.editor-hero-copy');
+  const heroTitle = heroCopy.locator('h2');
+  const productDescription = canvas.locator('.editor-products-description');
+  const desktopStyles = await heroCopy.evaluate(element => {
+    const copy = getComputedStyle(element);
+    const title = getComputedStyle(element.querySelector('h2')!);
+    return {
+      width: parseFloat(copy.width),
+      fontFamily: copy.fontFamily,
+      fontSize: parseFloat(title.fontSize),
+      lineHeight: parseFloat(title.lineHeight),
+      wrap: title.textWrap,
+    };
+  });
+  expect(desktopStyles.width).toBeGreaterThan(700);
+  expect(desktopStyles.width).toBeLessThanOrEqual(920);
+  expect(desktopStyles.fontFamily).toContain('system-ui');
+  expect(desktopStyles.lineHeight / desktopStyles.fontSize).toBeCloseTo(1.12, 1);
+  expect(desktopStyles.wrap).toBe('balance');
+  expect(parseFloat(await productDescription.evaluate(element => getComputedStyle(element).width))).toBeGreaterThanOrEqual(520);
+  await expect(productDescription).toHaveCSS('text-align', 'right');
+
+  await page.getByRole('button', { name: '移动视图' }).click();
+  await expect(heroCopy).toHaveCSS('width', '390px');
+  await expect(productDescription).toHaveCSS('text-align', 'left');
+  const mobileStyles = await heroTitle.evaluate(element => {
+    const style = getComputedStyle(element);
+    return { fontSize: parseFloat(style.fontSize), lineHeight: parseFloat(style.lineHeight) };
+  });
+  expect(mobileStyles.lineHeight / mobileStyles.fontSize).toBeCloseTo(1.15, 1);
+});
+
 test('draft preview renders saved English translations after language switching', async ({ page }) => {
   await prepareAdmin(page);
   await page.goto(`${adminBaseUrl}/site-preview`);
@@ -168,6 +277,7 @@ test('draft preview renders saved English translations after language switching'
   await expect(page.getByText('English Copyright', { exact: true })).toBeVisible();
   await expect(page.getByTestId('site-product-price')).toHaveText('¥ 88.00～108.00');
   await expectPurchaseInfoStacked(page);
+  await expectSharedCopyLayout(page);
 });
 
 test('published storefront renders saved English page and product translations', async ({ page }) => {
@@ -188,4 +298,5 @@ test('published storefront renders saved English page and product translations',
   await expect(page.getByText('English Copyright', { exact: true })).toBeVisible();
   await expect(page.getByTestId('site-product-price')).toHaveText('¥ 88.00～108.00');
   await expectPurchaseInfoStacked(page);
+  await expectSharedCopyLayout(page);
 });

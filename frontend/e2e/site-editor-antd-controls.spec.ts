@@ -36,6 +36,32 @@ test('hero service promises and per-section media recommendations remain declara
   expect(schema).not.toMatch(/hero: \{[^\n]+style: \[[^\]]*'imageUrls'/);
 });
 
+test('shared storefront typography uses readable semantic sizes and centers hero promises', () => {
+  const renderer = readFileSync(resolve(process.cwd(), 'src/pages/SiteEditor/SiteRenderer.tsx'), 'utf8');
+  const typography = readFileSync(resolve(process.cwd(), 'src/pages/SiteEditor/storefront-typography.css'), 'utf8');
+
+  expect(renderer).toContain("import './storefront-typography.css'");
+  expect(typography).toContain('--site-type-body:16px');
+  expect(typography).toContain('--site-type-label:12px');
+  expect(typography).toContain('--site-type-section-title:36px');
+  expect(typography).toContain('--site-font-sans:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC","Helvetica Neue",Arial,sans-serif');
+  expect(typography).toContain('font-size:clamp(48px,5.4vw,64px)');
+  expect(typography).toContain('.editor-hero-copy{width:min(920px,72%);max-width:calc(100% - 72px)}');
+  expect(typography).toContain('.editor-hero-preview h2{max-width:14em}');
+  expect(typography).toContain('line-height:1.12!important');
+  expect(typography).toContain('.editor-hero-subtitle{width:min(680px,100%);max-width:100%}');
+  expect(typography).toContain('grid-template-columns:minmax(0,1fr) minmax(360px,560px)');
+  expect(typography).toContain('.editor-products-description{display:flex;width:100%;max-width:560px');
+  expect(typography).toContain('.site-balanced-title{text-wrap:balance;overflow-wrap:anywhere}');
+  expect(typography).toContain('.site-pretty-copy{text-wrap:pretty;overflow-wrap:anywhere}');
+  expect(typography).toContain('grid-template-columns:34px minmax(0,176px);justify-content:center');
+  expect(typography).toContain('.editor-hero-trust-item strong{font-size:14px;line-height:20px');
+  expect(typography).toContain('.editor-hero-trust-item small{font-size:12px;line-height:18px');
+  expect(typography).toContain('[data-device="mobile"] .editor-hero-trust-item{grid-template-columns:34px minmax(0,128px)');
+  expect(typography).toContain('[data-device="mobile"] .editor-hero-copy{width:100%;max-width:none;padding-inline:22px}');
+  expect(typography).toContain('[data-device="mobile"] .editor-products-description{max-width:none;align-items:flex-start;margin-top:16px;text-align:left}');
+});
+
 test('hero background inherits the theme and keeps the image separate from the trust bar', () => {
   const editor = readFileSync(resolve(process.cwd(), 'src/pages/SiteEditor/Editor.tsx'), 'utf8');
   const renderer = readFileSync(resolve(process.cwd(), 'src/pages/SiteEditor/SiteRenderer.tsx'), 'utf8');

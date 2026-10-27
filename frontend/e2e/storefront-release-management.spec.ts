@@ -357,10 +357,10 @@ test('site editor shows identity and requires a release note before publishing',
   const priceBox = await firstProductCard.getByTestId('site-product-price').boundingBox();
   const moqBox = await firstProductCard.getByTestId('site-product-moq').boundingBox();
   expect(moqBox!.y).toBeLessThan(priceBox!.y);
-  await expect(firstProductCard.getByTestId('site-product-moq')).toHaveCSS('font-size', '10px');
+  await expect(firstProductCard.getByTestId('site-product-moq')).toHaveCSS('font-size', '12px');
   await expect(firstProductCard.getByTestId('site-product-moq')).toHaveCSS('font-weight', '400');
   await expect(firstProductCard.getByTestId('site-product-moq')).toHaveCSS('margin-bottom', '4px');
-  await expect(firstProductCard.getByTestId('site-product-price')).toHaveCSS('font-size', '16px');
+  await expect(firstProductCard.getByTestId('site-product-price')).toHaveCSS('font-size', '18px');
   await expect(firstProductCard.getByTestId('site-product-price')).toHaveCSS('padding-top', '8px');
   await expect(page.locator('.site-renderer-root').getByText('类别筛选', { exact: true })).toHaveCount(0);
   const allProductsNode = page.locator('.site-renderer-root .ant-tree-treenode').filter({ hasText: '全部商品' }).first();
@@ -396,7 +396,7 @@ test('site editor shows identity and requires a release note before publishing',
   await page.locator('[data-editor-canvas] [data-section-type="hero"]').getByRole('button', { name: '获取报价' }).click();
   const emptyContactPreview = page.getByRole('dialog', { name: '联系我们' });
   await expect(emptyContactPreview.getByText('暂无联系信息', { exact: true })).toBeVisible();
-  await emptyContactPreview.getByRole('button', { name: '关闭' }).click();
+  await emptyContactPreview.getByRole('button', { name: /关闭|Close/ }).click();
   await dynamicContactPanel.getByRole('button', { name: '新增联系信息' }).click();
   await dynamicContactPanel.getByRole('button', { name: '新增联系信息' }).click();
   const contactItems = dynamicContactPanel.getByRole('button', { name: '删除联系信息' });
@@ -420,7 +420,7 @@ test('site editor shows identity and requires a release note before publishing',
   await expect(contactPreview.getByText('sales@example.com', { exact: true })).toBeVisible();
   await expect(contactPreview.getByText('-', { exact: true })).toHaveCount(2);
   await expect(contactPreview.locator('.editor-contact-preview-icon').first()).toHaveCSS('color', 'rgb(124, 110, 245)');
-  await contactPreview.getByRole('button', { name: '关闭' }).click();
+  await contactPreview.getByRole('button', { name: /关闭|Close/ }).click();
   await page.locator('.editor-layer-list').getByText('页脚', { exact: true }).click();
   await page.locator('.editor-right-tabs button').filter({ hasText: '内容' }).click();
   const footerPanel = page.locator('.editor-right-panel');
@@ -494,8 +494,8 @@ test('site editor shows identity and requires a release note before publishing',
   const editorContactSignature = await contactModalSignature(page);
   await preview.locator('[data-section-type="hero"]').getByRole('button', { name: '获取报价' }).click();
   expect(await contactModalSignature(preview)).toEqual(editorContactSignature);
-  await page.getByRole('dialog').getByRole('button', { name: '关闭' }).click();
-  await preview.getByRole('dialog').getByRole('button', { name: '关闭' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: /关闭|Close/ }).click();
+  await preview.getByRole('dialog').getByRole('button', { name: /关闭|Close/ }).click();
   await preview.close();
   await expect.poll(() => productPoolRequestUrl).toContain('/storefront/product-pool');
   expect(new URL(productPoolRequestUrl).searchParams.get('pageSize')).toBe('50');
@@ -508,9 +508,9 @@ test('site editor shows identity and requires a release note before publishing',
   const productName = page.locator('.site-renderer-root .site-editor-product-name').last();
   await expect(productSummary).toHaveCSS('-webkit-line-clamp', '2');
   await expect(productSummary).toHaveCSS('overflow', 'hidden');
-  await expect(productSummary).toHaveCSS('max-height', '38px');
-  await expect(productSummary).toHaveCSS('line-height', '19px');
-  await expect(productName).toHaveCSS('height', '20px');
+  await expect(productSummary).toHaveCSS('max-height', '44px');
+  await expect(productSummary).toHaveCSS('line-height', '22px');
+  await expect(productName).toHaveCSS('height', '26px');
   const nameBox = await productName.boundingBox();
   const summaryBox = await productSummary.boundingBox();
   expect(nameBox).not.toBeNull();

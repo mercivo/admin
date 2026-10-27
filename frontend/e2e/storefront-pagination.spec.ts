@@ -15,7 +15,10 @@ test('published storefront uses localized Ant Design pagination and clamps produ
   await page.route('**/api/v1/public/site**', route => route.fulfill({ json: { data: {
     siteId: 'site-1', versionId: 'version-1', version: 1,
     site: { name: '测试站点', slug: 'test-site', defaultLanguage: 'zh_CN', supportedLanguages: ['zh_CN', 'zh_TW', 'zh_HK', 'en_US', 'en_GB'], defaultCurrency: 'CNY' },
-    config: {}, products, categories: [{ code: 'bags', label: '箱包', parentCode: null, sort: 1 }], testimonials: [],
+    config: { themeColor: '#C2410C', pages: { home: { sections: [
+      { id: 'header-1', type: 'header', visible: true, navItems: [] },
+      { id: 'products-1', type: 'products', visible: true },
+    ] } } }, products, categories: [{ code: 'bags', label: '箱包', parentCode: null, sort: 1 }], testimonials: [],
   } } }));
 
   await page.goto(`${process.env.STOREFRONT_BASE_URL || 'http://localhost:8080'}/?site=test-site`);
@@ -23,14 +26,17 @@ test('published storefront uses localized Ant Design pagination and clamps produ
   await expect(productCards).toHaveCount(10);
   const summary = page.locator('.site-editor-product-summary').first();
   await expect(summary).toHaveCSS('-webkit-line-clamp', '2');
-  await expect(summary).toHaveCSS('max-height', '38px');
-  await expect(summary).toHaveCSS('line-height', '19px');
+  await expect(summary).toHaveCSS('max-height', '44px');
+  await expect(summary).toHaveCSS('line-height', '22px');
   await expect(summary).toHaveCSS('overflow', 'hidden');
   const chineseName = await page.evaluate(() => new Intl.DisplayNames(['zh-CN'], { type: 'language' }).of('zh-Hans'));
   const englishNameInChinese = await page.evaluate(() => new Intl.DisplayNames(['zh-CN'], { type: 'language' }).of('en'));
   const traditionalChineseName = await page.evaluate(() => new Intl.DisplayNames(['zh-CN'], { type: 'language' }).of('zh-Hant'));
   await expect(page.locator('.editor-language-trigger')).toContainText(chineseName!);
   await expect(page.locator('.ant-pagination-prev')).toHaveAttribute('title', '上一页');
+  const activePage = page.locator('.ant-pagination-item-active');
+  await expect(activePage.locator('a')).toHaveCSS('color', 'rgb(194, 65, 12)');
+  await expect(activePage).toHaveCSS('border-color', 'rgb(194, 65, 12)');
 
   const header = page.locator('.editor-site-header');
   const navigation = page.locator('.editor-header-desktop-nav');
