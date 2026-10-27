@@ -80,7 +80,7 @@ const PRODUCT_DETAIL_COPY: Array<[string, string, string]> = [
 ];
 
 const PRODUCT_CONSTANTS: Record<string, string> = { 'product.moq': '最低起订量', 'product.badges': '新品;爆品;热销;推荐' };
-const STOREFRONT_CONSTANTS: Record<string, string> = { 'storefront.productBadge': '商品标记', 'storefront.quickNavigation': '快速导航' };
+const STOREFRONT_CONSTANTS: Record<string, string> = { 'storefront.quickNavigation': '快速导航' };
 
 const SYSTEM_COPY: Record<string, string> = {
   'empty.products': '当前分类暂无商品', 'empty.categories': '暂无分类', 'empty.contactInformation': '暂无联系信息',

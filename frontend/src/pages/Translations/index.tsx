@@ -19,7 +19,7 @@ const resourceLabels: Record<string, string> = { site: '站点设置', editor: '
 const statusMeta = { missing: { label: '未翻译', color: 'default' }, stale: { label: '已过期', color: 'warning' }, completed: { label: '已完成', color: 'success' } } as const;
 const importStatusMeta = { ready: { label: '可导入', color: 'success' }, unchanged: { label: '无变化', color: 'default' }, blank: { label: '空白跳过', color: 'default' }, source_changed: { label: '中文已变化', color: 'warning' }, removed: { label: '已删除或归档', color: 'warning' }, duplicate: { label: '重复行', color: 'error' }, invalid: { label: '格式错误', color: 'error' } } as const;
 const pageLabels: Record<string, string> = { home: '首页', products: '商品列表页', product: '商品详情页', about: '关于我们', contact: '联系我们', siteInfo: '联系我们' };
-const fieldLabels: Record<string, string> = { name: '商品名称', description: '商品描述', badge: '商品标记', badges: '商品标记', moq: '最低起订量', productBadge: '商品标记', quickNavigation: '快速导航', tags: '商品标签', title: '标题', subtitle: '副标题', eyebrow: '眉题', buttonText: '主按钮', secondaryButtonText: '次按钮', promiseTitle: '承诺标题', promiseText: '承诺内容', qualityBadgeText: '品质保证标识', label: '分类名称', remark: '分类说明', specification: '规格名称', option: '规格选项', contactModalTitle: '区块标题', contactModalSubtitle: '说明文字', content: '内容', keywords: 'SEO 关键词', company: '公司名称', text: '评价正文', displayName: '展示名称' };
+const fieldLabels: Record<string, string> = { name: '商品名称', description: '商品描述', badge: '商品标记', badges: '商品标记', moq: '最低起订量', quickNavigation: '快速导航', tags: '商品标签', title: '标题', subtitle: '副标题', eyebrow: '眉题', buttonText: '主按钮', secondaryButtonText: '次按钮', promiseTitle: '承诺标题', promiseText: '承诺内容', qualityBadgeText: '品质保证标识', label: '分类名称', remark: '分类说明', specification: '规格名称', option: '规格选项', contactModalTitle: '区块标题', contactModalSubtitle: '说明文字', content: '内容', keywords: 'SEO 关键词', company: '公司名称', text: '评价正文', displayName: '展示名称' };
 const systemFieldMeta: Record<string, { name: string; usage: string }> = {
   'system:empty.products': { name: '商品列表空数据', usage: '商品列表或分类筛选没有商品时显示' },
   'system:empty.categories': { name: '商品分类空数据', usage: '商品分类列表没有可用分类时显示' },
@@ -66,7 +66,7 @@ const fieldRenderOrder = (item: TranslationItem) => {
     'system:apiErrors.SITE_NOT_FOUND_OR_UNPUBLISHED', 'system:apiErrors.CONTACT_NAME_REQUIRED', 'system:apiErrors.CONTACT_METHOD_REQUIRED',
     'system:apiErrors.PURCHASE_REQUIREMENTS_REQUIRED', 'system:apiErrors.INQUIRY_SUBMIT_FAILED', 'system:apiErrors.SERVICE_UNAVAILABLE',
     'system:apiErrors.NETWORK_ERROR', 'system:apiErrors.UNKNOWN_ERROR',
-    'constant:product.moq', 'constant:product.badges', 'constant:storefront.productBadge', 'constant:storefront.quickNavigation',
+    'constant:product.moq', 'constant:product.badges', 'constant:storefront.quickNavigation',
   ];
   const index = commonOrder.indexOf(item.key);
   return index < 0 ? 1000 : index;

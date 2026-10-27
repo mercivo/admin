@@ -56,7 +56,6 @@ describe('TranslationService public site source catalog', () => {
       expect.objectContaining({ fieldKey: 'system:siteAccess.planExpiredDescription', sourceText: '当前租户套餐已过期，请联系站点管理员续费后再访问。' }),
       expect.objectContaining({ fieldKey: 'system:siteAccess.publishPermissionTitle', sourceText: '站点暂时无法访问' }),
       expect.objectContaining({ fieldKey: 'system:siteAccess.publishPermissionDescription', sourceText: '当前租户没有独立站发布权限，请联系站点管理员升级套餐后再访问。' }),
-      expect.objectContaining({ fieldKey: 'constant:storefront.productBadge', sourceText: '商品标记' }),
       expect.objectContaining({ fieldKey: 'constant:storefront.quickNavigation', sourceText: '快速导航' }),
       expect.objectContaining({ resourceType: 'editor', resourceId: 'product-detail', fieldKey: 'editor:product:product-detail:likes', sourceText: '人喜欢' }),
       expect.objectContaining({ resourceType: 'editor', resourceId: 'product-detail', fieldKey: 'editor:product:product-detail:contactNote', sourceText: '联系我们获取报价、定制方案与交付信息。' }),
@@ -64,6 +63,7 @@ describe('TranslationService public site source catalog', () => {
     ]));
     expect(saved.some(source => String(source.fieldKey).startsWith('system:customer.'))).toBe(false);
     expect(saved.some(source => source.fieldKey === 'constant:storefront.categoryFilter')).toBe(false);
+    expect(saved.some(source => source.fieldKey === 'constant:storefront.productBadge')).toBe(false);
   });
 
   it('adds footer copyright copy to the page-content translation catalog', async () => {

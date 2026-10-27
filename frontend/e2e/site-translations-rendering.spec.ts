@@ -37,7 +37,8 @@ const i18n = { sourceLocale: 'zh_CN', locales: ['zh_CN', 'en_US'], messages: { z
   'editor:home:footer-1:copyrightText': 'English Copyright',
 } } };
 
-const prepareAdmin = async (page: Page) => {
+const prepareAdmin = async (page: Page, messages = i18n, productItems = [product]) => {
+  let saveRequests = 0;
   await page.addInitScript(() => {
     localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin', siteId: 'site-1' }));
@@ -46,15 +47,17 @@ const prepareAdmin = async (page: Page) => {
   await page.route('**/api/v1/**', route => {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith('/auth/me')) return route.fulfill({ json: { data: { permissions: ['page.site.editor', 'site.edit', 'site.publish'] } } });
+    if (url.pathname.endsWith('/workspace/config/siteEditor') && route.request().method() === 'PUT') { saveRequests += 1; return route.fulfill({ json: { data: route.request().postDataJSON()?.value || config } }); }
     if (url.pathname.endsWith('/workspace/config/siteEditor')) return route.fulfill({ json: { data: config } });
     if (url.pathname.endsWith('/workspace/config/system')) return route.fulfill({ json: { data: { storefront: { guestAccessEnabled: true, guestPriceMode: 'base' } } } });
     if (url.pathname.endsWith('/workspace/config/currency')) return route.fulfill({ json: { data: { defaultCurrency: 'CNY', currencies: [{ code: 'CNY', symbol: '¥', enabled: true }] } } });
     if (url.pathname.endsWith('/workspace/settings')) return route.fulfill({ json: { data: { site: { id: 'site-1', name: '测试站点', description: '', logoUrl: '', defaultLanguage: 'zh_CN', supportedLanguages: ['zh_CN', 'en_US'], defaultCurrency: 'CNY' } } } });
-    if (url.pathname.endsWith('/translations/messages')) return route.fulfill({ json: { data: i18n } });
-    if (url.pathname.endsWith('/storefront/product-pool')) return route.fulfill({ json: { data: { items: [product], total: 1, page: 1, pageSize: 50, categories, categoryCounts: { bags: 1 }, summary: { totalProducts: 1 } } } });
+    if (url.pathname.endsWith('/translations/messages')) return route.fulfill({ json: { data: messages } });
+    if (url.pathname.endsWith('/storefront/product-pool')) return route.fulfill({ json: { data: { items: productItems, total: productItems.length, page: 1, pageSize: 50, categories, categoryCounts: { bags: productItems.length }, summary: { totalProducts: productItems.length } } } });
     if (url.pathname.endsWith('/admin/sites')) return route.fulfill({ json: { data: [{ id: 'site-1', name: '测试站点', slug: 'test-site', status: 'draft', defaultLanguage: 'zh_CN', supportedLanguages: ['zh_CN', 'en_US'], defaultCurrency: 'CNY' }] } });
     return route.fulfill({ json: { data: {} } });
   });
+  return { saveRequests: () => saveRequests };
 };
 
 const selectEnglish = async (page: Page, selector: string) => {
@@ -89,6 +92,69 @@ test('site design canvas renders saved English page and product translations', a
   await expect(canvas.getByText('English Copyright', { exact: true })).toBeVisible();
   await expect(canvas.getByTestId('site-product-price')).toHaveText('¥ 88.00～108.00');
   await expectPurchaseInfoStacked(page);
+});
+
+test('source-language editor canvas uses unsaved in-memory content instead of stale saved messages', async ({ page }) => {
+  const staleMessages = { ...i18n, messages: { ...i18n.messages, zh_CN: {
+    'editor:home:products-1:title': '已保存的旧产品标题',
+    'product:product-1:name': '已保存的旧商品名称',
+  } } };
+  const requests = await prepareAdmin(page, staleMessages);
+  await page.goto(`${adminBaseUrl}/site-editor`);
+  const canvas = page.locator('.editor-canvas-scroll');
+  await expect(canvas.getByRole('heading', { name: '中文产品标题' })).toBeVisible();
+  await expect(canvas.getByText('中文商品', { exact: true })).toBeVisible();
+  await page.locator('.editor-layer-list').getByText('产品列表', { exact: true }).click();
+  const titleInput = page.locator('.editor-right-panel input[value="中文产品标题"]');
+  await titleInput.fill('未保存的实时产品标题');
+  await expect(canvas.getByRole('heading', { name: '未保存的实时产品标题' })).toBeVisible();
+  expect(requests.saveRequests()).toBe(0);
+  await selectEnglish(page, '.editor-canvas-scroll .editor-language-trigger');
+  await expect(canvas.getByRole('heading', { name: 'English Products' })).toBeVisible();
+  await page.locator('.editor-canvas-scroll .editor-language-trigger').click();
+  await page.locator('.editor-language-popover button').filter({ hasText: 'zh_CN' }).click();
+  await expect(canvas.getByRole('heading', { name: '未保存的实时产品标题' })).toBeVisible();
+  expect(requests.saveRequests()).toBe(0);
+});
+
+test('product badge filters only show translated theme-aware options and support multi-select', async ({ page }) => {
+  const recommended = { ...product, id: 'product-2', nameZh: '推荐商品', hot: false, badge: 'recommended' };
+  await prepareAdmin(page, i18n, [product, recommended]);
+  await page.goto(`${adminBaseUrl}/site-editor`);
+  const canvas = page.locator('.editor-canvas-scroll');
+  const filters = canvas.getByTestId('product-badge-filters');
+  await expect(filters.getByRole('checkbox')).toHaveCount(4);
+  await expect(filters.getByText('商品标记', { exact: true })).toHaveCount(0);
+  await expect(filters.getByText('全选', { exact: true })).toHaveCount(0);
+  await expect(filters.locator('small')).toHaveCount(0);
+  await expect(filters).toHaveCSS('border-top-width', '0px');
+  await expect(filters).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(filters).toHaveCSS('box-shadow', 'none');
+  const hot = filters.getByRole('checkbox', { name: '爆品', exact: true });
+  const recommendedFilter = filters.getByRole('checkbox', { name: '推荐', exact: true });
+  await hot.check();
+  await expect(canvas.getByText('中文商品', { exact: true })).toBeVisible();
+  await expect(canvas.getByText('推荐商品', { exact: true })).toHaveCount(0);
+  await expect.poll(async () => hot.locator('xpath=../..').evaluate(label => {
+    const canvasRoot = label.closest<HTMLElement>('[data-editor-canvas]')!;
+    const probe = document.createElement('span');
+    probe.style.color = getComputedStyle(canvasRoot).getPropertyValue('--site-theme');
+    canvasRoot.appendChild(probe);
+    const themeColor = getComputedStyle(probe).color;
+    probe.remove();
+    return getComputedStyle(label).color === themeColor;
+  })).toBe(true);
+  await recommendedFilter.check();
+  await expect(canvas.getByText('推荐商品', { exact: true })).toBeVisible();
+  await hot.uncheck();
+  await expect(canvas.getByText('中文商品', { exact: true })).toHaveCount(0);
+  await recommendedFilter.uncheck();
+  await expect(canvas.getByText('中文商品', { exact: true })).toBeVisible();
+  await selectEnglish(page, '.editor-canvas-scroll .editor-language-trigger');
+  await expect(filters.getByRole('checkbox', { name: 'New', exact: true })).toBeVisible();
+  await expect(filters.getByRole('checkbox', { name: 'Hot', exact: true })).toBeVisible();
+  await expect(filters.getByRole('checkbox', { name: 'Bestseller', exact: true })).toBeVisible();
+  await expect(filters.getByRole('checkbox', { name: 'Recommended', exact: true })).toBeVisible();
 });
 
 test('draft preview renders saved English translations after language switching', async ({ page }) => {
