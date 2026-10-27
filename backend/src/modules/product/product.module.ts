@@ -8,9 +8,10 @@ import { ProductCategory } from '../product-category/product-category.entity';
 import { ProductStorageService } from './product-storage.service';
 import { InventoryBalance, InventoryLedgerEntry, Warehouse } from '../inventory/inventory.entity';
 import { AppConfig } from '../workspace/app-config.entity';
+import { CustomerLevelRule } from '../customer/customer.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Product, Tenant, ProductCategory, Warehouse, InventoryBalance, InventoryLedgerEntry, AppConfig])],
+  imports: [TypeOrmModule.forFeature([Product, Tenant, ProductCategory, Warehouse, InventoryBalance, InventoryLedgerEntry, AppConfig, CustomerLevelRule])],
   controllers: [ProductController],
   providers: [ProductService, ProductStorageService],
   exports: [ProductService],

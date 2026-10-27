@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import axios from "axios";
 import { Button, Empty, Input, Pagination, Select, Skeleton, Tree } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
@@ -31,16 +32,13 @@ import {
   TableActions,
   Toast,
 } from "../../components/shared";
-import {
-  productApi,
-  productCategoryApi,
-  workspaceApi,
-} from "../../services/api/index";
+import { productApi, productCategoryApi, workspaceApi } from "../../services/api/index";
 import { useNavigate } from "react-router-dom";
 import type { Product, ProductCategory } from "../../types";
 import { can } from "../../utils/permissions";
 import { useTablePagination } from "../../hooks/useTablePagination";
 import { DEFAULT_CURRENCY_CONFIG, type CurrencyConfig } from '../../config/sales';
+import { getApiErrorMessage } from '../../services/api';
 
 const productPriceRange = (product: Product, currency: string): string | null => {
   const pricing = product.currencyPrices?.[currency];
@@ -58,20 +56,26 @@ const displayProductPrice = (product: Product, currency: string, symbol: string)
   return range === null ? null : `${symbol} ${range}`;
 };
 
-const downloadCsv = (filename: string, rows: Array<Array<string | number>>) => {
-  const csv = rows
-    .map((row) =>
-      row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","),
-    )
-    .join("\n");
-  const url = URL.createObjectURL(
-    new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }),
-  );
+const saveBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = filename;
   anchor.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+};
+
+const exportErrorMessage = async (error: unknown) => {
+  if (axios.isAxiosError(error) && error.response?.data instanceof Blob) {
+    try {
+      const payload = JSON.parse(await error.response.data.text()) as { message?: string | string[] };
+      if (Array.isArray(payload.message)) return payload.message.join('；');
+      if (payload.message?.trim()) return payload.message.trim();
+    } catch {
+      // Fall back to the shared API error formatter.
+    }
+  }
+  return getApiErrorMessage(error);
 };
 
 // ─────────────── Product Preview Modal ───────────────
@@ -301,18 +305,20 @@ const DeleteConfirmModal: React.FC<{
 
 const BatchConfirmModal: React.FC<{
   count: number;
-  action: "offline" | "export";
+  action: "sync" | "offline";
+  submitting: boolean;
   onClose: () => void;
   onConfirm: () => void;
-}> = ({ count, action, onClose, onConfirm }) => {
+}> = ({ count, action, submitting, onClose, onConfirm }) => {
   const isOffline = action === "offline";
   return (
     <AppModal
       open
-      title={isOffline ? "批量取消同步" : "导出商品数据"}
+      title={isOffline ? "批量取消同步" : "批量同步"}
       onCancel={onClose}
       onOk={onConfirm}
-      okText={isOffline ? "确认取消同步" : "确认导出"}
+      confirmLoading={submitting}
+      okText={isOffline ? "确认取消同步" : "确认同步"}
       cancelText="取消"
       okButtonProps={isOffline ? { danger: true } : undefined}
       width={440}
@@ -321,16 +327,12 @@ const BatchConfirmModal: React.FC<{
         <div
           className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 ${isOffline ? "bg-amber-100" : "bg-primary/10"}`}
         >
-          {isOffline ? (
-            <Ban className="w-6 h-6 text-amber-500" />
-          ) : (
-            <Download className="w-6 h-6 text-primary" />
-          )}
+          {isOffline ? <Ban className="w-6 h-6 text-amber-500" /> : <Globe className="w-6 h-6 text-primary" />}
         </div>
         <p className="text-sm text-muted-foreground">
           {isOffline
             ? `确定要将选中的 ${count} 件商品取消同步吗？操作后商品将从独立站商品池移除。`
-            : `确定要导出选中的 ${count} 件商品数据吗？将导出为 Excel 格式。`}
+            : `确定要将选中的 ${count} 件商品同步到独立站吗？`}
         </p>
       </div>
     </AppModal>
@@ -355,6 +357,9 @@ const ProductsPage: React.FC = () => {
   const [productLimit, setProductLimit] = useState<number | null>(null);
   const [currencyConfig, setCurrencyConfig] = useState<CurrencyConfig>(DEFAULT_CURRENCY_CONFIG);
   const [priceCurrency, setPriceCurrency] = useState(DEFAULT_CURRENCY_CONFIG.defaultCurrency);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [batchSubmitting, setBatchSubmitting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const pagination = useTablePagination();
   const selectedCategoryCodes =
     category === "all"
@@ -370,7 +375,7 @@ const ProductsPage: React.FC = () => {
   // Modal states
   const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
-  const [batchAction, setBatchAction] = useState<"offline" | "export" | null>(
+  const [batchAction, setBatchAction] = useState<"sync" | "offline" | null>(
     null,
   );
   const [toast, setToast] = useState<{
@@ -388,7 +393,7 @@ const ProductsPage: React.FC = () => {
       .finally(() => setLoading(false));
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [pagination.current, pagination.pageSize, search, category, statusFilter, categories]);
+  }, [pagination.current, pagination.pageSize, search, category, statusFilter, categories, refreshKey]);
   useEffect(() => {
     workspaceApi
       .getSettings()
@@ -559,58 +564,51 @@ const ProductsPage: React.FC = () => {
   ];
 
   const handleBatchConfirm = async () => {
-    if (batchAction === "offline") {
-      try {
-        await Promise.all(
-          selected.map((id) =>
-            productApi.update(String(id), { status: "pending" }),
-          ),
-        );
-        setProducts((prev) =>
-          prev.map((product) =>
-            selected.includes(product.id)
-              ? { ...product, status: "pending" }
-              : product,
-          ),
-        );
-        setToast({
-          message: `已取消同步 ${selected.length} 件商品`,
-          type: "success",
-        });
-      } catch {
-        setToast({ message: "批量取消同步失败，请重试", type: "error" });
-        return;
-      }
-    } else if (batchAction === "export") {
-      const items = products.filter((product) => selected.includes(product.id));
-      downloadCsv(
-        `mercivo-products-${new Date().toISOString().slice(0, 10)}.csv`,
-        [
-          [
-            "商品编码",
-            "中文名称",
-            `价格（${priceCurrency}）`,
-            "库存",
-            "最小起订量",
-            "状态",
-          ],
-          ...items.map((item) => [
-            item.sku,
-            item.nameZh,
-            displayProductPrice(item, priceCurrency, selectedCurrencySymbol) || "-",
-            item.stock,
-            item.moq,
-            item.status,
-          ]),
-        ],
-      );
-      setToast({
-        message: `已导出 ${selected.length} 件商品`,
-        type: "success",
-      });
+    if (!batchAction || batchSubmitting) return;
+    setBatchSubmitting(true);
+    try {
+      const status = batchAction === 'sync' ? 'published' : 'pending';
+      await productApi.batchStatus(selected.map(String), status);
+      setToast({ message: batchAction === 'sync' ? `已同步 ${selected.length} 件商品` : `已取消同步 ${selected.length} 件商品`, type: "success" });
+      setBatchAction(null);
+      setSelected([]);
+      setRefreshKey(value => value + 1);
+    } catch (error) {
+      setToast({ message: getApiErrorMessage(error), type: "error" });
+    } finally {
+      setBatchSubmitting(false);
     }
-    setBatchAction(null);
-    setSelected([]);
+  };
+
+  const openBatchAction = (action: 'sync' | 'offline') => {
+    const visibleSelected = products.filter(product => selected.includes(product.id));
+    const invalid = action === 'sync'
+      ? visibleSelected.some(product => product.status !== 'pending')
+      : visibleSelected.some(product => product.status !== 'published');
+    if (invalid) {
+      setToast({ message: action === 'sync' ? '请选择还未同步的商品数据' : '请选择已同步的商品数据', type: 'error' });
+      return;
+    }
+    setBatchAction(action);
+  };
+
+  const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const blob = await productApi.export({
+        keyword: search || undefined,
+        category: category === 'all' ? undefined : selectedCategoryCodes.join(','),
+        status: statusFilter === 'all' ? undefined : statusFilter,
+        currency: priceCurrency,
+      });
+      saveBlob(blob, `mercivo-products-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      setToast({ message: '商品数据已导出', type: 'success' });
+    } catch (error) {
+      setToast({ message: await exportErrorMessage(error), type: 'error' });
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleDeleteConfirm = async () => {
@@ -754,8 +752,29 @@ const ProductsPage: React.FC = () => {
                 { value: "pending", label: "未同步" },
               ]}
             />
+            {selected.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  已选 {selected.length} 项
+                </span>
+                {can("product.publish") && <>
+                  <button
+                    onClick={() => openBatchAction("sync")}
+                    className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10"
+                  >
+                    同步
+                  </button>
+                  <button
+                    onClick={() => openBatchAction("offline")}
+                    className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100"
+                  >
+                    取消同步
+                  </button>
+                </>}
+              </div>
+            )}
             {/* View Toggle */}
-            <div className="flex items-center border border-border rounded-xl overflow-hidden ml-auto">
+            <div className="ml-auto flex items-center overflow-hidden rounded-xl border border-border">
               <button
                 aria-label="表格视图"
                 onClick={() => setViewMode("table")}
@@ -771,25 +790,13 @@ const ProductsPage: React.FC = () => {
                 <BarChart2 className="w-4 h-4" />
               </button>
             </div>
-            {selected.length > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  已选 {selected.length} 项
-                </span>
-                <button
-                  onClick={() => setBatchAction("offline")}
-                  className="px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-semibold hover:bg-red-100"
-                >
-                  取消同步
-                </button>
-                <button
-                  onClick={() => setBatchAction("export")}
-                  className="px-3 py-1.5 bg-secondary text-foreground border border-border rounded-lg text-xs font-semibold hover:bg-muted"
-                >
-                  导出
-                </button>
-              </div>
-            )}
+            <Button
+              icon={<Download className="h-4 w-4" />}
+              loading={exporting}
+              onClick={() => void handleExport()}
+            >
+              导出
+            </Button>
           </div>
 
           {viewMode === "table" ? (
@@ -925,8 +932,9 @@ const ProductsPage: React.FC = () => {
         <BatchConfirmModal
           count={selected.length}
           action={batchAction}
+          submitting={batchSubmitting}
           onClose={() => setBatchAction(null)}
-          onConfirm={handleBatchConfirm}
+          onConfirm={() => void handleBatchConfirm()}
         />
       )}
       {toast && (

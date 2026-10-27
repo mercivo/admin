@@ -1,4 +1,15 @@
-import { IsString, IsOptional, IsBoolean, IsNumber, IsIn, IsInt, IsArray, Min, Max, MaxLength, ArrayMaxSize } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsNumber, IsIn, IsInt, IsArray, Min, MaxLength, ArrayMaxSize, ArrayMinSize, IsUUID } from 'class-validator';
+
+export class BatchProductStatusDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(500)
+  @IsUUID('4', { each: true })
+  ids: string[];
+
+  @IsIn(['published', 'pending'])
+  status: 'published' | 'pending';
+}
 
 export class CreateProductDto {
   @IsString()
@@ -77,39 +88,6 @@ export class CreateProductDto {
   @Min(0)
   likeCount?: number;
 
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  seoTitle?: string;
-
-  @IsOptional()
-  @IsString()
-  seoDescription?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  seoImage?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  brand?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  gtin?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  enableReviews?: boolean;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(5)
-  reviewRating?: number;
 }
 
 export class UpdateProductDto {
@@ -195,73 +173,4 @@ export class UpdateProductDto {
   @Min(0)
   likeCount?: number;
 
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  seoTitle?: string;
-
-  @IsOptional()
-  @IsString()
-  seoDescription?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  seoImage?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  brand?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  gtin?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  enableReviews?: boolean;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(5)
-  reviewRating?: number;
-}
-
-export class UpdateProductSeoDto {
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  seoTitle?: string;
-
-  @IsOptional()
-  @IsString()
-  seoDescription?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  seoImage?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  brand?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  gtin?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  enableReviews?: boolean;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(5)
-  reviewRating?: number;
 }

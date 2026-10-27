@@ -67,27 +67,6 @@ export class Product {
   @Column({ name: 'main_image', length: 500, nullable: true })
   mainImage: string;
 
-  @Column({ name: 'seo_title', length: 255, nullable: true })
-  seoTitle: string;
-
-  @Column({ name: 'seo_description', type: 'text', nullable: true })
-  seoDescription: string;
-
-  @Column({ name: 'seo_image', length: 500, nullable: true })
-  seoImage: string;
-
-  @Column({ name: 'brand', length: 255, nullable: true })
-  brand: string;
-
-  @Column({ name: 'gtin', length: 50, nullable: true })
-  gtin: string;
-
-  @Column({ name: 'enable_reviews', type: 'boolean', default: false })
-  enableReviews: boolean;
-
-  @Column({ name: 'review_rating', type: 'decimal', precision: 2, scale: 1, nullable: true })
-  reviewRating: number;
-
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

@@ -3,8 +3,10 @@ import { extname } from 'path';
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Storage } from '@google-cloud/storage';
+import * as sharp from 'sharp';
 
 export type StoredObject = { url: string; objectName: string };
+export type ExportImageAsset = { buffer: Buffer; extension: 'png' | 'jpeg'; width: number; height: number };
 
 @Injectable()
 export class CloudStorageService {
@@ -47,6 +49,29 @@ export class CloudStorageService {
     await this.storage.bucket(this.bucketName).file(objectName).delete({ ignoreNotFound: true });
   }
 
+  async readImageForExport(rawUrl: string): Promise<ExportImageAsset | null> {
+    const url = this.trustedImageUrl(rawUrl);
+    if (!url) return null;
+    try {
+      const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(5000) });
+      if (!response.ok) return null;
+      const contentLength = Number(response.headers.get('content-length') || 0);
+      if (contentLength > 5 * 1024 * 1024) return null;
+      const input = Buffer.from(await response.arrayBuffer());
+      if (!input.length || input.length > 5 * 1024 * 1024) return null;
+      const metadata = await sharp(input, { animated: false }).metadata();
+      if (!metadata.width || !metadata.height) return null;
+      if (metadata.format === 'png') return { buffer: input, extension: 'png', width: metadata.width, height: metadata.height };
+      if (metadata.format === 'jpeg') return { buffer: input, extension: 'jpeg', width: metadata.width, height: metadata.height };
+      const buffer = await sharp(input, { animated: false, page: 0 }).png().toBuffer();
+      const converted = await sharp(buffer).metadata();
+      if (!converted.width || !converted.height) return null;
+      return { buffer, extension: 'png', width: converted.width, height: converted.height };
+    } catch {
+      return null;
+    }
+  }
+
   private ensureConfigured() {
     if (!this.bucketName) throw new ServiceUnavailableException('文件存储服务尚未配置');
   }
@@ -56,6 +81,22 @@ export class CloudStorageService {
     return this.publicBaseUrl
       ? `${this.publicBaseUrl}/${encodedPath}`
       : `https://storage.googleapis.com/${encodeURIComponent(this.bucketName)}/${encodedPath}`;
+  }
+
+  private trustedImageUrl(rawUrl: string): URL | null {
+    try {
+      const url = new URL(rawUrl);
+      if (url.protocol !== 'https:') return null;
+      if (this.publicBaseUrl) {
+        const base = new URL(this.publicBaseUrl);
+        const prefix = base.pathname.replace(/\/$/, '');
+        if (url.origin === base.origin && (url.pathname === prefix || url.pathname.startsWith(`${prefix}/`))) return url;
+      }
+      const bucketPrefix = `/${encodeURIComponent(this.bucketName)}/`;
+      return this.bucketName && url.hostname === 'storage.googleapis.com' && url.pathname.startsWith(bucketPrefix) ? url : null;
+    } catch {
+      return null;
+    }
   }
 
   private safeSegment(value: string): string {

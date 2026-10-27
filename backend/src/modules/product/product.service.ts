@@ -1,21 +1,48 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Repository, SelectQueryBuilder } from 'typeorm';
+import * as ExcelJS from 'exceljs';
 import { Product } from './product.entity';
-import { CreateProductDto, UpdateProductDto, UpdateProductSeoDto } from './product.dto';
+import { CreateProductDto, UpdateProductDto } from './product.dto';
 import { Tenant } from '../site/tenant.entity';
 import { ProductCategory } from '../product-category/product-category.entity';
 import { FilterXSS } from 'xss';
 import { randomUUID } from 'crypto';
 import { InventoryBalance, InventoryLedgerEntry, Warehouse } from '../inventory/inventory.entity';
 import { pageLimit, pageOffset, pageResult } from '../../common/dto/page-query.dto';
-import { ProductQueryDto } from './product-query.dto';
+import { ProductExportQueryDto, ProductQueryDto } from './product-query.dto';
 import { AppConfig } from '../workspace/app-config.entity';
+import { CustomerLevelRule } from '../customer/customer.entity';
+import { ProductStorageService } from './product-storage.service';
+import { ExportImageAsset } from '../../common/storage/cloud-storage.service';
+
+const PRODUCT_EXPORT_BASE_COLUMNS = ['商品编码', '商品名称', '分类', '商品图片', '商品描述', '标签', '商品标记', '最小起订量', '点赞数量', '同步状态'];
+const PRODUCT_EXPORT_VARIANT_COLUMNS = ['规格名称', '规格选项'];
+const PRODUCT_BADGE_LABELS: Record<string, string> = { new: '新品', hot: '爆品', bestseller: '热销', recommended: '推荐' };
+const EXPORT_IMAGE_PADDING = 12;
+const EXPORT_IMAGE_SCALE = 0.5;
+const EXPORT_IMAGE_MIN_COLUMN_WIDTH = 34;
+const EXCEL_MAX_COLUMN_WIDTH = 255;
+const EXCEL_MAX_ROW_HEIGHT = 409;
+const EXPORT_BASE_ROW_HEIGHT = 30;
+const EXPORT_TEXT_LINE_HEIGHT = 16;
+const EXPORT_TEXT_VERTICAL_PADDING = 10;
+const PRODUCT_EXPORT_COLUMN_WIDTHS: Record<string, number> = {
+  '商品编码': 18,
+  '商品名称': 26,
+  '分类': 18,
+  '商品描述': 42,
+  '标签': 24,
+  '商品标记': 18,
+  '最小起订量': 18,
+  '点赞数量': 18,
+  '同步状态': 18,
+  '规格名称': 18,
+  '规格选项': 18,
+};
 
 @Injectable()
 export class ProductService {
-  private readonly logger = new Logger(ProductService.name);
-
   constructor(
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
@@ -25,16 +52,13 @@ export class ProductService {
     @InjectRepository(InventoryBalance) private readonly balanceRepository: Repository<InventoryBalance>,
     @InjectRepository(InventoryLedgerEntry) private readonly ledgerRepository: Repository<InventoryLedgerEntry>,
     @InjectRepository(AppConfig) private readonly configRepository: Repository<AppConfig>,
+    @InjectRepository(CustomerLevelRule) private readonly customerLevelRepository: Repository<CustomerLevelRule>,
+    private readonly storageService: ProductStorageService,
   ) { }
 
   async findAll(siteId: string, query: ProductQueryDto = new ProductQueryDto()) {
     const builder = this.productRepository.createQueryBuilder('product').where('product.site_id = :siteId', { siteId });
-    if (query.keyword?.trim()) builder.andWhere('(product.name_zh LIKE :keyword OR product.sku LIKE :keyword)', { keyword: `%${query.keyword.trim()}%` });
-    if (query.category) {
-      const categories = query.category.split(',').map(item => item.trim()).filter(Boolean);
-      if (categories.length) builder.andWhere('product.category IN (:...categories)', { categories });
-    }
-    if (query.status) builder.andWhere('product.status = :status', { status: query.status });
+    this.applyFilters(builder, query);
     const [items, total] = await builder.orderBy('product.created_at', 'DESC').skip(pageOffset(query)).take(pageLimit(query)).getManyAndCount();
     const [balances, categoryRows] = await Promise.all([
       items.length ? this.balanceRepository.find({ where: { siteId, productId: In(items.map(item => item.id)) } }) : [] as InventoryBalance[],
@@ -64,6 +88,189 @@ export class ProductService {
   }
 
   catalog(siteId: string): Promise<Product[]> { return this.productRepository.find({ where: { siteId }, order: { createdAt: 'DESC' } }); }
+
+  async batchStatus(ids: string[], status: 'published' | 'pending', siteId: string) {
+    const uniqueIds = [...new Set(ids)];
+    const expectedStatus: Product['status'] = status === 'published' ? 'pending' : 'published';
+    const invalidMessage = status === 'published' ? '请选择还未同步的商品数据' : '请选择已同步的商品数据';
+
+    return this.productRepository.manager.transaction(async manager => {
+      const repository = manager.getRepository(Product);
+      const products = await repository.find({
+        where: { siteId, id: In(uniqueIds) },
+        select: { id: true, status: true },
+      });
+      if (products.length !== uniqueIds.length || products.some(product => product.status !== expectedStatus)) {
+        throw new BadRequestException(invalidMessage);
+      }
+      const result = await repository.update(
+        { siteId, id: In(uniqueIds), status: expectedStatus },
+        { status },
+      );
+      if (result.affected !== uniqueIds.length) throw new BadRequestException(invalidMessage);
+      return { updated: uniqueIds.length, status };
+    });
+  }
+
+  async exportWorkbook(siteId: string, query: ProductExportQueryDto) {
+    const builder = this.productRepository.createQueryBuilder('product').where('product.site_id = :siteId', { siteId });
+    this.applyFilters(builder, query);
+    const products = await builder.orderBy('product.created_at', 'DESC').getMany();
+    const { currencies, levels, categories } = await this.exportReferences(siteId);
+    const productImages: Array<ExportImageAsset | null> = [];
+    for (const product of products) {
+      const firstImageUrl = String(product.images?.[0] || product.img || '').trim();
+      productImages.push(firstImageUrl ? await this.storageService.readExportImage(firstImageUrl) : null);
+    }
+    const widestImage = productImages.reduce((width, image) => Math.max(width, image ? this.exportImageSize(image.width) : 0), 0);
+    const imageColumnWidth = Math.min(EXCEL_MAX_COLUMN_WIDTH, Math.max(EXPORT_IMAGE_MIN_COLUMN_WIDTH, (widestImage + EXPORT_IMAGE_PADDING - 5) / 7));
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'Mercivo';
+    workbook.created = new Date();
+    const baseColumns = PRODUCT_EXPORT_BASE_COLUMNS.map(header => ({ key: header, header, section: 'base' as const }));
+    const variantColumns = PRODUCT_EXPORT_VARIANT_COLUMNS.map(header => ({ key: header, header, section: 'variant' as const }));
+    const priceColumns = currencies.flatMap(currency => [
+      { key: `price:${currency}:base`, header: '商品单价', section: 'price' as const, currency },
+      ...levels.map(level => ({ key: `price:${currency}:${level.code}`, header: `${level.name}价`, section: 'price' as const, currency, levelCode: level.code })),
+    ]);
+    const columns = [...baseColumns, ...variantColumns, ...priceColumns];
+    const sheet = workbook.addWorksheet('商品数据', { views: [{ state: 'frozen', xSplit: 3, ySplit: 2 }] });
+    sheet.properties.defaultRowHeight = 30;
+    sheet.addRow(columns.map(column => column.section === 'price' ? '' : column.header));
+    sheet.addRow(columns.map(column => column.section === 'price' ? column.header : ''));
+    columns.forEach((column, index) => {
+      sheet.getColumn(index + 1).width = this.exportColumnWidth(column.header, imageColumnWidth);
+    });
+    sheet.getRow(1).height = 32;
+    sheet.getRow(2).height = 32;
+    const staticColumnCount = baseColumns.length + variantColumns.length;
+    for (let column = 1; column <= staticColumnCount; column += 1) sheet.mergeCells(1, column, 2, column);
+    let currencyStart = staticColumnCount + 1;
+    currencies.forEach(currency => {
+      const currencyWidth = 1 + levels.length;
+      const currencyEnd = currencyStart + currencyWidth - 1;
+      if (currencyEnd > currencyStart) sheet.mergeCells(1, currencyStart, 1, currencyEnd);
+      sheet.getCell(1, currencyStart).value = `币种：${currency}`;
+      currencyStart = currencyEnd + 1;
+    });
+    for (let row = 1; row <= 2; row += 1) {
+      for (let column = 1; column <= columns.length; column += 1) {
+        const descriptor = columns[column - 1];
+        const color = descriptor.section === 'base' ? 'FF1E6FFF' : descriptor.section === 'variant' ? 'FF0891B2' : 'FFD97706';
+        const cell = sheet.getCell(row, column);
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } };
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        cell.border = {
+          left: { style: 'thin', color: { argb: 'FFFFFFFF' } },
+          right: { style: 'thin', color: { argb: 'FFFFFFFF' } },
+          bottom: { style: 'thin', color: { argb: 'FFFFFFFF' } },
+        };
+      }
+    }
+    const categoryLabels = this.categoryLabels(categories);
+    const imageColumn = columns.findIndex(column => column.key === '商品图片') + 1;
+    priceColumns.forEach(column => { sheet.getColumn(columns.findIndex(item => item.key === column.key) + 1).numFmt = '0.00'; });
+    for (const [productIndex, product] of products.entries()) {
+      const variants = product.variants?.length ? product.variants : [null];
+      const startRow = sheet.rowCount + 1;
+      const image = productImages[productIndex];
+      const description = this.descriptionText(product.description);
+      const displayImageWidth = image ? this.exportImageSize(image.width) : 0;
+      const displayImageHeight = image ? this.exportImageSize(image.height) : 0;
+      const base: Record<string, string | number> = {
+        '商品编码': product.sku || '-', '商品名称': product.nameZh || '-', '分类': categoryLabels.get(product.category) || '-', '商品图片': '-',
+        '商品描述': description, '标签': (product.tags || []).join('、') || '-',
+        '商品标记': PRODUCT_BADGE_LABELS[product.badge || ''] || (product.hot ? PRODUCT_BADGE_LABELS.hot : '-'), '最小起订量': product.moq,
+        '点赞数量': product.likeCount, '同步状态': product.status === 'published' ? '已同步' : '未同步',
+      };
+      const baseTextHeight = PRODUCT_EXPORT_BASE_COLUMNS
+        .filter(header => header !== '商品图片')
+        .reduce((height, header) => Math.max(height, this.exportTextHeight(base[header], this.exportColumnWidth(header, imageColumnWidth))), EXPORT_BASE_ROW_HEIGHT);
+      const variantMinimumHeights = variants.map(variant => Math.max(
+        this.exportTextHeight(variant?.specification || '-', this.exportColumnWidth('规格名称', imageColumnWidth)),
+        this.exportTextHeight(variant?.option || '-', this.exportColumnWidth('规格选项', imageColumnWidth)),
+      ));
+      const imageHeight = image ? (displayImageHeight + EXPORT_IMAGE_PADDING) * 0.75 : EXPORT_BASE_ROW_HEIGHT;
+      const requiredBlockHeight = Math.max(
+        variantMinimumHeights.reduce((total, height) => total + height, 0),
+        baseTextHeight,
+        imageHeight,
+      );
+      const blockRowCount = Math.max(variants.length, Math.ceil(requiredBlockHeight / EXCEL_MAX_ROW_HEIGHT));
+      const rowMinimumHeights = [
+        ...variantMinimumHeights,
+        ...Array.from({ length: blockRowCount - variants.length }, () => EXPORT_BASE_ROW_HEIGHT),
+      ];
+      const blockHeight = Math.max(requiredBlockHeight, rowMinimumHeights.reduce((total, height) => total + height, 0));
+      const rowHeights = this.distributeExportRowHeights(rowMinimumHeights, blockHeight);
+      for (let rowIndex = 0; rowIndex < blockRowCount; rowIndex += 1) {
+        const hasVariant = rowIndex < variants.length;
+        const variant = hasVariant ? variants[rowIndex] : null;
+        const rowValues: Record<string, string | number> = {
+          ...(rowIndex === 0 ? base : {}),
+          '规格名称': hasVariant ? variant?.specification || '-' : '',
+          '规格选项': hasVariant ? variant?.option || '-' : '',
+        };
+        if (hasVariant) currencies.forEach(currency => {
+          const pricing = product.currencyPrices?.[currency];
+          if (!pricing) {
+            rowValues[`price:${currency}:base`] = '-';
+            levels.forEach(level => { rowValues[`price:${currency}:${level.code}`] = '-'; });
+            return;
+          }
+          const surcharge = Number(variant?.surcharges?.[currency] ?? (currency === currencies[0] ? variant?.surcharge : 0)) || 0;
+          rowValues[`price:${currency}:base`] = Number(pricing.basePrice) + surcharge;
+          levels.forEach(level => {
+            const levelBase = pricing.levelPrices?.[level.code];
+            rowValues[`price:${currency}:${level.code}`] = Number(levelBase === undefined ? pricing.basePrice : levelBase) + surcharge;
+          });
+        });
+        const row = sheet.addRow(columns.map(column => rowValues[column.key] ?? ''));
+        row.height = rowHeights[rowIndex];
+      }
+      const endRow = sheet.rowCount;
+      if (endRow > startRow) PRODUCT_EXPORT_BASE_COLUMNS.forEach((_, index) => sheet.mergeCells(startRow, index + 1, endRow, index + 1));
+      const fills = productIndex % 2 === 0
+        ? { base: 'FFF4F7FB', variant: 'FFF0FDFA', price: 'FFFFFBEB' }
+        : { base: 'FFEAF1F8', variant: 'FFE6F7F4', price: 'FFFFF4D6' };
+      for (let rowNumber = startRow; rowNumber <= endRow; rowNumber += 1) {
+        for (let column = 1; column <= columns.length; column += 1) {
+          const cell = sheet.getCell(rowNumber, column);
+          const fillColor = column <= PRODUCT_EXPORT_BASE_COLUMNS.length ? fills.base
+            : column <= PRODUCT_EXPORT_BASE_COLUMNS.length + PRODUCT_EXPORT_VARIANT_COLUMNS.length ? fills.variant : fills.price;
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
+          const topAligned = column === imageColumn || column === columns.findIndex(item => item.key === '商品描述') + 1;
+          const leftAligned = column === columns.findIndex(item => item.key === '商品描述') + 1 || column === columns.findIndex(item => item.key === '标签') + 1;
+          const priceAligned = column > PRODUCT_EXPORT_BASE_COLUMNS.length + PRODUCT_EXPORT_VARIANT_COLUMNS.length;
+          cell.alignment = { vertical: topAligned ? 'top' : 'middle', horizontal: priceAligned ? 'right' : leftAligned ? 'left' : 'center', wrapText: true };
+          cell.border = {
+            left: { style: 'hair', color: { argb: 'FFD7E0EA' } },
+            right: { style: 'hair', color: { argb: 'FFD7E0EA' } },
+            bottom: { style: rowNumber === endRow ? 'medium' : 'hair', color: { argb: rowNumber === endRow ? 'FF7C8FA3' : 'FFD7E0EA' } },
+          };
+        }
+      }
+      sheet.getCell(startRow, columns.findIndex(column => column.key === '商品名称') + 1).font = { bold: true, color: { argb: 'FF16324F' } };
+      if (image) {
+        sheet.getCell(startRow, imageColumn).value = '';
+        const rowHeightPixels = rowHeights[0] / 0.75;
+        const imageColumnPixels = Math.floor(imageColumnWidth * 7 + 5);
+        const imageId = workbook.addImage({ buffer: image.buffer as any, extension: image.extension });
+        const horizontalInset = Math.max(EXPORT_IMAGE_PADDING / 2, (imageColumnPixels - displayImageWidth) / 2);
+        sheet.addImage(imageId, {
+          tl: {
+            col: imageColumn - 1 + horizontalInset / imageColumnPixels,
+            row: startRow - 1 + (EXPORT_IMAGE_PADDING / 2) / rowHeightPixels,
+          },
+          ext: { width: displayImageWidth, height: displayImageHeight },
+          editAs: 'oneCell',
+        });
+      }
+    }
+    const stamp = new Date().toISOString().slice(0, 10);
+    return { filename: `mercivo-products-${stamp}.xlsx`, data: Buffer.from(await workbook.xlsx.writeBuffer()) };
+  }
 
   async findById(id: string, siteId: string): Promise<Product> {
     const product = await this.productRepository.findOne({ where: { id, siteId } });
@@ -134,19 +341,108 @@ export class ProductService {
     await this.productRepository.remove(product);
   }
 
-  async getProductSeo(id: string, siteId: string): Promise<Product> {
-    return this.findById(id, siteId);
-  }
-
-  async updateProductSeo(id: string, dto: UpdateProductSeoDto, siteId: string): Promise<Product> {
-    const product = await this.findById(id, siteId);
-    Object.assign(product, dto);
-    return this.productRepository.save(product);
-  }
-
   private async ensureCategory(code: string, siteId: string): Promise<void> {
     const exists = await this.productCategoryRepository.exist({ where: { siteId, code, status: 'enabled' } });
     if (!exists) throw new BadRequestException('请选择有效的商品分类');
+  }
+
+  private async exportReferences(siteId: string) {
+    const [config, levels, categories] = await Promise.all([
+      this.configRepository.findOne({ where: { key: `${siteId}:currency` } }),
+      this.customerLevelRepository.find({ where: { siteId }, order: { sort: 'ASC', updatedAt: 'ASC' } }),
+      this.productCategoryRepository.find({ where: { siteId }, order: { sort: 'ASC', createdAt: 'ASC' } }),
+    ]);
+    const value = (config?.value || {}) as any; const defaultCurrency = String(value.defaultCurrency || 'CNY').toUpperCase();
+    const enabled = (value.currencies || []).filter((item: any) => item.enabled !== false).map((item: any) => String(item.code || '').toUpperCase()).filter((code: string) => /^[A-Z]{3}$/.test(code));
+    const currencies = [defaultCurrency, ...enabled.filter((code: string) => code !== defaultCurrency)];
+    return { currencies: [...new Set(currencies)], levels, categories };
+  }
+
+  private categoryLabels(categories: ProductCategory[]): Map<string, string> {
+    const entries = new Map(categories.map(category => [category.code, category]));
+    return new Map(categories.map(category => {
+      const parent = category.parentCode ? entries.get(category.parentCode) : undefined;
+      return [category.code, parent ? `${parent.label} / ${category.label}` : category.label];
+    }));
+  }
+
+  private descriptionText(description?: string): string {
+    if (!description?.trim()) return '-';
+    const withLayout = description
+      .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<li\b[^>]*>/gi, '• ')
+      .replace(/<\/(?:p|div|h[1-6]|li|ul|ol|blockquote)>/gi, '\n');
+    const text = new FilterXSS({ whiteList: {}, stripIgnoreTag: true, stripIgnoreTagBody: ['script', 'style'] }).process(withLayout);
+    const decoded = text.replace(/&(?:#(\d+)|#x([0-9a-f]+)|(nbsp|amp|lt|gt|quot|apos));/gi, (_, decimal: string, hex: string, named: string) => {
+      if (decimal) return String.fromCodePoint(Number(decimal));
+      if (hex) return String.fromCodePoint(parseInt(hex, 16));
+      return ({ nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" } as Record<string, string>)[named.toLowerCase()] || '';
+    });
+    return decoded.split('\n').map(line => line.replace(/[\t ]+/g, ' ').trim()).filter(Boolean).join('\n') || '-';
+  }
+
+  private exportColumnWidth(header: string, imageColumnWidth: number): number {
+    if (header === '商品图片') return imageColumnWidth;
+    return PRODUCT_EXPORT_COLUMN_WIDTHS[header] || 18;
+  }
+
+  private exportTextHeight(value: string | number | undefined, columnWidth: number): number {
+    const text = value === undefined || value === null || value === '' ? '-' : String(value);
+    const usableWidth = Math.max(4, Math.floor(columnWidth - 2));
+    const displayLines = text.split('\n').reduce((total, line) => {
+      const width = Array.from(line).reduce((lineWidth, character) => lineWidth + this.exportCharacterWidth(character), 0);
+      return total + Math.max(1, Math.ceil(width / usableWidth));
+    }, 0);
+    return Math.max(EXPORT_BASE_ROW_HEIGHT, displayLines * EXPORT_TEXT_LINE_HEIGHT + EXPORT_TEXT_VERTICAL_PADDING);
+  }
+
+  private exportCharacterWidth(character: string): number {
+    const codePoint = character.codePointAt(0) || 0;
+    if ((codePoint >= 0x0300 && codePoint <= 0x036f) || (codePoint >= 0xfe00 && codePoint <= 0xfe0f)) return 0;
+    if (codePoint > 0xffff
+      || (codePoint >= 0x1100 && codePoint <= 0x115f)
+      || (codePoint >= 0x2e80 && codePoint <= 0xa4cf)
+      || (codePoint >= 0xac00 && codePoint <= 0xd7a3)
+      || (codePoint >= 0xf900 && codePoint <= 0xfaff)
+      || (codePoint >= 0xfe10 && codePoint <= 0xfe6f)
+      || (codePoint >= 0xff01 && codePoint <= 0xff60)
+      || (codePoint >= 0xffe0 && codePoint <= 0xffe6)) return 2;
+    return 1;
+  }
+
+  private distributeExportRowHeights(minimumHeights: number[], totalHeight: number): number[] {
+    const result = new Array<number>(minimumHeights.length).fill(0);
+    let remainingHeight = totalHeight;
+    let remainingIndexes = minimumHeights.map((_, index) => index);
+    while (remainingIndexes.length) {
+      const evenHeight = remainingHeight / remainingIndexes.length;
+      const fixedIndexes = remainingIndexes.filter(index => minimumHeights[index] > evenHeight);
+      if (!fixedIndexes.length) {
+        remainingIndexes.forEach(index => { result[index] = Math.min(EXCEL_MAX_ROW_HEIGHT, evenHeight); });
+        break;
+      }
+      fixedIndexes.forEach(index => {
+        result[index] = Math.min(EXCEL_MAX_ROW_HEIGHT, minimumHeights[index]);
+        remainingHeight -= result[index];
+      });
+      const fixed = new Set(fixedIndexes);
+      remainingIndexes = remainingIndexes.filter(index => !fixed.has(index));
+    }
+    return result.map(height => Math.max(EXPORT_BASE_ROW_HEIGHT, height));
+  }
+
+  private exportImageSize(sourceSize: number): number {
+    return Math.max(1, sourceSize * EXPORT_IMAGE_SCALE);
+  }
+
+  private applyFilters(builder: SelectQueryBuilder<Product>, query: ProductQueryDto): void {
+    if (query.keyword?.trim()) builder.andWhere('(product.name_zh LIKE :keyword OR product.sku LIKE :keyword)', { keyword: `%${query.keyword.trim()}%` });
+    if (query.category) {
+      const categories = query.category.split(',').map(item => item.trim()).filter(Boolean);
+      if (categories.length) builder.andWhere('product.category IN (:...categories)', { categories });
+    }
+    if (query.status) builder.andWhere('product.status = :status', { status: query.status });
   }
 
   private async ensureUniqueCode(sku: string, siteId: string, excludedId?: string): Promise<void> {

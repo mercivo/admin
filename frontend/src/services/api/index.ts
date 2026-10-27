@@ -584,10 +584,11 @@ export const productApi = {
   create: (data: Partial<Product>) => api.post<any, Product>("/product", data),
   update: (id: string, data: Partial<Product>) =>
     api.put<any, Product>(`/product/${id}`, data),
+  batchStatus: (ids: string[], status: 'published' | 'pending') =>
+    api.patch<any, { updated: number; status: 'published' | 'pending' }>("/product/batch-status", { ids, status }),
+  export: (params?: { keyword?: string; category?: string; status?: string; currency?: string }) =>
+    api.get<any, Blob>("/product/export", { params, responseType: 'blob' }),
   remove: (id: string) => api.delete(`/product/${id}`),
-  getSeo: (id: string) => api.get<any, Product>(`/product/${id}/seo`),
-  updateSeo: (id: string, data: Record<string, unknown>) =>
-    api.put<any, Product>(`/product/${id}/seo`, data),
   uploadImage: (file: File) => {
     const data = new FormData();
     data.append("file", file);

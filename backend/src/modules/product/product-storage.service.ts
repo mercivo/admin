@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CloudStorageService } from '../../common/storage/cloud-storage.service';
+import { CloudStorageService, ExportImageAsset } from '../../common/storage/cloud-storage.service';
 
 @Injectable()
 export class ProductStorageService {
@@ -8,4 +8,9 @@ export class ProductStorageService {
   async uploadProductImage(file: Express.Multer.File, tenantId: string, siteId: string): Promise<{ url: string; objectName: string }> {
     return this.storage.upload(file, `tenants/${tenantId}/sites/${siteId}/images`);
   }
+
+  readExportImage(url: string): Promise<ExportImageAsset | null> {
+    return this.storage.readImageForExport(url);
+  }
+
 }

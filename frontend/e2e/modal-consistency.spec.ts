@@ -63,7 +63,7 @@ test('shared modal wrappers enforce the common shell and allow business widths',
 });
 
 test('product preview, delete and batch dialogs render through the unified shell', async ({ page }) => {
-  const permissions = ['group.products', 'menu.products', 'page.products', 'product.edit', 'product.delete'];
+  const permissions = ['group.products', 'menu.products', 'page.products', 'product.edit', 'product.delete', 'product.publish'];
   await page.addInitScript(value => {
     localStorage.setItem('mercivo_access_token', 'e30.eyJpYXQiOjQwNzA5MDg4MDAsImV4cCI6NDA3MDk5NTIwMH0.signature');
     localStorage.setItem('mercivo_user', JSON.stringify({ role: 'admin' }));
@@ -95,7 +95,7 @@ test('product preview, delete and batch dialogs render through the unified shell
   await expect(previewShell.locator('.ant-modal-header')).toHaveCSS('align-items', 'center');
   await expect(preview.locator('.ant-modal-footer')).toHaveCSS('display', 'flex');
   await expect(preview.locator('.ant-modal-footer')).toHaveCSS('justify-content', 'flex-end');
-  await preview.getByRole('button', { name: '关闭' }).click();
+  await preview.getByRole('button', { name: '关 闭' }).click();
 
   await page.getByRole('button', { name: '删除' }).click();
   const deletion = page.getByRole('dialog', { name: '确认删除商品' });

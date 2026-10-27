@@ -1,10 +1,11 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, ParseFilePipeBuilder, Post, Put, Query, Req, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, ParseFilePipeBuilder, Patch, Post, Put, Query, Req, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { AuthUser } from '../../common/types/auth-user';
 import { ProductService } from './product.service';
-import { CreateProductDto, UpdateProductDto, UpdateProductSeoDto } from './product.dto';
+import { BatchProductStatusDto, CreateProductDto, UpdateProductDto } from './product.dto';
 import { ProductStorageService } from './product-storage.service';
-import { ProductQueryDto } from './product-query.dto';
+import { ProductExportQueryDto, ProductQueryDto } from './product-query.dto';
 
 @Controller('product')
 export class ProductController {
@@ -45,6 +46,19 @@ export class ProductController {
   @Get('options/all')
   async options(@Req() req: { user: AuthUser }) { return this.productService.catalog(req.user.siteId); }
 
+  @Patch('batch-status')
+  async batchStatus(@Body() dto: BatchProductStatusDto, @Req() req: { user: AuthUser }) {
+    return this.productService.batchStatus(dto.ids, dto.status, req.user.siteId);
+  }
+
+  @Get('export')
+  async export(@Query() query: ProductExportQueryDto, @Req() req: { user: AuthUser }, @Res() response: Response) {
+    const result = await this.productService.exportWorkbook(req.user.siteId, query);
+    response.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    response.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(result.filename)}`);
+    response.send(result.data);
+  }
+
   @Get(':id')
   async findById(@Param('id') id: string, @Req() req: { user: AuthUser }) {
     return this.productService.findById(id, req.user.siteId);
@@ -65,13 +79,4 @@ export class ProductController {
     return this.productService.remove(id, req.user.siteId);
   }
 
-  @Get(':id/seo')
-  async getProductSeo(@Param('id') id: string, @Req() req: { user: AuthUser }) {
-    return this.productService.getProductSeo(id, req.user.siteId);
-  }
-
-  @Put(':id/seo')
-  async updateProductSeo(@Param('id') id: string, @Body() dto: UpdateProductSeoDto, @Req() req: { user: AuthUser }) {
-    return this.productService.updateProductSeo(id, dto, req.user.siteId);
-  }
 }
