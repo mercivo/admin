@@ -3,6 +3,7 @@ import https from 'node:https';
 import { readFile, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
+import { effectiveRequestHost } from './edge-host.mjs';
 
 const root = new URL('./dist/', import.meta.url).pathname;
 const defaultApiOrigin = process.env.NODE_ENV === 'production'
@@ -32,10 +33,13 @@ const securityHeaders = {
   'permissions-policy': 'camera=(), microphone=(), geolocation=()',
 };
 
-function proxy(request, response, targetPath = request.url) {
+function proxy(request, response, targetPath = request.url, originalHost = effectiveRequestHost(request.headers)) {
   const target = new URL(targetPath, apiOrigin);
   const requestUpstream = target.protocol === 'https:' ? https.request : http.request;
-  const upstream = requestUpstream(target, { method: request.method, family: 4, servername: target.hostname, headers: { ...request.headers, host: target.host, 'x-forwarded-host': request.headers.host || '' } }, result => {
+  const headers = { ...request.headers, host: target.host, 'x-forwarded-host': originalHost };
+  delete headers['x-mercivo-edge-token'];
+  delete headers['x-mercivo-original-host'];
+  const upstream = requestUpstream(target, { method: request.method, family: 4, servername: target.hostname, headers }, result => {
     response.writeHead(result.statusCode || 502, result.headers);
     result.pipe(response);
   });
@@ -98,11 +102,12 @@ function renderHtml(data, requestUrl, host, route) {
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url || '/', 'http://local');
-  const route = requestRoute(request.headers.host, url);
+  const effectiveHost = effectiveRequestHost(request.headers);
+  const route = requestRoute(effectiveHost, url);
   if (url.pathname === '/healthz') { response.writeHead(200, { ...securityHeaders, 'content-type': 'text/plain' }); return response.end('ok'); }
-  if (url.pathname.startsWith('/api/')) return proxy(request, response);
-  if (route.pathname === '/sitemap.xml') return proxy(request, response, `/api/v1/public/sitemap.xml${route.site ? `?site=${encodeURIComponent(route.site)}` : ''}`);
-  if (route.pathname === '/robots.txt') return proxy(request, response, `/api/v1/public/robots.txt${route.site ? `?site=${encodeURIComponent(route.site)}` : ''}`);
+  if (url.pathname.startsWith('/api/')) return proxy(request, response, request.url, effectiveHost);
+  if (route.pathname === '/sitemap.xml') return proxy(request, response, `/api/v1/public/sitemap.xml${route.site ? `?site=${encodeURIComponent(route.site)}` : ''}`, effectiveHost);
+  if (route.pathname === '/robots.txt') return proxy(request, response, `/api/v1/public/robots.txt${route.site ? `?site=${encodeURIComponent(route.site)}` : ''}`, effectiveHost);
   const filePath = normalize(join(root, url.pathname));
   if (filePath.startsWith(root) && url.pathname !== '/') {
     try {
@@ -113,9 +118,9 @@ const server = http.createServer(async (request, response) => {
     } catch {}
   }
   try {
-    const data = await siteData(request.headers.host || 'localhost', route.site, url.searchParams.get('lang'));
+    const data = await siteData(effectiveHost, route.site, url.searchParams.get('lang'));
     response.writeHead(data ? 200 : 404, { ...securityHeaders, 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=60, stale-while-revalidate=300' });
-    response.end(renderHtml(data, url, request.headers.host || 'localhost', route));
+    response.end(renderHtml(data, url, effectiveHost, route));
   } catch (error) {
     console.error(`Storefront rendering failed: ${error?.code || 'UNKNOWN'} ${error?.message || error}`);
     response.writeHead(503, { ...securityHeaders, 'content-type': 'text/html; charset=utf-8' });

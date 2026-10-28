@@ -11,6 +11,7 @@ import { SiteService } from './site.service';
 import { ProductCategory } from '../product-category/product-category.entity';
 import { Warehouse } from '../inventory/inventory.entity';
 import { TranslationModule } from '../translation/translation.module';
+import { CloudflareCustomHostnameService } from './cloudflare-custom-hostname.service';
 
-@Module({ imports: [TranslationModule, TypeOrmModule.forFeature([Tenant, Site, SiteDomain, SiteVersion, Product, AppConfig, ProductCategory, Warehouse])], controllers: [SiteAdminController, SitePublicController], providers: [SiteService], exports: [SiteService] })
+@Module({ imports: [TranslationModule, TypeOrmModule.forFeature([Tenant, Site, SiteDomain, SiteVersion, Product, AppConfig, ProductCategory, Warehouse])], controllers: [SiteAdminController, SitePublicController], providers: [SiteService, CloudflareCustomHostnameService], exports: [SiteService] })
 export class SiteModule {}

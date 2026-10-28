@@ -28,6 +28,9 @@
 | `CORS_ORIGINS` | 允许跨域访问 API 的来源列表 | 否 |
 | `STOREFRONT_PREVIEW_HOSTS` | 允许作为前台预览入口的 Host 列表 | 否 |
 | `STOREFRONT_CNAME_TARGET` | 租户 CNAME 引导目标；本地使用 `localhost` | 否 |
+| `CLOUDFLARE_SAAS_ZONE_ID` | 承载 Cloudflare for SaaS 的 `aihubflux.com` Zone ID | 生产自定义域名必需 |
+| `CLOUDFLARE_API_TOKEN` | 仅允许管理 `aihubflux.com` Custom Hostnames 的 API Token；生产从 Secret Manager 注入 | 生产自定义域名必需 |
+| `EDGE_PROXY_SHARED_SECRET` | 验证 Cloudflare Worker 传入的原始租户域名；Storefront 从 Secret Manager 注入 | 生产自定义域名必需 |
 | `TRUST_PROXY_HOPS` | API 信任的反向代理跳数 | 否 |
 | `GCS_PROJECT_ID` | GCS 所属 Google Cloud 项目 | 否 |
 | `GCS_BUCKET` | 统一的公开图片桶；不同环境通过对象前缀隔离 | 否 |

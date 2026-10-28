@@ -17,6 +17,7 @@ describe('SiteService single site model', () => {
     findOne: jest.fn(),
     save: jest.fn(async (value) => ({ id: 'version-1', version: 1, ...value })),
     create: jest.fn((value) => value),
+    delete: jest.fn(),
   };
   const config = {
     get: jest.fn((key: string) => key === 'STOREFRONT_PREVIEW_HOSTS' ? 'site.aihubflux.com' : undefined),
@@ -25,6 +26,12 @@ describe('SiteService single site model', () => {
     validateForPublish: jest.fn(),
     messages: jest.fn().mockResolvedValue({ sourceLocale: 'zh_CN', locales: ['zh_CN'], messages: { zh_CN: {} } }),
     publicSiteAccessNotice: jest.fn().mockResolvedValue({ locale: 'zh_CN', title: '站点暂时无法访问', description: '访问权限已关闭。' }),
+  };
+  const customHostnames = {
+    isConfigured: jest.fn().mockReturnValue(false),
+    create: jest.fn(),
+    get: jest.fn(),
+    remove: jest.fn(),
   };
   const service = new SiteService(
     tenantRepo as any,
@@ -37,9 +44,53 @@ describe('SiteService single site model', () => {
     emptyRepo as any,
     config as any,
     translations as any,
+    customHostnames as any,
   );
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('activates a domain only when both the hostname and TLS are active', () => {
+    const domain = { status: 'provisioning', sslStatus: 'pending', providerError: null, providerSyncedAt: null } as any;
+    (service as any).applyProviderStatus(domain, { id: 'cf-1', hostname: 'shop.example.com', status: 'active', ssl: { status: 'active' } });
+    expect(domain).toMatchObject({ status: 'active', sslStatus: 'active', providerError: null });
+  });
+
+  it('keeps a domain provisioning while Cloudflare TLS is pending', () => {
+    const domain = { status: 'provisioning', sslStatus: 'pending', providerError: null, providerSyncedAt: null } as any;
+    (service as any).applyProviderStatus(domain, { id: 'cf-1', hostname: 'shop.example.com', status: 'pending', ssl: { status: 'pending_validation' } });
+    expect(domain).toMatchObject({ status: 'provisioning', sslStatus: 'pending', providerError: null });
+  });
+
+  it('normalizes and deduplicates Cloudflare ownership and certificate validation records', () => {
+    const domain = { status: 'provisioning', sslStatus: 'pending', providerError: null, providerSyncedAt: null } as any;
+    (service as any).applyProviderStatus(domain, {
+      id: 'cf-1', hostname: 'shop.example.com', status: 'pending',
+      ownership_verification: { type: 'txt', name: '_cf-custom-hostname.shop.example.com', value: 'ownership' },
+      ssl: { status: 'pending_validation', validation_records: [
+        { txt_name: '_acme-challenge.shop.example.com', txt_value: 'certificate' },
+        { txt_name: '_acme-challenge.shop.example.com', txt_value: 'certificate' },
+      ] },
+    });
+    expect(domain.providerValidationRecords).toEqual([
+      { type: 'TXT', name: '_cf-custom-hostname.shop.example.com', value: 'ownership' },
+      { type: 'TXT', name: '_acme-challenge.shop.example.com', value: 'certificate' },
+    ]);
+  });
+
+  it('records a retryable failure when provider synchronization fails', async () => {
+    const domain = { id: 'domain-1', hostname: 'shop.example.com', status: 'provisioning', sslStatus: 'pending', providerHostnameId: 'cf-1' } as any;
+    customHostnames.get.mockRejectedValueOnce(new Error('rate limited'));
+    await expect((service as any).provisionOrSyncDomain(domain)).rejects.toThrow('rate limited');
+    expect(emptyRepo.save).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed', sslStatus: 'failed', providerError: 'rate limited' }));
+  });
+
+  it('does not delete the local domain when provider deletion fails', async () => {
+    emptyRepo.findOne.mockResolvedValueOnce({ id: 'domain-1', siteId: 'site-1', providerHostnameId: 'cf-1' });
+    siteRepo.findOne.mockResolvedValueOnce({ id: 'site-1', tenantId: 'tenant-1' });
+    customHostnames.remove.mockRejectedValueOnce(new Error('provider unavailable'));
+    await expect(service.removeDomain('domain-1', 'tenant-1')).rejects.toThrow('provider unavailable');
+    expect(emptyRepo.delete).not.toHaveBeenCalled();
+  });
 
   it('resolves the shared storefront path by tenant id or site slug', async () => {
     const publishedSite = { id: 'site-1', tenantId: 'tenant-1', slug: 'shop-one', status: 'published', publishedVersionId: 'version-1' };

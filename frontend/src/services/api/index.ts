@@ -164,8 +164,11 @@ export interface SiteDomain {
   siteId: string;
   hostname: string;
   isPrimary: boolean;
-  status: "active" | "disabled";
+  status: "pending_verification" | "provisioning" | "active" | "failed";
   sslStatus: "pending" | "active" | "failed";
+  providerError?: string | null;
+  providerSyncedAt?: string | null;
+  providerValidationRecords?: Array<{ type: "TXT" | "CNAME"; name: string; value: string }> | null;
   verificationRecord?: { type: string; name: string; value: string } | null;
   routingRecord?: { type: string; name: string; value: string };
   verifiedAt?: string | null;

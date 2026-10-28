@@ -47,7 +47,7 @@ gcloud builds triggers create github \
   --name=mercivo-main --region=global \
   --repo-owner=mercivo --repo-name=admin --branch-pattern='^main$' \
   --build-config=cloudbuild.yaml \
-  --substitutions=_REGION=asia-east1,_CLOUD_SQL_INSTANCE=mercivo-admin:asia-east1:mercivo-mysql,_DB_USER=root,_DB_NAME=seo_platform,_STOREFRONT_CNAME_TARGET=site.aihubflux.com
+  --substitutions=_REGION=asia-east1,_CLOUD_SQL_INSTANCE=mercivo-admin:asia-east1:mercivo-mysql,_DB_USER=root,_DB_NAME=seo_platform,_STOREFRONT_CNAME_TARGET=customers.aihubflux.com
 ```
 
 Verify the build service account in Cloud Build settings rather than assuming its address. Never create or download a long-lived service-account key.

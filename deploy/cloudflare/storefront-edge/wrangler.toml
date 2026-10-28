@@ -1,0 +1,7 @@
+name = "mercivo-storefront-edge"
+main = "worker.mjs"
+compatibility_date = "2026-10-28"
+workers_dev = true
+
+[vars]
+STOREFRONT_ORIGIN = "https://site.aihubflux.com"

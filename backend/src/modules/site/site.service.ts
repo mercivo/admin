@@ -1,9 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { Resolver, resolveTxt } from 'dns/promises';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Site } from './site.entity';
 import { SiteDomain } from './site-domain.entity';
 import { SiteVersion } from './site-version.entity';
@@ -16,9 +16,13 @@ import { Warehouse } from '../inventory/inventory.entity';
 import { ANTD_LOCALE_SET } from '../../common/constants/antd-locales';
 import { TranslationService } from '../translation/translation.service';
 import { pageLimit, pageOffset, pageResult } from '../../common/dto/page-query.dto';
+import { CloudflareCustomHostname, CloudflareCustomHostnameService } from './cloudflare-custom-hostname.service';
 
 @Injectable()
-export class SiteService {
+export class SiteService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(SiteService.name);
+  private domainSyncTimer?: ReturnType<typeof setInterval>;
+
   constructor(
     @InjectRepository(Tenant) private readonly tenantRepo: Repository<Tenant>,
     @InjectRepository(Site) private readonly siteRepo: Repository<Site>,
@@ -30,7 +34,19 @@ export class SiteService {
     @InjectRepository(Warehouse) private readonly warehouseRepo: Repository<Warehouse>,
     private readonly config: ConfigService,
     private readonly translations: TranslationService,
+    private readonly customHostnames: CloudflareCustomHostnameService,
   ) {}
+
+  onModuleInit() {
+    if (!this.customHostnames.isConfigured()) return;
+    this.domainSyncTimer = setInterval(() => void this.reconcileDomains(), 60_000);
+    this.domainSyncTimer.unref();
+    void this.reconcileDomains();
+  }
+
+  onModuleDestroy() {
+    if (this.domainSyncTimer) clearInterval(this.domainSyncTimer);
+  }
 
   listTenants(tenantId: string) { return this.tenantRepo.find({ where: { id: tenantId } }); }
   listSites(tenantId: string) { return this.siteRepo.find({ where: { tenantId }, order: { createdAt: 'ASC' } }); }
@@ -59,32 +75,41 @@ export class SiteService {
     if (dto.isPrimary) await this.domainRepo.update({ siteId }, { isPrimary: false });
     const isLocal = hostname.endsWith('.localhost') || hostname === 'localhost';
     const verificationToken = isLocal ? null : randomBytes(24).toString('hex');
-    const domain = await this.domainRepo.save(this.domainRepo.create({ siteId, hostname, isPrimary: dto.isPrimary ?? false, sslStatus: isLocal ? 'active' : 'pending', status: isLocal ? 'active' : 'disabled', verifiedAt: isLocal ? new Date() : null, verificationToken }));
+    const domain = await this.domainRepo.save(this.domainRepo.create({ siteId, hostname, isPrimary: dto.isPrimary ?? false, sslStatus: isLocal ? 'active' : 'pending', status: isLocal ? 'active' : 'pending_verification', verifiedAt: isLocal ? new Date() : null, verificationToken, providerHostnameId: null, providerError: null, providerSyncedAt: null, providerValidationRecords: null }));
     return this.domainDetails(domain);
   }
   async verifyDomain(id: string, tenantId: string) {
     const domain = await this.domainRepo.createQueryBuilder('domain').addSelect('domain.verificationToken').where('domain.id = :id', { id }).getOne();
     if (!domain) throw new NotFoundException('Domain not found');
     await this.getSite(domain.siteId, tenantId);
-    if (!domain.verificationToken) return domain;
-    const recordName = `_mercivo-verification.${domain.hostname}`;
-    let records: string[][] = [];
-    try {
-      records = await resolveTxt(recordName);
-    } catch {
-      // Docker 内置 DNS 可能缓存首次查询的 NXDOMAIN，使用公共 DNS 复核可避免记录已生效却误报。
-      const resolver = new Resolver();
-      resolver.setServers(['1.1.1.1', '8.8.8.8']);
-      try { records = await resolver.resolveTxt(recordName); } catch { throw new BadRequestException('未检测到域名验证 TXT 记录'); }
+    if (domain.verificationToken) {
+      const recordName = `_mercivo-verification.${domain.hostname}`;
+      let records: string[][] = [];
+      try {
+        records = await resolveTxt(recordName);
+      } catch {
+        // Docker 内置 DNS 可能缓存首次查询的 NXDOMAIN，使用公共 DNS 复核可避免记录已生效却误报。
+        const resolver = new Resolver();
+        resolver.setServers(['1.1.1.1', '8.8.8.8']);
+        try { records = await resolver.resolveTxt(recordName); } catch { throw new BadRequestException('未检测到域名验证 TXT 记录'); }
+      }
+      const expected = `mercivo-site-verification=${domain.verificationToken}`;
+      if (!records.some(record => record.join('') === expected)) throw new BadRequestException('域名验证 TXT 记录不匹配');
+      domain.verifiedAt = new Date();
+      domain.verificationToken = null;
+      domain.status = 'provisioning';
+      domain.providerError = null;
+      await this.domainRepo.save(domain);
     }
-    const expected = `mercivo-site-verification=${domain.verificationToken}`;
-    if (!records.some(record => record.join('') === expected)) throw new BadRequestException('域名验证 TXT 记录不匹配');
-    domain.status = 'active';
-    domain.verifiedAt = new Date();
-    domain.verificationToken = null;
-    return this.domainRepo.save(domain);
+    return this.domainDetails(await this.provisionOrSyncDomain(domain));
   }
-  async removeDomain(id: string, tenantId: string) { const domain = await this.domainRepo.findOne({ where: { id } }); if (!domain) throw new NotFoundException('Domain not found'); await this.getSite(domain.siteId, tenantId); await this.domainRepo.delete(id); }
+  async removeDomain(id: string, tenantId: string) {
+    const domain = await this.domainRepo.findOne({ where: { id } });
+    if (!domain) throw new NotFoundException('Domain not found');
+    await this.getSite(domain.siteId, tenantId);
+    if (domain.providerHostnameId) await this.customHostnames.remove(domain.providerHostnameId);
+    await this.domainRepo.delete(id);
+  }
   async listVersions(siteId: string, tenantId: string, query: SiteVersionQueryDto) {
     await this.getSite(siteId, tenantId);
     const [items, total] = await this.versionRepo.findAndCount({
@@ -222,9 +247,57 @@ export class SiteService {
   private domainDetails(domain: SiteDomain) {
     return {
       ...domain,
+      providerHostnameId: undefined,
       verificationRecord: domain.verificationToken ? { type: 'TXT', name: `_mercivo-verification.${domain.hostname}`, value: `mercivo-site-verification=${domain.verificationToken}` } : null,
-      routingRecord: { type: 'CNAME', name: domain.hostname, value: this.config.get<string>('STOREFRONT_CNAME_TARGET') || 'site.aihubflux.com' },
+      routingRecord: { type: 'CNAME', name: domain.hostname, value: this.config.get<string>('STOREFRONT_CNAME_TARGET') || 'customers.aihubflux.com' },
     };
+  }
+  private async reconcileDomains() {
+    const domains = await this.domainRepo.find({ where: { status: In(['provisioning', 'failed']) }, take: 100, order: { createdAt: 'ASC' } });
+    for (const domain of domains) {
+      try { await this.provisionOrSyncDomain(domain); }
+      catch (error) { this.logger.warn(`Custom hostname sync failed for ${domain.hostname}: ${error instanceof Error ? error.message : 'unknown error'}`); }
+    }
+  }
+  private async provisionOrSyncDomain(domain: SiteDomain) {
+    try {
+      const remote = domain.providerHostnameId
+        ? await this.customHostnames.get(domain.providerHostnameId)
+        : await this.customHostnames.create(domain.hostname);
+      domain.providerHostnameId = remote.id;
+      this.applyProviderStatus(domain, remote);
+    } catch (error) {
+      domain.status = 'failed';
+      domain.sslStatus = 'failed';
+      domain.providerError = this.safeProviderError(error);
+      domain.providerSyncedAt = new Date();
+      await this.domainRepo.save(domain);
+      throw error;
+    }
+    return this.domainRepo.save(domain);
+  }
+  private applyProviderStatus(domain: SiteDomain, remote: CloudflareCustomHostname) {
+    const active = remote.status === 'active' && remote.ssl?.status === 'active';
+    const failed = remote.status === 'blocked' || remote.ssl?.status === 'validation_timed_out';
+    domain.status = active ? 'active' : failed ? 'failed' : 'provisioning';
+    domain.sslStatus = active ? 'active' : failed ? 'failed' : 'pending';
+    domain.providerError = failed ? (remote.ssl?.validation_errors?.map(item => item.message).filter(Boolean).join('; ') || 'Cloudflare 域名或证书验证失败').slice(0, 500) : null;
+    domain.providerValidationRecords = this.providerValidationRecords(remote);
+    domain.providerSyncedAt = new Date();
+  }
+  private providerValidationRecords(remote: CloudflareCustomHostname) {
+    const records: Array<{ type: 'TXT' | 'CNAME'; name: string; value: string }> = [];
+    const ownership = remote.ownership_verification;
+    if (ownership?.name && ownership.value) records.push({ type: ownership.type?.toUpperCase() === 'CNAME' ? 'CNAME' : 'TXT', name: ownership.name, value: ownership.value });
+    for (const record of remote.ssl?.validation_records || []) {
+      if (record.txt_name && record.txt_value) records.push({ type: 'TXT', name: record.txt_name, value: record.txt_value });
+      if (record.cname_name && record.cname_target) records.push({ type: 'CNAME', name: record.cname_name, value: record.cname_target });
+    }
+    return records.filter((record, index) => records.findIndex(item => item.type === record.type && item.name === record.name && item.value === record.value) === index);
+  }
+  private safeProviderError(error: unknown) {
+    const message = error instanceof Error ? error.message : 'Cloudflare 自定义域名服务暂时不可用';
+    return message.replace(/Bearer\s+\S+/gi, 'Bearer [redacted]').slice(0, 500);
   }
   private xml(value: string) { return value.replace(/[<>&'"]/g, char => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[char] || char)); }
   private normalizeHost(host: string) { return host.toLowerCase().trim().replace(/^https?:\/\//, '').split('/')[0].split(':')[0]; }
