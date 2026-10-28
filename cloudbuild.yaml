@@ -107,6 +107,7 @@ steps:
         gcloud run deploy '${_STOREFRONT_SERVICE}' \
           --image='${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/storefront:${BUILD_ID}' \
           --region='${_REGION}' --platform=managed --allow-unauthenticated \
+          --service-account='mercivo-runtime@${PROJECT_ID}.iam.gserviceaccount.com' \
           --port=8080 --cpu=1 --memory=512Mi --concurrency=80 --min=0 --max=1 \
           --min-instances=0 --max-instances=1 \
           --set-env-vars="API_INTERNAL_URL=$${API_URL},STOREFRONT_PATH_HOSTS=site.aihubflux.com" \
