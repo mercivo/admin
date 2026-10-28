@@ -14,6 +14,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app/dist ./dist
 COPY storefront/server.mjs ./server.mjs
+COPY storefront/edge-host.mjs ./edge-host.mjs
 EXPOSE 8080
 USER node
 CMD ["node", "server.mjs"]
