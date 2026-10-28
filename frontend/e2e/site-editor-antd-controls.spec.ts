@@ -109,21 +109,40 @@ test('product badge filters use a compact separated toolbar above the product gr
   const renderer = readFileSync(resolve(process.cwd(), 'src/pages/SiteEditor/SiteRenderer.tsx'), 'utf8');
 
   expect(styles).toContain('.editor-product-badge-filters{display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px;margin-bottom:10px;padding-bottom:4px;border-bottom:1px solid #eeeae4');
-  expect(styles).toContain('.editor-product-badge-filters{align-items:flex-start;gap:6px 16px;margin-bottom:8px;padding-bottom:4px}');
+  expect(styles).toContain('font-size:10px;font-weight:400;line-height:18px');
+  expect(styles).toContain('.editor-product-badge-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:center;gap:8px 12px;margin-bottom:8px;padding-bottom:4px}');
+  expect(styles).toContain('white-space:nowrap;text-overflow:ellipsis');
+  expect(styles).toContain('[data-section-type="products"] aside{max-height:none;overflow:visible');
   expect(renderer.indexOf('className="editor-product-badge-filters"')).toBeLessThan(renderer.indexOf('className="editor-product-grid grid gap-4"'));
 });
 
 test('text component keeps brand media, metrics visibility and quality badge multilingual configuration aligned', () => {
   const editor = readFileSync(resolve(process.cwd(), 'src/pages/SiteEditor/Editor.tsx'), 'utf8');
   const schema = readFileSync(resolve(process.cwd(), 'src/pages/SiteEditor/schema.ts'), 'utf8');
+  const styles = readFileSync(resolve(process.cwd(), 'src/pages/SiteEditor/controls.css'), 'utf8');
   const storefront = readFileSync(resolve(process.cwd(), '../storefront/src/main.tsx'), 'utf8');
 
   expect(editor).toContain('<div className="mb-2 text-xs font-bold text-muted-foreground">品牌图片</div>');
   expect(editor).toContain('className="editor-media-card"');
   expect(editor).toContain('uploadText="上传品牌图片"');
-  expect(editor).toContain('s.showStats !== false && <div className="mt-7 grid grid-cols-3');
+  expect(editor).toContain('s.showStats !== false && <div className="editor-text-stats mt-7 grid grid-cols-3');
+  expect(styles).toContain('[data-section-type="text"] .editor-text-stats{grid-template-columns:1fr;gap:0}');
   expect(editor).toContain('<Field label="品质保证标识">');
   expect(schema).toContain("{ path: 'qualityBadgeText', label: '品质保证标识' }");
   expect(storefront).toContain("textSection?.showStats !== false && !!textSection?.stats?.length");
   expect(storefront).toContain('textSection?.qualityBadgeText && <span className="about-quality-badge"');
+});
+
+test('mobile footer renders navigation and contacts as independent stacked sections', () => {
+  const editor = readFileSync(resolve(process.cwd(), 'src/pages/SiteEditor/Editor.tsx'), 'utf8');
+  const renderer = readFileSync(resolve(process.cwd(), 'src/pages/SiteEditor/SiteRenderer.tsx'), 'utf8');
+  const styles = readFileSync(resolve(process.cwd(), 'src/pages/SiteEditor/controls.css'), 'utf8');
+  const storefront = readFileSync(resolve(process.cwd(), '../storefront/src/main.tsx'), 'utf8');
+
+  expect(editor).not.toContain('const rowCount = Math.max(navItems.length, contactItems.length)');
+  expect(editor).toContain('className="editor-footer-column"');
+  expect(renderer).toContain('className="editor-footer-column"');
+  expect(styles).toContain('[data-section-type="footer"] .editor-footer-details{grid-template-columns:1fr;gap:24px}');
+  expect(styles).toContain('.editor-footer-item{min-width:0;overflow-wrap:anywhere;word-break:break-word}');
+  expect(storefront).toContain('className="footer-detail-column"');
 });

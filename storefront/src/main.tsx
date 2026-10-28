@@ -133,14 +133,9 @@ const MercivoLogo = () => <div className="unavailable-brand" aria-label="Mercivo
 const ContactInfo = ({ info }: { info: SiteInfo }) => <div className="contact-info-layer">{(info.contactItems || []).map(item => <span key={item.id}>{item.label ? `${item.label}：` : ''}{item.content || '-'}</span>)}</div>;
 
 const FooterDetails = ({ navItems, contactItems, quickLabel, contactLabel }: { navItems: NonNullable<EditorSection['navItems']>; contactItems: NonNullable<SiteInfo['contactItems']>; quickLabel: string; contactLabel: string }) => {
-  const rowCount = Math.max(navItems.length, contactItems.length);
   return <div className="footer-details">
-    <strong className="footer-quick-heading">{quickLabel}</strong>
-    <strong className="footer-contact-heading">{contactLabel}</strong>
-    {Array.from({ length: rowCount }, (_, index) => <React.Fragment key={index}>
-      {navItems[index] ? <a className="footer-nav-item" href={`#section-${navItems[index].targetId}`}>{navItems[index].label}</a> : <span aria-hidden="true" />}
-      {contactItems[index] ? <span className="footer-contact-item">{contactItems[index].label ? `${contactItems[index].label}：` : ''}{contactItems[index].content || '-'}</span> : <span aria-hidden="true" />}
-    </React.Fragment>)}
+    <div className="footer-detail-column"><strong className="footer-quick-heading">{quickLabel}</strong><nav>{navItems.map(item => <a className="footer-nav-item" key={item.id} href={`#section-${item.targetId}`}>{item.label}</a>)}</nav></div>
+    <div className="footer-detail-column"><strong className="footer-contact-heading">{contactLabel}</strong><div>{contactItems.map(item => <span className="footer-contact-item" key={item.id}>{item.label ? `${item.label}：` : ''}{item.content || '-'}</span>)}</div></div>
   </div>;
 };
 
