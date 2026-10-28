@@ -162,9 +162,10 @@ export interface ManagedSite {
 export interface SiteDomain {
   id: string;
   siteId: string;
+  requestedHostname: string;
   hostname: string;
   isPrimary: boolean;
-  status: "pending_verification" | "provisioning" | "active" | "failed";
+  status: "pending_dns" | "pending_verification" | "provisioning" | "active" | "failed";
   sslStatus: "pending" | "active" | "failed";
   providerError?: string | null;
   providerSyncedAt?: string | null;

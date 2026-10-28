@@ -19,7 +19,7 @@ describe('CloudflareCustomHostnameService', () => {
       .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, result: [] }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, result: { id: 'created', hostname: 'shop.example.com', status: 'pending' } }) }) as any;
     await expect(service.create('shop.example.com')).resolves.toMatchObject({ id: 'created' });
-    expect(global.fetch).toHaveBeenLastCalledWith(expect.stringContaining('/custom_hostnames'), expect.objectContaining({ method: 'POST', body: JSON.stringify({ hostname: 'shop.example.com', ssl: { method: 'txt', type: 'dv' } }) }));
+    expect(global.fetch).toHaveBeenLastCalledWith(expect.stringContaining('/custom_hostnames'), expect.objectContaining({ method: 'POST', body: JSON.stringify({ hostname: 'shop.example.com', ssl: { method: 'http', type: 'dv' } }) }));
   });
 
   it('returns a retryable service error without leaking the token', async () => {

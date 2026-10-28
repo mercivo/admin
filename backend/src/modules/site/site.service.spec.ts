@@ -61,12 +61,25 @@ describe('SiteService single site model', () => {
     expect(domain).toMatchObject({ status: 'provisioning', sslStatus: 'pending', providerError: null });
   });
 
-  it('normalizes and deduplicates Cloudflare ownership and certificate validation records', () => {
+  it('keeps a new domain pending DNS until the routing CNAME is visible', () => {
+    const domain = { status: 'pending_dns', sslStatus: 'pending', verifiedAt: null, providerError: null, providerSyncedAt: null } as any;
+    (service as any).applyProviderStatus(domain, { id: 'cf-1', hostname: 'www.example.com', status: 'pending', ssl: { status: 'pending_validation' } }, false);
+    expect(domain).toMatchObject({ status: 'pending_dns', sslStatus: 'pending', verifiedAt: null });
+  });
+
+  it('records domain control after the routing CNAME is visible', () => {
+    const domain = { status: 'pending_dns', sslStatus: 'pending', verifiedAt: null, providerError: null, providerSyncedAt: null } as any;
+    (service as any).applyProviderStatus(domain, { id: 'cf-1', hostname: 'www.example.com', status: 'pending', ssl: { status: 'pending_validation' } }, true);
+    expect(domain.status).toBe('provisioning');
+    expect(domain.verifiedAt).toBeInstanceOf(Date);
+  });
+
+  it('only exposes deduplicated Cloudflare validation records after a terminal validation error', () => {
     const domain = { status: 'provisioning', sslStatus: 'pending', providerError: null, providerSyncedAt: null } as any;
     (service as any).applyProviderStatus(domain, {
       id: 'cf-1', hostname: 'shop.example.com', status: 'pending',
       ownership_verification: { type: 'txt', name: '_cf-custom-hostname.shop.example.com', value: 'ownership' },
-      ssl: { status: 'pending_validation', validation_records: [
+      ssl: { status: 'validation_timed_out', validation_records: [
         { txt_name: '_acme-challenge.shop.example.com', txt_value: 'certificate' },
         { txt_name: '_acme-challenge.shop.example.com', txt_value: 'certificate' },
       ] },
@@ -77,11 +90,11 @@ describe('SiteService single site model', () => {
     ]);
   });
 
-  it('records a retryable failure when provider synchronization fails', async () => {
+  it('keeps the current lifecycle state when provider synchronization has a retryable failure', async () => {
     const domain = { id: 'domain-1', hostname: 'shop.example.com', status: 'provisioning', sslStatus: 'pending', providerHostnameId: 'cf-1' } as any;
     customHostnames.get.mockRejectedValueOnce(new Error('rate limited'));
     await expect((service as any).provisionOrSyncDomain(domain)).rejects.toThrow('rate limited');
-    expect(emptyRepo.save).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed', sslStatus: 'failed', providerError: 'rate limited' }));
+    expect(emptyRepo.save).toHaveBeenCalledWith(expect.objectContaining({ status: 'provisioning', sslStatus: 'pending', providerError: 'rate limited' }));
   });
 
   it('does not delete the local domain when provider deletion fails', async () => {

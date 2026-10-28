@@ -1,7 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomBytes } from 'crypto';
-import { Resolver, resolveTxt } from 'dns/promises';
+import { Resolver, resolveCname, resolveTxt } from 'dns/promises';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Site } from './site.entity';
@@ -17,6 +16,7 @@ import { ANTD_LOCALE_SET } from '../../common/constants/antd-locales';
 import { TranslationService } from '../translation/translation.service';
 import { pageLimit, pageOffset, pageResult } from '../../common/dto/page-query.dto';
 import { CloudflareCustomHostname, CloudflareCustomHostnameService } from './cloudflare-custom-hostname.service';
+import { cnameChainIncludes, normalizeDomainInput } from './domain-hostname';
 
 @Injectable()
 export class SiteService implements OnModuleInit, OnModuleDestroy {
@@ -71,11 +71,17 @@ export class SiteService implements OnModuleInit, OnModuleDestroy {
   }
   async addDomain(siteId: string, dto: CreateDomainDto, tenantId: string) {
     await this.getSite(siteId, tenantId);
-    const hostname = this.normalizeHost(dto.hostname);
+    let normalized: ReturnType<typeof normalizeDomainInput>;
+    try { normalized = normalizeDomainInput(dto.hostname); }
+    catch (error) { throw new BadRequestException(error instanceof Error ? error.message : '请输入有效域名'); }
+    const { hostname, requestedHostname } = normalized;
     if (dto.isPrimary) await this.domainRepo.update({ siteId }, { isPrimary: false });
     const isLocal = hostname.endsWith('.localhost') || hostname === 'localhost';
-    const verificationToken = isLocal ? null : randomBytes(24).toString('hex');
-    const domain = await this.domainRepo.save(this.domainRepo.create({ siteId, hostname, isPrimary: dto.isPrimary ?? false, sslStatus: isLocal ? 'active' : 'pending', status: isLocal ? 'active' : 'pending_verification', verifiedAt: isLocal ? new Date() : null, verificationToken, providerHostnameId: null, providerError: null, providerSyncedAt: null, providerValidationRecords: null }));
+    const domain = await this.domainRepo.save(this.domainRepo.create({ siteId, hostname, requestedHostname, isPrimary: dto.isPrimary ?? false, sslStatus: isLocal ? 'active' : 'pending', status: isLocal ? 'active' : 'pending_dns', verifiedAt: isLocal ? new Date() : null, verificationToken: null, providerHostnameId: null, providerError: null, providerSyncedAt: null, providerValidationRecords: null }));
+    if (!isLocal && this.customHostnames.isConfigured()) {
+      try { return this.domainDetails(await this.provisionOrSyncDomain(domain)); }
+      catch (error) { this.logger.warn(`Initial custom hostname setup failed for ${hostname}: ${this.safeProviderError(error)}`); }
+    }
     return this.domainDetails(domain);
   }
   async verifyDomain(id: string, tenantId: string) {
@@ -247,13 +253,14 @@ export class SiteService implements OnModuleInit, OnModuleDestroy {
   private domainDetails(domain: SiteDomain) {
     return {
       ...domain,
+      requestedHostname: domain.requestedHostname || domain.hostname,
       providerHostnameId: undefined,
       verificationRecord: domain.verificationToken ? { type: 'TXT', name: `_mercivo-verification.${domain.hostname}`, value: `mercivo-site-verification=${domain.verificationToken}` } : null,
       routingRecord: { type: 'CNAME', name: domain.hostname, value: this.config.get<string>('STOREFRONT_CNAME_TARGET') || 'customers.aihubflux.com' },
     };
   }
   private async reconcileDomains() {
-    const domains = await this.domainRepo.find({ where: { status: In(['provisioning', 'failed']) }, take: 100, order: { createdAt: 'ASC' } });
+    const domains = await this.domainRepo.find({ where: { status: In(['pending_dns', 'provisioning', 'failed']) }, take: 100, order: { createdAt: 'ASC' } });
     for (const domain of domains) {
       try { await this.provisionOrSyncDomain(domain); }
       catch (error) { this.logger.warn(`Custom hostname sync failed for ${domain.hostname}: ${error instanceof Error ? error.message : 'unknown error'}`); }
@@ -265,10 +272,9 @@ export class SiteService implements OnModuleInit, OnModuleDestroy {
         ? await this.customHostnames.get(domain.providerHostnameId)
         : await this.customHostnames.create(domain.hostname);
       domain.providerHostnameId = remote.id;
-      this.applyProviderStatus(domain, remote);
+      const routingReady = remote.status === 'active' || await this.hasRoutingRecord(domain.hostname);
+      this.applyProviderStatus(domain, remote, routingReady);
     } catch (error) {
-      domain.status = 'failed';
-      domain.sslStatus = 'failed';
       domain.providerError = this.safeProviderError(error);
       domain.providerSyncedAt = new Date();
       await this.domainRepo.save(domain);
@@ -276,14 +282,22 @@ export class SiteService implements OnModuleInit, OnModuleDestroy {
     }
     return this.domainRepo.save(domain);
   }
-  private applyProviderStatus(domain: SiteDomain, remote: CloudflareCustomHostname) {
+  private applyProviderStatus(domain: SiteDomain, remote: CloudflareCustomHostname, routingReady = true) {
     const active = remote.status === 'active' && remote.ssl?.status === 'active';
-    const failed = remote.status === 'blocked' || remote.ssl?.status === 'validation_timed_out';
-    domain.status = active ? 'active' : failed ? 'failed' : 'provisioning';
+    const failed = ['blocked', 'moved', 'deleted'].includes(remote.status || '') || ['validation_timed_out', 'issuance_timed_out', 'deployment_timed_out'].includes(remote.ssl?.status || '');
+    domain.status = active ? 'active' : failed ? 'failed' : routingReady ? 'provisioning' : 'pending_dns';
+    if (routingReady && !domain.verifiedAt) domain.verifiedAt = new Date();
     domain.sslStatus = active ? 'active' : failed ? 'failed' : 'pending';
     domain.providerError = failed ? (remote.ssl?.validation_errors?.map(item => item.message).filter(Boolean).join('; ') || 'Cloudflare 域名或证书验证失败').slice(0, 500) : null;
-    domain.providerValidationRecords = this.providerValidationRecords(remote);
+    domain.providerValidationRecords = failed ? this.providerValidationRecords(remote) : null;
     domain.providerSyncedAt = new Date();
+  }
+  private async hasRoutingRecord(hostname: string) {
+    const expected = this.normalizeHost(this.config.get<string>('STOREFRONT_CNAME_TARGET') || 'customers.aihubflux.com');
+    if (await cnameChainIncludes(hostname, expected, resolveCname)) return true;
+    const resolver = new Resolver();
+    resolver.setServers(['1.1.1.1', '8.8.8.8']);
+    return cnameChainIncludes(hostname, expected, name => resolver.resolveCname(name));
   }
   private providerValidationRecords(remote: CloudflareCustomHostname) {
     const records: Array<{ type: 'TXT' | 'CNAME'; name: string; value: string }> = [];

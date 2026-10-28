@@ -27,7 +27,7 @@ export class CloudflareCustomHostnameService {
     if (existing[0]) return existing[0];
     return this.request<CloudflareCustomHostname>('', {
       method: 'POST',
-      body: JSON.stringify({ hostname, ssl: { method: 'txt', type: 'dv' } }),
+      body: JSON.stringify({ hostname, ssl: { method: 'http', type: 'dv' } }),
     });
   }
 
