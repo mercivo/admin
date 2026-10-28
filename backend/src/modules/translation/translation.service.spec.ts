@@ -118,7 +118,7 @@ describe('TranslationService public site source catalog', () => {
             contactItems: [{ id: 'email-item', label: '业务邮箱', content: 'sales@example.com' }, { id: 'address-item', label: '联系地址', content: '上海市' }],
           },
         },
-      } : key.endsWith(':seo') ? { value: { title: '官方站', description: '官方站描述', keywords: '外贸' } } : null),
+      } : key.endsWith(':seo') ? { value: { title: '官方站', description: '官方站描述', keywords: '外贸' } } : key.endsWith(':site-meta') ? { value: { description: '品牌基础描述' } } : null),
     };
     const sites = { findOneByOrFail: jest.fn().mockResolvedValue({ id: 'site-1', name: '内部站点名称' }) };
     const service = new TranslationService(units as any, {} as any, emptyList as any, emptyList as any, configs as any, sites as any, {} as any);
@@ -133,6 +133,8 @@ describe('TranslationService public site source catalog', () => {
       expect.objectContaining({ resourceType: 'editor', resourceId: 'siteInfo', fieldKey: 'editor:siteInfo:contact:email-item:content', sourceText: 'sales@example.com' }),
       expect.objectContaining({ resourceType: 'editor', resourceId: 'siteInfo', fieldKey: 'editor:siteInfo:contact:address-item:content', sourceText: '上海市' }),
       expect.objectContaining({ resourceType: 'seo', resourceId: 'global', fieldKey: 'seo:title', sourceText: '官方站' }),
+      expect.objectContaining({ resourceType: 'site', resourceId: 'site-1', fieldKey: 'site:name', sourceText: '内部站点名称', isRequired: true }),
+      expect.objectContaining({ resourceType: 'site', resourceId: 'site-1', fieldKey: 'site:description', sourceText: '品牌基础描述', isRequired: true }),
     ]));
     expect(saved.some(source => String(source.fieldKey).includes('socialLabels'))).toBe(false);
   });
@@ -142,7 +144,7 @@ describe('TranslationService public site source catalog', () => {
     const units = { find: jest.fn().mockResolvedValue([]), create: jest.fn((value) => value), save: jest.fn(async (value) => { saved.push(...(Array.isArray(value) ? value : [value])); return value; }), update: jest.fn() };
     const emptyList = { find: jest.fn().mockResolvedValue([]) };
     const configs = { findOne: jest.fn(async ({ where: { key } }) => key.endsWith(':siteEditor') ? { value: { pages: {}, siteInfo: { contactDetails: {}, contactItems: [{ id: 'empty-item', label: '', content: '' }] } } } : key.endsWith(':seo') ? { value: { title: '', description: '', keywords: '' } } : null) };
-    const sites = { findOneByOrFail: jest.fn().mockResolvedValue({ id: 'site-1' }) };
+    const sites = { findOneByOrFail: jest.fn().mockResolvedValue({ id: 'site-1', name: '站点名称' }) };
     const service = new TranslationService(units as any, {} as any, emptyList as any, emptyList as any, configs as any, sites as any, {} as any);
 
     await service.sync('site-1');
@@ -151,6 +153,8 @@ describe('TranslationService public site source catalog', () => {
       expect.objectContaining({ fieldKey: 'seo:title', sourceText: '', isRequired: false }),
       expect.objectContaining({ fieldKey: 'seo:description', sourceText: '', isRequired: false }),
       expect.objectContaining({ fieldKey: 'seo:keywords', sourceText: '', isRequired: false }),
+      expect.objectContaining({ fieldKey: 'site:name', sourceText: '站点名称', isRequired: true }),
+      expect.objectContaining({ fieldKey: 'site:description', sourceText: '', isRequired: false }),
       expect.objectContaining({ fieldKey: 'editor:siteInfo:contact:empty-item:label', sourceText: '', isRequired: false }),
       expect.objectContaining({ fieldKey: 'editor:siteInfo:contact:empty-item:content', sourceText: '', isRequired: false }),
     ]));

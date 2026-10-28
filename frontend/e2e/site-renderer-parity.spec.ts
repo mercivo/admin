@@ -14,4 +14,8 @@ test('editor, draft preview and public storefront use the shared renderer', () =
   expect(activeStorefront).not.toContain('<ContactModal open={contactOpen}');
   expect(editor).toContain("window.open('/site-preview'");
   expect(storefront).toContain('return <SiteRenderer config={rendererConfig}');
+  expect(storefront).toContain('aria-label="Loading site" aria-busy="true"');
+  expect(storefront).not.toContain('<p>{platform.loading}</p>');
+  expect(preview).toContain('aria-label="站点加载中" aria-busy="true"');
+  expect(preview).not.toContain('正在加载站点预览');
 });

@@ -46,7 +46,7 @@ export class WorkspaceService {
       this.domainRepo.findOne({ where: { siteId, isPrimary: true, status: 'active' } }),
       this.optionalConfig('account', siteId, { email: '', timezone: 'Asia/Shanghai', twoFactorEnabled: false }),
       this.teamRepo.findOne({ where: { userId } }),
-      this.optionalConfig('site-meta', siteId, { description: '外贸 ERP 与独立站平台', logoUrl: '' }),
+      this.optionalConfig('site-meta', siteId, { description: '外贸 ERP 与独立站平台', logoUrl: '', faviconUrl: '' }),
       this.productRepo.count({ where: { tenantId } }),
       this.userRepo.count({ where: { tenantId } }),
       this.warehouseRepo.count({ where: { tenantId } }),
@@ -58,7 +58,7 @@ export class WorkspaceService {
       : (user.permissions || []).filter(permission => tenantPermissions.includes(permission));
     return {
       account: { enterpriseName: tenant.name, memberName: teamMember?.name || '', phone: user.phone || '', email: user.role === 'member' ? teamMember?.email || '' : account.email || '', timezone: 'Asia/Shanghai', role: user.role, joinedAt: user.createdAt },
-      site: { id: site.id, slug: site.slug, name: site.name, description: siteMeta.description || '外贸 ERP 与独立站平台', logoUrl: siteMeta.logoUrl || '', defaultLanguage: site.defaultLanguage, supportedLanguages: site.supportedLanguages || [site.defaultLanguage], defaultCurrency: site.defaultCurrency, domain: domain?.hostname || '', domainStatus: domain?.sslStatus || 'unconfigured', status: site.status },
+      site: { id: site.id, slug: site.slug, name: site.name, description: siteMeta.description || '外贸 ERP 与独立站平台', logoUrl: siteMeta.logoUrl || '', faviconUrl: siteMeta.faviconUrl || '', defaultLanguage: site.defaultLanguage, supportedLanguages: site.supportedLanguages || [site.defaultLanguage], defaultCurrency: site.defaultCurrency, domain: domain?.hostname || '', domainStatus: domain?.sslStatus || 'unconfigured', status: site.status },
       billing: {
         plan: tenant.plan,
         status: tenant.status,
@@ -90,10 +90,19 @@ export class WorkspaceService {
   }
 
   async updateSiteInfo(dto: UpdateSiteInfoDto, tenantId: string, siteId: string) {
-    const site = await this.siteRepo.findOne({ where: { id: siteId, tenantId } });
+    const [site, currentMeta] = await Promise.all([this.siteRepo.findOne({ where: { id: siteId, tenantId } }), this.configRepo.findOne({ where: { key: `${siteId}:site-meta` } })]);
     if (!site) throw new NotFoundException('站点不存在');
+    const faviconUrl = dto.faviconUrl?.trim();
+    if (faviconUrl) {
+      let assetPath = ''; let assetOrigin = '';
+      try { const asset = new URL(faviconUrl); assetPath = decodeURIComponent(asset.pathname); assetOrigin = asset.origin; } catch { throw new BadRequestException('浏览器页签图标地址不合法'); }
+      const configuredOrigin = (() => { try { return new URL(process.env.GCS_PUBLIC_BASE_URL || '').origin; } catch { return ''; } })();
+      if (assetOrigin !== 'https://storage.googleapis.com' && (!configuredOrigin || assetOrigin !== configuredOrigin)) throw new BadRequestException('浏览器页签图标必须来自受信任的站点资源存储');
+      if (!assetPath.includes(`/tenants/${tenantId}/sites/${siteId}/favicon/`)) throw new BadRequestException('浏览器页签图标必须来自当前站点的上传资源');
+    }
     site.name = dto.name.trim();
-    await Promise.all([this.siteRepo.save(site), this.configRepo.save({ key: `${siteId}:site-meta`, value: { description: dto.description?.trim() || '', logoUrl: dto.logoUrl?.trim() || '' } })]);
+    const previous = (currentMeta?.value || {}) as Record<string, unknown>;
+    await Promise.all([this.siteRepo.save(site), this.configRepo.save({ key: `${siteId}:site-meta`, value: { ...previous, description: dto.description?.trim() || '', logoUrl: dto.logoUrl?.trim() || '', faviconUrl: dto.faviconUrl === undefined ? String(previous.faviconUrl || '') : faviconUrl || '' } })]);
     return site;
   }
 

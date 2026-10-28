@@ -35,7 +35,7 @@ describe('Mercivo API real-database integration (e2e)', () => {
     process.env.AUTH_CAPTCHA_DEBUG_ENABLED = 'true';
     const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = module.createNestApplication();
-    app.getHttpAdapter().getInstance().get('/healthz', (_request: unknown, response: { status: (code: number) => { send: (body: string) => void } }) => response.status(200).send('ok'));
+    app.getHttpAdapter().getInstance().get(['/healthz', '/api/v1/healthz'], (_request: unknown, response: { status: (code: number) => { type: (value: string) => { send: (body: string) => void } } }) => response.status(200).type('text/plain').send('ok'));
     app.setGlobalPrefix('api/v1');
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
     await app.init();
@@ -49,6 +49,7 @@ describe('Mercivo API real-database integration (e2e)', () => {
 
   it('exposes health and protects tenant APIs', async () => {
     await request(app.getHttpServer()).get('/healthz').expect(200);
+    await request(app.getHttpServer()).get('/api/v1/healthz').expect('content-type', /text\/plain/).expect(200, 'ok');
     await request(app.getHttpServer()).get('/api/v1/product').expect(401);
   });
 

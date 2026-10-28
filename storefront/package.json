@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "test": "node --test edge-host.test.mjs ../deploy/cloudflare/storefront-edge/worker.test.mjs",
+    "test": "node --test edge-host.test.mjs server-render.test.mjs metadata.test.mjs ../deploy/cloudflare/storefront-edge/worker.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

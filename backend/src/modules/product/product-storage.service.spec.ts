@@ -10,4 +10,11 @@ describe('ProductStorageService', () => {
     expect(result.url).toBe('https://image.example.com/image.webp');
     expect(storage.upload).toHaveBeenCalledWith(expect.any(Object), 'tenants/tenant-1/sites/site-1/images');
   });
+
+  it('uploads a favicon into its dedicated tenant and site path', async () => {
+    const storage = { upload: jest.fn().mockResolvedValue({ url: 'https://storage.googleapis.com/site/favicon.png', objectName: 'favicon.png' }) };
+    const service = new ProductStorageService(storage as never);
+    await service.uploadSiteFavicon({ originalname: 'favicon.png', mimetype: 'image/png', buffer: Buffer.from('image') } as Express.Multer.File, 'tenant-1', 'site-1');
+    expect(storage.upload).toHaveBeenCalledWith(expect.any(Object), 'tenants/tenant-1/sites/site-1/favicon');
+  });
 });

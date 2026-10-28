@@ -24,7 +24,7 @@ type TranslationProgress = { locale: string; total: number; completed: number; s
 const IMPORT_TEMPLATE_VERSION = '3';
 const IMPORT_PREVIEW_TTL = 30 * 60 * 1000;
 const IMPORT_COLUMNS = ['模块', '业务对象', '字段', '中文原文', '目标语言', '译文', '当前状态', '稳定键', '翻译单元ID', '中文源文哈希'];
-const RESOURCE_LABELS: Record<string, string> = { product: '商品信息', category: '商品分类', editor: '站点设计', seo: 'SEO 优化', system: '系统文案', constant: '业务常量' };
+const RESOURCE_LABELS: Record<string, string> = { product: '商品信息', category: '商品分类', editor: '站点设计', site: '站点设置', seo: '页面元信息与 SEO', system: '系统文案', constant: '业务常量' };
 const BATCH_COLUMNS = ['内容分类', '业务语境', '字段', '中文原文', '目标语言', '译文', '使用次数', '当前状态', '复用组ID', '成员ID', '成员源文哈希'];
 const OVERRIDE_COLUMNS = ['内容分类', '业务对象', '字段', '中文原文', '目标语言', '当前译文', '覆盖译文', '稳定键', '翻译单元ID', '中文源文哈希'];
 
@@ -120,10 +120,11 @@ export class TranslationService {
   }
 
   private async syncSite(siteId: string) {
-    await this.sites.findOneByOrFail({ id: siteId });
-    const [products, categories, editor, seo] = await Promise.all([
+    const [site, products, categories, editor, seo, siteMeta] = await Promise.all([
+      this.sites.findOneByOrFail({ id: siteId }),
       this.products.find({ where: { siteId, status: 'published' } }), this.categories.find({ where: { siteId, status: 'enabled' } }),
       this.configs.findOne({ where: { key: `${siteId}:siteEditor` } }), this.configs.findOne({ where: { key: `${siteId}:seo` } }),
+      this.configs.findOne({ where: { key: `${siteId}:site-meta` } }),
     ]);
     const sources: Source[] = [];
     const add = (source: Source) => { if (source.includeWhenEmpty || String(source.sourceText || '').trim()) sources.push(source); };
@@ -135,6 +136,9 @@ export class TranslationService {
     });
     add({ resourceType: 'category', resourceId: '__all__', fieldKey: 'category:__all__:label', sourceText: '全部商品' });
     categories.forEach(category => { add({ resourceType: 'category', resourceId: category.id, fieldKey: `category:${category.code}:label`, sourceText: category.label }); add({ resourceType: 'category', resourceId: category.id, fieldKey: `category:${category.code}:remark`, sourceText: category.remark || '', required: false }); });
+    add({ resourceType: 'site', resourceId: site.id, fieldKey: 'site:name', sourceText: site.name });
+    const siteDescription = String((siteMeta?.value as Record<string, unknown> | undefined)?.description || '');
+    add({ resourceType: 'site', resourceId: site.id, fieldKey: 'site:description', sourceText: siteDescription, required: Boolean(siteDescription.trim()), includeWhenEmpty: true });
     this.extractEditor(ensureSiteEditorPages(editor?.value as any), add);
     const seoValue = (seo?.value || {}) as Record<string, unknown>;
     ['title', 'description', 'keywords'].forEach(field => { const sourceText = String(seoValue[field] || ''); add({ resourceType: 'seo', resourceId: 'global', fieldKey: `seo:${field}`, sourceText, required: Boolean(sourceText.trim()), includeWhenEmpty: true }); });
@@ -207,11 +211,11 @@ export class TranslationService {
     const groupLabel = (item: typeof items[number]) => item.resourceType === 'category' ? `0-分类-${String((item.meta as Record<string, unknown>).level || 1).padStart(3, '0')}`
       : item.resourceType === 'product' ? `1-商品-${String((item.meta as Record<string, unknown>).name || item.resourceId)}`
       : item.resourceType === 'editor' ? `页面-${String(fieldOrder(item)).padStart(9, '0')}`
-      : item.resourceType === 'seo' ? '站点设置' : item.resourceType === 'system' ? `系统-${String(fieldOrder(item)).padStart(4, '0')}` : `常量-${String(fieldOrder(item)).padStart(4, '0')}`;
+      : item.resourceType === 'site' || item.resourceType === 'seo' ? '站点设置' : item.resourceType === 'system' ? `系统-${String(fieldOrder(item)).padStart(4, '0')}` : `常量-${String(fieldOrder(item)).padStart(4, '0')}`;
     items.sort((a, b) => groupLabel(a).localeCompare(groupLabel(b), 'zh-CN') || fieldOrder(a) - fieldOrder(b) || a.key.localeCompare(b.key, 'zh-CN'));
     const page = Math.max(1, Number(query.page) || 1); const pageSize = Math.min(200, Math.max(1, Number(query.pageSize) || 50));
     const filteredTotal = items.length;
-    const groupKey = (item: typeof items[number]) => { const meta = item.meta as Record<string, unknown>; return item.resourceType === 'product' ? `product:${item.resourceId}` : item.resourceType === 'category' ? `category-level-${Number(meta.level || 1)}` : item.resourceType === 'editor' ? (item.key.startsWith('editor:siteInfo:') ? 'editor:siteInfo' : `editor:${String(meta.pageId || item.key.split(':')[1])}:${String(meta.componentId || item.resourceId)}`) : item.resourceType === 'seo' ? 'site-settings' : item.resourceType === 'system' ? `system:${item.key.split(':')[1]?.split('.')[0] || 'system'}` : `constant:${item.resourceId}`; };
+    const groupKey = (item: typeof items[number]) => { const meta = item.meta as Record<string, unknown>; return item.resourceType === 'product' ? `product:${item.resourceId}` : item.resourceType === 'category' ? `category-level-${Number(meta.level || 1)}` : item.resourceType === 'editor' ? (item.key.startsWith('editor:siteInfo:') ? 'editor:siteInfo' : `editor:${String(meta.pageId || item.key.split(':')[1])}:${String(meta.componentId || item.resourceId)}`) : item.resourceType === 'site' || item.resourceType === 'seo' ? 'site-settings' : item.resourceType === 'system' ? `system:${item.key.split(':')[1]?.split('.')[0] || 'system'}` : `constant:${item.resourceId}`; };
     const grouped = query.groupPage !== undefined || query.groupPageSize !== undefined;
     const groupPage = Math.max(1, Number(query.groupPage) || 1); const groupPageSize = Math.min(50, Math.max(1, Number(query.groupPageSize) || 10));
     const groupKeys = [...new Set(items.map(groupKey))]; const groupTotal = groupKeys.length;
@@ -619,7 +623,7 @@ export class TranslationService {
     if (unit.resourceType === 'product') return units.find(item => item.resourceId === unit.resourceId && item.fieldKey.endsWith(':name'))?.sourceText || unit.resourceId;
     if (unit.resourceType === 'category') return units.find(item => item.resourceId === unit.resourceId && item.fieldKey.endsWith(':label'))?.sourceText || unit.resourceId;
     if (unit.resourceType === 'editor') return unit.fieldKey.startsWith('editor:siteInfo:') ? '联系我们' : EDITOR_PAGE_NAMES[unit.fieldKey.split(':')[1]] || '站点页面';
-    if (unit.resourceType === 'seo') return '站点设置';
+    if (unit.resourceType === 'site' || unit.resourceType === 'seo') return '站点设置';
     if (unit.resourceType === 'system') return '独立站公共交互';
     if (unit.resourceType === 'constant') return unit.resourceId === 'product' ? '商品常量' : '独立站常量';
     return unit.resourceId;
@@ -635,7 +639,8 @@ export class TranslationService {
     if (unit.resourceType === 'product') groupPath = ['商品信息', this.businessObjectName(unit, units)];
     else if (unit.resourceType === 'category') groupPath = ['商品分类', this.businessObjectName(unit, units)];
     else if (unit.resourceType === 'editor') groupPath = [EDITOR_PAGE_NAMES[unit.fieldKey.split(':')[1]] || '站点页面', unit.fieldKey.startsWith('editor:siteInfo:') ? '联系我们' : this.businessObjectName(unit, units)];
-    else if (unit.resourceType === 'seo') groupPath = ['站点设置', 'SEO 优化'];
+    else if (unit.resourceType === 'site') groupPath = ['站点设置', '品牌基础信息'];
+    else if (unit.resourceType === 'seo') groupPath = ['站点设置', '页面元信息与 SEO'];
     else if (unit.resourceType === 'system') groupPath = ['公共交互', unit.fieldKey.split(':')[1]?.split('.')[0] || '系统文案'];
     else groupPath = ['公共文案', unit.resourceId === 'product' ? '商品标记' : '导航与展示'];
     return { taskTab, groupPath, semanticType, reuseGroupId, usage: `${groupPath.join(' / ')} / ${this.fieldLabel(unit)}` };

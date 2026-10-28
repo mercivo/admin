@@ -18,7 +18,8 @@ async function bootstrap() {
   express.disable('x-powered-by');
   express.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
   app.use(helmet());
-  express.get('/healthz', (_request: Request, response: Response) => response.status(200).send('ok'));
+  const healthHandler = (_request: Request, response: Response) => response.status(200).type('text/plain').send('ok');
+  express.get(['/healthz', '/api/v1/healthz'], healthHandler);
   app.use(maintenanceReadOnlyMiddleware);
 
   app.setGlobalPrefix('api/v1');

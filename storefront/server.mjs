@@ -4,6 +4,8 @@ import { readFile, stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { effectiveRequestHost } from './edge-host.mjs';
+import { renderInitialDocument } from './server-render.mjs';
+import { resolveStorefrontMetadata } from './metadata.mjs';
 
 const root = new URL('./dist/', import.meta.url).pathname;
 const defaultApiOrigin = process.env.NODE_ENV === 'production'
@@ -74,7 +76,7 @@ async function siteData(host, site, language) {
 }
 
 function renderHtml(data, requestUrl, host, route) {
-  if (!data) return indexTemplate;
+  if (!data) return renderInitialDocument(indexTemplate);
   const pathProductId = route.pathname.match(/^\/products\/([^/]+)$/)?.[1];
   const product = pathProductId ? data.products?.find(item => item.id === pathProductId) : null;
   const seo = data.seo || {};
@@ -82,26 +84,21 @@ function renderHtml(data, requestUrl, host, route) {
   const messages = data.i18n?.messages?.[locale] || {};
   const sourceMessages = data.i18n?.messages?.[data.site.defaultLanguage] || data.i18n?.messages?.[data.i18n?.sourceLocale || 'zh_CN'] || {};
   const t = (key, fallback) => messages[key] || sourceMessages[key] || fallback;
-  const sections = data.config?.pages?.home?.sections || [];
-  const titleSection = sections.find(item => item.type === 'header') || sections.find(item => item.type === 'footer');
-  const siteName = titleSection?.id ? t(`editor:home:${titleSection.id}:title`, titleSection.title || data.site.name) : data.site.name;
   const origin = `https://${host.split(':')[0]}`;
   const languageQuery = `?lang=${encodeURIComponent(locale)}`;
   const canonicalBase = product ? `${origin}${route.basePath}/products/${encodeURIComponent(product.id)}` : (seo.canonicalUrl || `${origin}${route.basePath}/`);
   const canonical = `${canonicalBase}${canonicalBase.includes('?') ? '&' : '?'}lang=${encodeURIComponent(locale)}`;
-  const productName = product ? t(`product:${product.id}:name`, product.nameZh) : '';
-  const title = product ? `${productName}｜${siteName}` : (t('seo:title', seo.title || '') || siteName);
-  const description = product ? t(`product:${product.id}:description`, product.description || '') : t('seo:description', seo.description || '');
-  const image = product?.seoImage || product?.img || seo.shareImage || data.products?.[0]?.img || '';
+  const metadata = resolveStorefrontMetadata({ data, locale, product, canonical });
+  const { title, description, keywords, siteName, productName, image, faviconUrl, robots } = metadata;
   const languages = data.site.supportedLanguages || [data.site.defaultLanguage];
   const alternates = languages.map(language => `<link rel="alternate" hreflang="${escapeHtml(language.replace('_', '-'))}" href="${escapeHtml(canonicalBase)}${canonicalBase.includes('?') ? '&' : '?'}lang=${escapeHtml(language)}">`).join('');
   const schema = product
     ? { '@context': 'https://schema.org', '@type': 'Product', name: productName, description, image: image ? [image] : undefined, sku: product.sku, brand: { '@type': 'Brand', name: siteName }, offers: product.priceVisible ? { '@type': 'Offer', priceCurrency: data.site.defaultCurrency, price: String(product.price).split('～')[0], availability: 'https://schema.org/InStock', url: canonical } : undefined }
     : { '@context': 'https://schema.org', '@type': 'Organization', name: siteName, url: canonical, description, logo: image || undefined };
-  const head = `<title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="${escapeHtml(seo.robots || 'index,follow,max-image-preview:large')}"><link rel="canonical" href="${escapeHtml(canonical)}">${alternates}<meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(canonical)}"><meta property="og:type" content="${product ? 'product' : 'website'}">${image ? `<meta property="og:image" content="${escapeHtml(image)}">` : ''}<script type="application/ld+json">${JSON.stringify(schema).replace(/</g, '\\u003c')}</script>`;
+  const head = `<title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}">${keywords ? `<meta name="keywords" content="${escapeHtml(keywords)}">` : ''}<meta name="robots" content="${escapeHtml(robots)}"><link rel="canonical" href="${escapeHtml(canonical)}">${faviconUrl ? `<link rel="icon" href="${escapeHtml(faviconUrl)}">` : ''}${alternates}<meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(canonical)}"><meta property="og:type" content="${product ? 'product' : 'website'}">${image ? `<meta property="og:image" content="${escapeHtml(image)}"><meta name="twitter:image" content="${escapeHtml(image)}">` : ''}<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}"><meta name="twitter:title" content="${escapeHtml(title)}"><meta name="twitter:description" content="${escapeHtml(description)}"><script type="application/ld+json">${JSON.stringify(schema).replace(/</g, '\\u003c')}</script>`;
   const products = (product ? [product] : data.products || []).slice(0, 24).map(item => { const name = t(`product:${item.id}:name`, item.nameZh); return `<article><h2>${escapeHtml(name)}</h2><p>${escapeHtml(t(`product:${item.id}:description`, item.description || ''))}</p><a aria-label="${escapeHtml(t('system:products.viewDetail', 'View {name} details').replace('{name}', name))}" href="${route.basePath}/products/${encodeURIComponent(item.id)}${languageQuery}">${escapeHtml(name)}</a></article>`; }).join('');
   const body = `<main data-server-seo><h1>${escapeHtml(product ? productName : siteName)}</h1><p>${escapeHtml(description)}</p>${products}</main>`;
-  return indexTemplate.replace('</head>', `${head}</head>`).replace('<div id="root"></div>', `<div id="root">${body}</div>`);
+  return renderInitialDocument(indexTemplate, head, body);
 }
 
 const server = http.createServer(async (request, response) => {
@@ -128,7 +125,7 @@ const server = http.createServer(async (request, response) => {
   } catch (error) {
     console.error(`Storefront rendering failed: ${error?.code || 'UNKNOWN'} ${error?.message || error}`);
     response.writeHead(503, { ...securityHeaders, 'content-type': 'text/html; charset=utf-8' });
-    response.end(indexTemplate);
+    response.end(renderInitialDocument(indexTemplate));
   }
 });
 

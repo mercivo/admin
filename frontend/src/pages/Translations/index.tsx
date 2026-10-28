@@ -42,7 +42,7 @@ const apiErrorFieldNames: Record<string, string> = {
   'system:apiErrors.UNKNOWN_ERROR': '未知错误',
 };
 const siteSettingOrder = (item: TranslationItem) => {
-  const order: Record<string, number> = { 'seo:title': 0, 'seo:description': 1, 'seo:keywords': 2 };
+  const order: Record<string, number> = { 'site:name': 0, 'site:description': 1, 'seo:title': 2, 'seo:description': 3, 'seo:keywords': 4 };
   return order[item.key] ?? 99;
 };
 const fieldRenderOrder = (item: TranslationItem) => {
@@ -56,7 +56,7 @@ const fieldRenderOrder = (item: TranslationItem) => {
     if (tail === 'option') return 101;
   }
   if (item.resourceType === 'category') return Number(item.meta?.sort ?? 0) * 10 + (tail === 'label' ? 0 : tail === 'remark' ? 1 : 9);
-  if (item.resourceType === 'seo') return siteSettingOrder(item);
+  if (item.resourceType === 'site' || item.resourceType === 'seo') return siteSettingOrder(item);
   const commonOrder = [
     'system:empty.products', 'system:empty.categories', 'system:empty.contactInformation',
     'system:guestAccess.disabledTitle', 'system:guestAccess.disabledDescription',
@@ -89,6 +89,7 @@ const fieldName = (item: TranslationItem) => {
   if (parts.includes('stat')) return '数据标签';
   if (parts.includes('social')) return '社交媒体名称';
   if (parts.includes('seo')) return ({ title: 'SEO 标题', description: 'SEO 描述', keywords: 'SEO 关键词' } as Record<string, string>)[tail] || `SEO ${tail}`;
+  if (item.resourceType === 'site') return ({ name: '站点名称', description: '站点描述' } as Record<string, string>)[tail] || tail;
   return fieldLabels[tail] || tail.replace(/([A-Z])/g, ' $1').trim();
 };
 const TranslationField: React.FC<{ item: TranslationItem; locale: string; editable: boolean; value: string; onChange: (value: string) => void }> = ({ item, locale, editable, value, onChange }) => {
@@ -174,13 +175,13 @@ const TranslationsPage: React.FC = () => {
       if (item.resourceType === 'product') { key = `product:${item.resourceId}`; title = items.find(value => value.resourceId === item.resourceId && value.key.endsWith(':name'))?.sourceText || '未命名商品'; code = item.meta?.sku || '-'; }
       else if (item.resourceType === 'category') { const level = Number(item.meta?.level || 1); key = `category-level-${level}`; title = `${['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'][level] || level}级分类`; }
       else if (item.resourceType === 'editor') { const page = String(item.meta?.pageId || item.key.split(':')[1]); key = item.key.startsWith('editor:siteInfo:') ? 'editor:siteInfo' : `editor:${page}:${item.meta?.componentId || item.resourceId}`; title = String(item.meta?.componentName || pageLabels[page] || '页面内容'); description = item.meta?.pageName ? `所属页面：${item.meta.pageName}` : undefined; }
-      else if (item.resourceType === 'seo') { key = 'site-settings'; title = '站点设置'; description = '站点搜索引擎标题、描述和关键词。'; }
+      else if (item.resourceType === 'site' || item.resourceType === 'seo') { key = 'site-settings'; title = '站点设置'; description = '品牌基础信息与页面 SEO 元信息。'; }
       else if (item.resourceType === 'system') { const section = item.key.split(':')[1]?.split('.')[0] || 'system'; const names: Record<string, string> = { guestAccess: '游客访问提示', siteAccess: '站点访问提示', empty: '空数据文案', inquiry: '询盘交互', apiErrors: '公开接口反馈' }; key = `system:${section}`; title = names[section] || '公共交互'; }
       else if (item.resourceType === 'constant') { key = `constant:${item.resourceId}`; title = item.resourceId === 'product' ? '商品标记与属性' : '导航与展示文案'; }
       byKey.set(key, [...(byKey.get(key) || []), item]); details.set(key, { title, description, code });
     });
     const result = [...byKey.entries()].map(([key, grouped]) => ({ key, ...details.get(key)!, items: [...grouped].sort(compareTranslationItems), total: grouped.length, completed: grouped.filter(item => item.status === 'completed').length, stale: grouped.filter(item => item.status === 'stale').length, missing: grouped.filter(item => item.status === 'missing').length })).filter(group => group.items.length);
-    if (activeTab === 'page' && !result.some(group => group.key === 'site-settings')) result.push({ key: 'site-settings', title: '站点设置', description: '站点搜索引擎标题、描述和关键词。', items: [], total: 0, completed: 0, stale: 0, missing: 0 });
+    if (activeTab === 'page' && !result.some(group => group.key === 'site-settings')) result.push({ key: 'site-settings', title: '站点设置', description: '品牌基础信息与页面 SEO 元信息。', items: [], total: 0, completed: 0, stale: 0, missing: 0 });
     const order = (group: ItemGroup) => group.key === 'site-settings' ? Number.MAX_SAFE_INTEGER : group.key === 'editor:siteInfo' ? Number.MAX_SAFE_INTEGER - 1 : Math.min(...group.items.map(item => Number(item.meta?.order ?? 0)));
     const productOrder = (group: ItemGroup) => group.key.startsWith('category-level-') ? Number(group.key.slice('category-level-'.length)) : 100;
     return result.sort((a, b) => activeTab === 'page' ? order(a) - order(b) || a.key.localeCompare(b.key, 'zh-CN') : activeTab === 'product' ? productOrder(a) - productOrder(b) || a.title.localeCompare(b.title, 'zh-CN') || a.key.localeCompare(b.key, 'zh-CN') : a.title.localeCompare(b.title, 'zh-CN') || a.key.localeCompare(b.key, 'zh-CN'));

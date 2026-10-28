@@ -33,3 +33,11 @@
 - Product pages, language selection, customer login, `robots.txt`, and `sitemap.xml` work on the apex domain.
 - `erp.aihubflux.com`, `api.aihubflux.com`, and `site.aihubflux.com` remain healthy.
 - The `site_domains` row is active only when both Cloudflare hostname and TLS status are active.
+
+## Production data-correction evidence
+
+- One-time Job: `mercivo-v1010-domain-data-fix`
+- Successful execution: `mercivo-v1010-domain-data-fix-7p7j7`
+- Completion: `2026-10-28T05:15:50.200996Z`
+- Result: `AFFECTED_ROWS 1`; `celuxent.vip` changed from the stale active state to provisioning so the Cloudflare reconciliation flow could complete.
+- The Job is not part of `cloudbuild.yaml` and must never be rerun. Its definition is removed by v1.0.13 after this evidence is recorded.

@@ -35,6 +35,18 @@ export class ProductController {
     return this.storageService.uploadProductImage(file, req.user.tenantId, req.user.siteId);
   }
 
+  @Post('site-favicon')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 256 * 1024, files: 1 } }))
+  async uploadSiteFavicon(
+    @UploadedFile(new ParseFilePipeBuilder()
+      .addFileTypeValidator({ fileType: /^(image\/png|image\/(x-icon|vnd\.microsoft\.icon))$/ })
+      .addMaxSizeValidator({ maxSize: 256 * 1024 })
+      .build({ fileIsRequired: true, exceptionFactory: () => new BadRequestException('请选择 256KB 以内的 PNG 或 ICO 浏览器页签图标') })) file: Express.Multer.File,
+    @Req() req: { user: AuthUser },
+  ) {
+    return this.storageService.uploadSiteFavicon(file, req.user.tenantId, req.user.siteId);
+  }
+
   @Get()
   async findAll(@Query() query: ProductQueryDto, @Req() req: { user: AuthUser }) {
     return this.productService.findAll(req.user.siteId, query);

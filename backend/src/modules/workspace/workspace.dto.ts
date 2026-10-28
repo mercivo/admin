@@ -13,6 +13,7 @@ export class UpdateSiteInfoDto {
   @IsString() @MaxLength(255) name: string;
   @IsOptional() @IsString() @MaxLength(1000) description?: string;
   @IsOptional() @IsString() @MaxLength(2048) logoUrl?: string;
+  @IsOptional() @IsString() @MaxLength(2048) faviconUrl?: string;
 }
 export class UpdateSiteLanguagesDto {
   @IsIn([...ANTD_LOCALE_CODES]) defaultLanguage: string;

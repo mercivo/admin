@@ -15,6 +15,7 @@ const RULES: Array<{ method?: string; pattern: RegExp; permission: string | stri
   { method: 'POST', pattern: /^\/api\/v1\/product$/, permission: 'product.create' },
   { method: 'POST', pattern: /^\/api\/v1\/product\/images/, permission: 'product.edit' },
   { method: 'POST', pattern: /^\/api\/v1\/product\/site-logo/, permission: 'settings.site' },
+  { method: 'POST', pattern: /^\/api\/v1\/product\/site-favicon/, permission: 'settings.site' },
   { method: 'PATCH', pattern: /^\/api\/v1\/product\/batch-status$/, permission: 'product.publish' },
   { method: 'PUT', pattern: /^\/api\/v1\/product\//, permission: 'product.edit' },
   { method: 'DELETE', pattern: /^\/api\/v1\/product\//, permission: 'product.delete' },

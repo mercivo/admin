@@ -110,7 +110,8 @@ test('product badge filters use a compact separated toolbar above the product gr
 
   expect(styles).toContain('.editor-product-badge-filters{display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px;margin-bottom:10px;padding-bottom:4px;border-bottom:1px solid #eeeae4');
   expect(styles).toContain('font-size:10px;font-weight:400;line-height:18px');
-  expect(styles).toContain('.editor-product-badge-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:center;gap:8px 12px;margin-bottom:8px;padding-bottom:4px}');
+  expect(styles).toContain('[data-section-type="products"] .editor-product-filter{width:100%;margin-bottom:8px}');
+  expect(styles).toContain('[data-section-type="products"] .editor-product-badge-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:center;gap:8px 12px;margin-bottom:8px;padding-bottom:0;border-bottom:0}');
   expect(styles).toContain('white-space:nowrap;text-overflow:ellipsis');
   expect(styles).toContain('[data-section-type="products"] aside{max-height:none;overflow:visible');
   expect(renderer.indexOf('className="editor-product-badge-filters"')).toBeLessThan(renderer.indexOf('className="editor-product-grid grid gap-4"'));

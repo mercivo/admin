@@ -8,7 +8,7 @@ const permissions = [
 
 const workspace = {
   account: { enterpriseName: '测试企业', phone: '13800000000', email: '', timezone: 'Asia/Shanghai', role: 'admin', joinedAt: '2026-01-01' },
-  site: { id: 'site-1', slug: 'test-site', name: '测试独立站', description: '外贸 ERP 与独立站平台', defaultLanguage: 'zh_CN', supportedLanguages: ['zh_CN', 'en_US'], defaultCurrency: 'CNY', domain: '', domainStatus: 'pending', status: 'draft' },
+  site: { id: 'site-1', slug: 'test-site', name: '测试独立站', description: '外贸 ERP 与独立站平台', logoUrl: '', faviconUrl: '', defaultLanguage: 'zh_CN', supportedLanguages: ['zh_CN', 'en_US'], defaultCurrency: 'CNY', domain: '', domainStatus: 'pending', status: 'draft' },
   billing: { plan: 'ERP 专业版', status: 'active', expiresAt: null, limits: { products: 100, members: 10, warehouses: 5 }, usage: { products: 0, members: 1, warehouses: 1 }, sitePublishing: true, features: {}, permissions },
 };
 const defaultSiteInfoForTest = {
@@ -70,6 +70,7 @@ test('site settings cards share height and use the default site description', as
   let savedEditorPayload: any;
   let savedSitePayload: any;
   let logoUploadCount = 0;
+  let browserTabIconUploadCount = 0;
   await page.route('**/api/v1/**', route => {
     const url = route.request().url();
     if (url.includes('/auth/me')) return route.fulfill({ json: { data: { permissions } } });
@@ -91,15 +92,16 @@ test('site settings cards share height and use the default site description', as
     }
     if (url.includes('/workspace/config/siteEditor')) return route.fulfill({ json: { data: { status: 'draft', version: 1, pages: {}, siteInfo: defaultSiteInfoForTest } } });
     if (url.includes('/product/site-logo') && route.request().method() === 'POST') { logoUploadCount += 1; return route.fulfill({ json: { data: { url: '/uploads/brand-logo.png', objectName: 'brand-logo.png' } } }); }
+    if (url.includes('/product/site-favicon') && route.request().method() === 'POST') { browserTabIconUploadCount += 1; return route.fulfill({ json: { data: { url: '/uploads/browser-tab-icon.png', objectName: 'browser-tab-icon.png' } } }); }
     return route.fulfill({ json: { data: [] } });
   });
 
   await page.goto(`${process.env.FRONTEND_BASE_URL || 'http://localhost:8088'}/storefront/settings`);
   await expect(page.getByRole('heading', { name: '站点设置', exact: true })).toBeVisible();
   await expect(page.getByText('语言编码已与 Ant Design Locale 对齐')).toHaveCount(0);
-  const siteDescription = page.getByRole('textbox', { name: '站点描述' });
+  const siteDescription = page.getByTestId('site-information-card').getByRole('textbox', { name: '站点描述', exact: true });
   await expect(siteDescription).toHaveValue('外贸 ERP 与独立站平台');
-  await expect(siteDescription).toHaveJSProperty('tagName', 'INPUT');
+  await expect(siteDescription).toHaveJSProperty('tagName', 'TEXTAREA');
   await expect(page.getByRole('heading', { name: '多语言配置', exact: true })).toBeVisible();
   const languageSearchBox = await page.getByTestId('language-search-container').boundingBox();
   const languageTableBox = await page.getByTestId('language-table').boundingBox();
@@ -131,7 +133,7 @@ test('site settings cards share height and use the default site description', as
   await expect.poll(() => savedSitePayload?.supportedLanguages).toEqual(['fr_FR']);
   expect(savedSitePayload.defaultLanguage).toBe('fr_FR');
   await expect(page.getByRole('button', { name: '删除语言 fr_FR' })).toBeDisabled();
-  const logoInput = page.locator('.ant-upload input[type="file"]');
+  const logoInput = page.getByTestId('brand-logo-upload').locator('input[type="file"]');
   await logoInput.setInputFiles({ name: 'too-large.png', mimeType: 'image/png', buffer: Buffer.alloc(500 * 1024 + 1) });
   await expect(page.getByText('Logo 图片不能超过 500KB')).toBeVisible();
   expect(logoUploadCount).toBe(0);
@@ -139,18 +141,44 @@ test('site settings cards share height and use the default site description', as
   await expect(page.getByRole('img', { name: '品牌 Logo' })).toHaveAttribute('src', '/uploads/brand-logo.png');
   expect(logoUploadCount).toBe(1);
   await expect.poll(() => savedSitePayload?.logoUrl).toBe('/uploads/brand-logo.png');
-  const cards = page.locator('main section').filter({ has: page.locator('h2') });
-  const siteBox = await cards.filter({ hasText: '站点信息' }).boundingBox();
-  const seoBox = await cards.filter({ hasText: 'SEO 优化' }).boundingBox();
+  const browserTabIconInput = page.getByTestId('browser-tab-icon-upload').locator('input[type="file"]');
+  await browserTabIconInput.setInputFiles({ name: 'too-large.png', mimeType: 'image/png', buffer: Buffer.alloc(256 * 1024 + 1) });
+  await expect(page.getByText('浏览器页签图标不能超过 256KB')).toBeVisible();
+  expect(browserTabIconUploadCount).toBe(0);
+  await browserTabIconInput.setInputFiles({ name: 'icon.png', mimeType: 'image/png', buffer: Buffer.from('icon') });
+  await expect(page.getByRole('img', { name: '浏览器页签图标' })).toHaveAttribute('src', '/uploads/browser-tab-icon.png');
+  expect(browserTabIconUploadCount).toBe(1);
+  await expect.poll(() => savedSitePayload?.faviconUrl).toBe('/uploads/browser-tab-icon.png');
+  const siteCard = page.getByTestId('site-information-card');
+  const seoCard = page.getByTestId('page-metadata-card');
+  await expect(siteCard.getByTestId('seo-result-preview')).toBeVisible();
+  await expect(seoCard.getByTestId('seo-result-preview')).toHaveCount(0);
+  await expect(siteCard.getByTestId('seo-result-preview')).toContainText('测试独立站');
+  await expect(siteCard.getByTestId('seo-result-preview')).toContainText('外贸 ERP 与独立站平台');
+  await page.getByRole('textbox', { name: 'SEO 标题' }).fill('全球箱包官方站');
+  await page.getByRole('textbox', { name: 'SEO 描述' }).fill('面向全球客户的箱包采购与定制服务');
+  await expect(siteCard.getByTestId('seo-result-preview')).toContainText('全球箱包官方站');
+  await expect(siteCard.getByTestId('seo-result-preview')).toContainText('面向全球客户的箱包采购与定制服务');
+  await expect(page.getByText('Favicon', { exact: false })).toHaveCount(0);
+  const siteBox = await siteCard.boundingBox();
+  const seoBox = await seoCard.boundingBox();
   expect(siteBox).not.toBeNull();
   expect(seoBox).not.toBeNull();
   expect(Math.abs(siteBox!.height - seoBox!.height)).toBeLessThan(2);
+  const siteDescriptionBox = await page.getByTestId('site-description-input').boundingBox();
+  expect(siteDescriptionBox).not.toBeNull();
+  expect(siteDescriptionBox!.height).toBeGreaterThanOrEqual(96);
+  const brandLogoFieldBox = await page.getByTestId('brand-logo-upload').locator('xpath=ancestor::*[@data-settings-field][1]').boundingBox();
+  const previewBox = await siteCard.getByTestId('seo-result-preview').boundingBox();
+  expect(brandLogoFieldBox).not.toBeNull();
+  expect(previewBox).not.toBeNull();
+  expect(previewBox!.y - (brandLogoFieldBox!.y + brandLogoFieldBox!.height)).toBeLessThanOrEqual(17);
   const descriptions = page.locator('.storefront-settings-card textarea');
-  await expect(descriptions).toHaveCount(1);
-  expect(await descriptions.evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(96);
-  expect(await descriptions.evaluate(element => getComputedStyle(element).resize)).toBe('none');
-  const siteLabels = await cards.filter({ hasText: '站点信息' }).locator('[data-settings-label]').evaluateAll(elements => elements.map(element => ({ fontSize: getComputedStyle(element).fontSize, fontWeight: getComputedStyle(element).fontWeight, color: getComputedStyle(element).color })));
-  const seoLabels = await cards.filter({ hasText: 'SEO 优化' }).locator('[data-settings-label]').evaluateAll(elements => elements.map(element => ({ fontSize: getComputedStyle(element).fontSize, fontWeight: getComputedStyle(element).fontWeight, color: getComputedStyle(element).color })));
+  await expect(descriptions).toHaveCount(2);
+  expect(await descriptions.evaluateAll(elements => elements.every(element => element.getBoundingClientRect().height >= 96))).toBe(true);
+  expect(await descriptions.evaluateAll(elements => elements.every(element => getComputedStyle(element).resize === 'none'))).toBe(true);
+  const siteLabels = await siteCard.locator('[data-settings-label]').evaluateAll(elements => elements.map(element => ({ fontSize: getComputedStyle(element).fontSize, fontWeight: getComputedStyle(element).fontWeight, color: getComputedStyle(element).color })));
+  const seoLabels = await seoCard.locator('[data-settings-label]').evaluateAll(elements => elements.map(element => ({ fontSize: getComputedStyle(element).fontSize, fontWeight: getComputedStyle(element).fontWeight, color: getComputedStyle(element).color })));
   expect(new Set([...siteLabels, ...seoLabels].map(style => JSON.stringify(style))).size).toBe(1);
   await expect(page.getByText('社交媒体', { exact: true })).toHaveCount(0);
   await expect(page.getByText('联系信息与社交媒体', { exact: true })).toHaveCount(0);
@@ -158,7 +186,7 @@ test('site settings cards share height and use the default site description', as
   await expect(page.getByText('说明文字', { exact: true })).toHaveCount(0);
   await expect(page.getByTestId('primary-contact-row')).toHaveCount(0);
   await expect(page.getByTestId('secondary-contact-row')).toHaveCount(0);
-  const placeholderMismatches = await page.locator('[data-settings-field]').evaluateAll(fields => fields.flatMap(field => {
+  const placeholderMismatches = await siteCard.locator('[data-settings-field]').or(seoCard.locator('[data-settings-field]')).evaluateAll(fields => fields.flatMap(field => {
     const label = field.querySelector('[data-settings-label]')?.textContent?.trim();
     return Array.from(field.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input[placeholder], textarea[placeholder]')).filter(control => control.placeholder !== label).map(control => ({ label, placeholder: control.placeholder }));
   }));
@@ -492,17 +520,28 @@ test('site editor shows identity and requires a release note before publishing',
     const style = getComputedStyle(label);
     const text = getComputedStyle(label.querySelector('.ant-checkbox + span')!);
     const box = label.getBoundingClientRect();
-    return { y: box.y, fontWeight: style.fontWeight, whiteSpace: text.whiteSpace, overflow: text.overflow, textOverflow: text.textOverflow };
+    return { y: box.y, height: box.height, fontWeight: style.fontWeight, whiteSpace: text.whiteSpace, overflow: text.overflow, textOverflow: text.textOverflow };
   }));
   expect(mobileBadgeRows).toHaveLength(4);
   expect(new Set(mobileBadgeRows.map(item => item.y)).size).toBe(2);
   expect(mobileBadgeRows[0].y).toBe(mobileBadgeRows[1].y);
   expect(mobileBadgeRows[2].y).toBe(mobileBadgeRows[3].y);
   expect(mobileBadgeRows[2].y).toBeGreaterThan(mobileBadgeRows[0].y);
+  expect(Math.round(mobileBadgeRows[2].y - mobileBadgeRows[0].y - mobileBadgeRows[0].height)).toBe(8);
   expect(mobileBadgeRows.every(item => Number(item.fontWeight) === 400 && item.whiteSpace === 'nowrap' && item.overflow === 'hidden' && item.textOverflow === 'ellipsis')).toBe(true);
   const mobileCategoryFilter = preview.locator('.editor-product-filter');
   await expect(mobileCategoryFilter).toHaveCSS('max-height', 'none');
   await expect(mobileCategoryFilter).toHaveCSS('overflow-y', 'visible');
+  const [categoryBox, badgeBox, productGridBox] = await Promise.all([
+    mobileCategoryFilter.boundingBox(),
+    mobileBadgeFilters.boundingBox(),
+    preview.locator('.editor-product-grid').boundingBox(),
+  ]);
+  expect(categoryBox).not.toBeNull();
+  expect(badgeBox).not.toBeNull();
+  expect(productGridBox).not.toBeNull();
+  expect(Math.round(badgeBox!.y - categoryBox!.y - categoryBox!.height)).toBe(8);
+  expect(Math.round(productGridBox!.y - badgeBox!.y - badgeBox!.height)).toBe(8);
   const mobileStats = preview.locator('[data-section-type="text"] .editor-text-stat');
   const mobileStatBoxes = await mobileStats.evaluateAll(items => items.map(item => { const box = item.getBoundingClientRect(); return { x: box.x, y: box.y }; }));
   expect(mobileStatBoxes).toHaveLength(3);
@@ -567,12 +606,12 @@ test('site editor shows identity and requires a release note before publishing',
   await expect(badgeFilters.getByText('商品标记', { exact: true })).toHaveCount(0);
   await expect(badgeFilters.getByText('全选', { exact: true })).toHaveCount(0);
   const badgeFilterBox = await badgeFilters.boundingBox();
-  const productGridBox = await page.locator('.site-renderer-root .editor-product-grid').boundingBox();
+  const desktopProductGridBox = await page.locator('.site-renderer-root .editor-product-grid').boundingBox();
   const productResultsBox = await productResults.boundingBox();
   expect(badgeFilterBox).not.toBeNull();
-  expect(productGridBox).not.toBeNull();
+  expect(desktopProductGridBox).not.toBeNull();
   expect(productResultsBox).not.toBeNull();
-  expect(badgeFilterBox!.y + badgeFilterBox!.height).toBeLessThanOrEqual(productGridBox!.y);
+  expect(badgeFilterBox!.y + badgeFilterBox!.height).toBeLessThanOrEqual(desktopProductGridBox!.y);
   expect(badgeFilterBox!.x).toBeGreaterThanOrEqual(productResultsBox!.x);
   const newBadgeFilter = badgeFilters.getByRole('checkbox', { name: '新品', exact: true });
   const hotBadgeFilter = badgeFilters.getByRole('checkbox', { name: '爆品', exact: true });

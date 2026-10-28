@@ -80,8 +80,10 @@ describe('WorkspaceService quota usage', () => {
   });
 
   it('does not let site-information updates overwrite the central default currency', async () => {
+    const previousPublicBase = process.env.GCS_PUBLIC_BASE_URL;
+    process.env.GCS_PUBLIC_BASE_URL = 'https://cdn.example';
     const site = { id: 'site-1', tenantId: 'tenant-1', name: 'Demo', defaultLanguage: 'zh_CN', supportedLanguages: ['zh_CN'], defaultCurrency: 'CNY' };
-    const configRepo = { save: jest.fn(async (value) => value) };
+    const configRepo = { findOne: jest.fn().mockResolvedValue({ value: { faviconUrl: 'https://cdn.example/tenants/tenant-1/sites/site-1/favicon/icon.png' } }), save: jest.fn(async (value) => value) };
     const siteRepo = { findOne: jest.fn().mockResolvedValue(site), save: jest.fn(async (value) => value) };
     const service = new WorkspaceService(
       configRepo as never, {} as never, {} as never, {} as never, siteRepo as never, {} as never,
@@ -92,6 +94,8 @@ describe('WorkspaceService quota usage', () => {
     await service.updateSiteLanguages({ defaultLanguage: 'en_US', supportedLanguages: ['en_US'] }, 'tenant-1', 'site-1');
 
     expect(site).toMatchObject({ name: 'New name', defaultLanguage: 'en_US', defaultCurrency: 'CNY' });
+    expect(configRepo.save).toHaveBeenCalledWith(expect.objectContaining({ value: expect.objectContaining({ faviconUrl: 'https://cdn.example/tenants/tenant-1/sites/site-1/favicon/icon.png' }) }));
+    if (previousPublicBase === undefined) delete process.env.GCS_PUBLIC_BASE_URL; else process.env.GCS_PUBLIC_BASE_URL = previousPublicBase;
   });
 });
 

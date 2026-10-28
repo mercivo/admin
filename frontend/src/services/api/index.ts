@@ -60,6 +60,7 @@ export interface WorkspaceSettings {
     name: string;
     description: string;
     logoUrl: string;
+    faviconUrl: string;
     defaultLanguage: string;
     supportedLanguages?: string[];
     defaultCurrency: string;
@@ -611,6 +612,11 @@ export const productApi = {
       { headers: { "Content-Type": "multipart/form-data" } },
     );
   },
+  uploadSiteFavicon: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api.post<any, { url: string; objectName: string }>("/product/site-favicon", form, { headers: { "Content-Type": "multipart/form-data" } });
+  },
 };
 
 // ---- Product Category API ----
@@ -633,11 +639,12 @@ export const workspaceApi = {
       email: data.email,
       timezone: "Asia/Shanghai",
     }).then((value) => { invalidateCachedRequest("workspace/settings"); return value; }),
-  updateSiteInfo: (data: Pick<WorkspaceSettings["site"], "name" | "description" | "logoUrl">) =>
+  updateSiteInfo: (data: Pick<WorkspaceSettings["site"], "name" | "description" | "logoUrl"> & Partial<Pick<WorkspaceSettings["site"], "faviconUrl">>) =>
     api.put("/workspace/settings/site-info", {
       name: data.name,
       description: data.description,
       logoUrl: data.logoUrl,
+      faviconUrl: data.faviconUrl,
     }).then((value) => { invalidateCachedRequest("workspace/settings"); return value; }),
   updateSiteLanguages: (data: Pick<WorkspaceSettings["site"], "defaultLanguage" | "supportedLanguages">) =>
     api.put("/workspace/settings/site-languages", {

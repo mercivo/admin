@@ -12,12 +12,13 @@ import SiteRenderer from '../../frontend/src/pages/SiteEditor/SiteRenderer';
 import { normalizeEditorConfig } from '../../frontend/src/pages/SiteEditor/schema';
 import type { Product as RendererProduct, ProductCategory as RendererCategory } from '../../frontend/src/types';
 import { languageDisplayName } from '../../frontend/src/utils/languageDisplayName';
+import { resolveStorefrontMetadata } from '../metadata.mjs';
 import './tailwind.css';
 
 type Product = { id: string; nameZh: string; description?: string; seoTitle?: string; seoDescription?: string; seoImage?: string; sku?: string; price: string; basePrice?: number; priceVisible?: boolean; priceSource?: string; moq: number; img: string; images?: string[]; hot: boolean; badge?: string; likeCount?: number; tags?: string[]; category: string; variants?: Array<{ id?: string; specification: string; option: string; stock: number; surcharge: number }> };
 type ProductCategory = { code: string; label: string; parentCode?: string | null; sort: number };
 type SeoConfig = { title?: string; description?: string; keywords?: string; shareImage?: string; canonicalUrl?: string; robots?: string };
-type PublishedSite = { siteId: string; versionId: string; version: number; locale?: string; site: { name: string; slug: string; logoUrl?: string; defaultLanguage: string; supportedLanguages?: string[]; defaultCurrency: string; currencySymbol?: string; guestAccessEnabled?: boolean; guestPriceMode?: 'base' | 'hidden' | 'percentage' }; config: Record<string, unknown>; seo?: SeoConfig; products: Product[]; categories?: ProductCategory[]; i18n?: { sourceLocale: string; locales: string[]; messages: Record<string, Record<string, string>> } };
+type PublishedSite = { siteId: string; versionId: string; version: number; locale?: string; site: { name: string; description?: string; slug: string; logoUrl?: string; faviconUrl?: string; defaultLanguage: string; supportedLanguages?: string[]; defaultCurrency: string; currencySymbol?: string; guestAccessEnabled?: boolean; guestPriceMode?: 'base' | 'hidden' | 'percentage' }; config: Record<string, unknown>; seo?: SeoConfig; products: Product[]; categories?: ProductCategory[]; i18n?: { sourceLocale: string; locales: string[]; messages: Record<string, Record<string, string>> } };
 type PublicErrorCode = 'SITE_NOT_FOUND_OR_UNPUBLISHED' | 'SITE_PLAN_EXPIRED' | 'SITE_PUBLISH_PERMISSION_REQUIRED' | 'CONTACT_NAME_REQUIRED' | 'CONTACT_METHOD_REQUIRED' | 'PURCHASE_REQUIREMENTS_REQUIRED' | 'INQUIRY_SUBMIT_FAILED' | 'SERVICE_UNAVAILABLE' | 'NETWORK_ERROR' | 'UNKNOWN_ERROR';
 type PublicAccessNotice = { locale?: string; title: string; description: string };
 class PublicApiError extends Error { constructor(readonly errorCode: PublicErrorCode, message: string, readonly data?: PublicAccessNotice) { super(message); } }
@@ -81,26 +82,29 @@ const setMeta = (selector: string, attributes: Record<string, string>) => {
   if (!element) { element = document.createElement('meta'); document.head.appendChild(element); }
   Object.entries(attributes).forEach(([key, value]) => element!.setAttribute(key, value));
 };
+const setFavicon = (href: string) => {
+  const links = [...document.head.querySelectorAll<HTMLLinkElement>('link[rel="icon"],link[rel="shortcut icon"]')];
+  if (!href) { links.forEach(link => link.remove()); return; }
+  const link = links[0] || document.createElement('link');
+  link.rel = 'icon'; link.href = href;
+  if (!link.parentNode) document.head.appendChild(link);
+  links.slice(1).forEach(item => item.remove());
+};
 const applySeo = (data: PublishedSite, selectedProductId = routeProductId()) => {
-  const seo = data.seo || {};
   const productId = selectedProductId;
   const product = productId ? data.products.find(item => item.id === productId) : undefined;
   const locale = data.locale || data.site.defaultLanguage;
-  const currentMessages = data.i18n?.messages?.[locale] || {};
-  const sourceMessages = data.i18n?.messages?.[data.site.defaultLanguage] || data.i18n?.messages?.[data.i18n?.sourceLocale || 'zh_CN'] || {};
-  const translated = (key: string, fallback: string) => currentMessages[key] || sourceMessages[key] || fallback;
-  const sections = ((data.config.pages as Record<string, { sections?: EditorSection[] }> | undefined)?.home?.sections || []);
-  const header = sections.find(item => item.type === 'header'); const footer = sections.find(item => item.type === 'footer');
-  const titleSection = header || footer; const siteName = titleSection?.id ? translated(`editor:home:${titleSection.id}:title`, titleSection.title || data.site.name) : data.site.name;
-  const title = product ? `${translated(`product:${product.id}:name`, product.nameZh)}｜${siteName}` : (translated('seo:title', seo.title || '') || siteName);
-  const description = product ? translated(`product:${product.id}:description`, product.description || '') : translated('seo:description', seo.description || '');
-  const canonical = product ? `${location.origin}${location.pathname}` : (seo.canonicalUrl || `${location.origin}${location.pathname}`);
-  const image = product?.seoImage || (product?.img ? imageUrl(product.img) : '') || seo.shareImage || (data.products[0]?.img ? imageUrl(data.products[0].img) : '');
+  const canonicalBase = product ? `${location.origin}${location.pathname}` : (data.seo?.canonicalUrl || `${location.origin}${location.pathname}`);
+  const canonical = `${canonicalBase}${canonicalBase.includes('?') ? '&' : '?'}lang=${encodeURIComponent(locale)}`;
+  const metadata = resolveStorefrontMetadata({ data, locale, product, canonical });
+  const { title, description, keywords, siteName, faviconUrl, robots } = metadata;
+  const image = metadata.image ? imageUrl(metadata.image) : '';
   document.title = title;
   document.documentElement.lang = normalizeLocaleCode(locale).replace('_', '-');
   setMeta('meta[name="description"]', { name: 'description', content: description });
-  setMeta('meta[name="robots"]', { name: 'robots', content: seo.robots || 'index,follow,max-image-preview:large' });
-  if (seo.keywords) setMeta('meta[name="keywords"]', { name: 'keywords', content: seo.keywords });
+  setMeta('meta[name="robots"]', { name: 'robots', content: robots });
+  if (keywords) setMeta('meta[name="keywords"]', { name: 'keywords', content: keywords }); else document.head.querySelector('meta[name="keywords"]')?.remove();
+  setFavicon(faviconUrl);
   setMeta('meta[property="og:type"]', { property: 'og:type', content: product ? 'product' : 'website' });
   setMeta('meta[property="og:title"]', { property: 'og:title', content: title });
   setMeta('meta[property="og:description"]', { property: 'og:description', content: description });
@@ -117,7 +121,7 @@ const applySeo = (data: PublishedSite, selectedProductId = routeProductId()) => 
   canonicalLink.href = canonical;
   let schema = document.head.querySelector<HTMLScriptElement>('script[data-storefront-schema]');
   if (!schema) { schema = document.createElement('script'); schema.type = 'application/ld+json'; schema.dataset.storefrontSchema = 'true'; document.head.appendChild(schema); }
-  schema.textContent = JSON.stringify(product ? { '@context': 'https://schema.org', '@type': 'Product', name: translated(`product:${product.id}:name`, product.nameZh), description, sku: product.sku, image: image ? [image] : undefined, brand: { '@type': 'Brand', name: siteName } } : { '@context': 'https://schema.org', '@type': 'Organization', name: siteName, url: canonical, description, ...(image ? { logo: image } : {}) });
+  schema.textContent = JSON.stringify(product ? { '@context': 'https://schema.org', '@type': 'Product', name: metadata.productName, description, sku: product.sku, image: image ? [image] : undefined, brand: { '@type': 'Brand', name: siteName } } : { '@context': 'https://schema.org', '@type': 'Organization', name: siteName, url: canonical, description, ...(image ? { logo: image } : {}) });
 };
 
 const MercivoLogo = () => <div className="unavailable-brand" aria-label="Mercivo">
@@ -322,7 +326,7 @@ function App() {
       <small>{platform.support}</small>
     </section>
   </main>;
-  if (!site) return <main className="state"><div className="loader"/><p>{platform.loading}</p></main>;
+  if (!site) return <main className="state" aria-label="Loading site" aria-busy="true"><div className="loader" aria-hidden="true"/></main>;
   const rendererConfig = normalizeEditorConfig(site.config);
   rendererConfig.page = 'home';
   if (editorSections.length) rendererConfig.pages.home = { sections: editorSections as typeof rendererConfig.pages.home.sections };

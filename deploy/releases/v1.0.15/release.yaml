@@ -1,0 +1,16 @@
+version: v1.0.15
+releaseType: iteration
+releaseDate: 2026-10-28
+owner: mercivo
+sourceBranch: main
+database:
+  schemaMigration: false
+  dataCorrection: false
+  backwardCompatible: true
+redis:
+  changed: false
+storage:
+  changed: true
+rollback:
+  applicationRevisionSafe: true
+  databaseRestoreRequired: false

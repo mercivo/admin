@@ -28,6 +28,7 @@ describe('PlanPermissionsGuard', () => {
     ['GET', '/api/v1/workspace/config/seo'],
     ['PUT', '/api/v1/workspace/config/seo'],
     ['POST', '/api/v1/product/site-logo'],
+    ['POST', '/api/v1/product/site-favicon'],
     ['POST', '/api/v1/workspace/team'],
     ['PUT', '/api/v1/workspace/team/member-1'],
     ['POST', '/api/v1/admin/sites/site-1/publish'],
