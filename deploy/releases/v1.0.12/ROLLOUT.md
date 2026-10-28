@@ -11,13 +11,13 @@
 
 ## Ordered actions
 
-1. Generate a new high-entropy value without printing it or writing it to the repository.
+1. Generate a new high-entropy value without printing it or writing it to the repository. The stored bytes must not include a trailing CR or LF because Wrangler normalizes interactive secret input.
 2. Add it as a new enabled version of `mercivo-storefront-edge-secret`; do not disable the previous version yet.
 3. Merge the reviewed commit to `main` and deploy only through `mercivo-main` with the root `cloudbuild.yaml` in `mercivo-admin` / `asia-east1`.
 4. Confirm the build succeeds and the new Storefront revision is ready, serves 100% of traffic, and references `mercivo-storefront-edge-secret:latest`.
 5. Set the Cloudflare Worker secret `EDGE_PROXY_SHARED_SECRET` to the same value without exposing it in command output or shell history.
 6. Run every verification below. If any custom-domain check fails, inspect the redacted `storefront_edge_host_rejected` logs and Worker route before taking further action. Do not alter tenant data or domain bindings.
-7. After all checks pass, disable the previous Secret Manager version and record only version numbers, timestamps, revision names, and results here.
+7. After all checks pass, disable every superseded Secret Manager version and record only version numbers, timestamps, revision names, and results here.
 
 ## Verification
 
