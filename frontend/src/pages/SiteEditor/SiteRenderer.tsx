@@ -1,4 +1,4 @@
-import React, { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import React, { FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Checkbox, ConfigProvider, Empty, Pagination, Tree, message } from 'antd';
 import { ArrowLeft, ArrowRight, Award, Check, ChevronDown, ChevronRight, Globe, Heart, Menu, MessageSquare, Package, Search, Star } from 'lucide-react';
 import { ProductImage } from '../../components/shared/ProductImage';
@@ -13,12 +13,15 @@ import './controls.css';
 import './storefront-typography.css';
 
 export type InquiryValues = Record<string, string>;
+export type StorefrontRoute = { page: 'home'; restoreScroll?: number } | { page: 'product'; productId: string; restoreScroll?: number };
+export type StorefrontRouteChange = (route: StorefrontRoute, context: { homeScroll: number }) => void;
 export type SiteRendererProps = {
   config: EditorConfig; products: Product[]; categories: ProductCategory[]; currency: string; brandLogoUrl?: string;
   language?: string; supportedLanguages?: string[]; device?: 'desktop' | 'mobile'; editable?: boolean; selectedId?: string;
   onSelectSection?: (id: string) => void; onLanguageChange?: (language: string) => void;
   onSubmitInquiry?: (values: InquiryValues) => Promise<void>; translate?: (key: string, fallback: string) => string;
-  initialProductId?: string | null; onProductChange?: (productId: string | null) => void;
+  route?: StorefrontRoute; onRouteChange?: StorefrontRouteChange;
+  stickyHeader: boolean;
   guestAccessEnabled?: boolean; guestPriceMode?: 'base' | 'hidden' | 'percentage';
 };
 
@@ -41,41 +44,90 @@ export const SiteRenderer = (props: SiteRendererProps) => {
   const products = useMemo(() => sourceProducts.map(product => props.guestPriceMode === 'hidden' ? { ...product, priceVisible: false } : product), [sourceProducts, props.guestPriceMode]);
   const [language, setLanguage] = useState(props.language || DEFAULT_ANTD_LOCALE);
   const [contactOpen, setContactOpen] = useState(false);
-  const [productDetailId, setProductDetailId] = useState<string | null>(props.initialProductId || null);
+  const [internalRoute, setInternalRoute] = useState<StorefrontRoute>({ page: 'home' });
+  const route = props.route || internalRoute;
+  const homeScrollRef = useRef(0);
+  const pendingTargetRef = useRef<string | null>(null);
+  const previousPageRef = useRef(route.page);
   const [responsiveDevice, setResponsiveDevice] = useState<'desktop' | 'mobile'>(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches ? 'mobile' : 'desktop');
   useEffect(() => setLanguage(props.language || DEFAULT_ANTD_LOCALE), [props.language]);
-  useEffect(() => setProductDetailId(props.initialProductId || null), [props.initialProductId]);
   useEffect(() => { if (props.device) return; const media = window.matchMedia('(max-width: 640px)'); const update = () => setResponsiveDevice(media.matches ? 'mobile' : 'desktop'); update(); media.addEventListener('change', update); return () => media.removeEventListener('change', update); }, [props.device]);
   const device = props.device || responsiveDevice;
   const changeLanguage = (next: string) => { setLanguage(next); props.onLanguageChange?.(next); };
   const sections = (config.pages[config.page || 'home']?.sections || []).filter(section => section.visible !== false && section.type !== 'contactModal');
   const contact = config.pages[config.page || 'home']?.sections.find(section => section.type === 'contactModal');
+  const productDetailId = route.page === 'product' ? route.productId : null;
   const productDetail = productDetailId ? products.find(item => String(item.id) === productDetailId) : undefined;
-  const showProduct = (productId: string | null) => { if (productDetailId !== productId) { setProductDetailId(productId); props.onProductChange?.(productId); } window.scrollTo({ top: 0, behavior: 'smooth' }); };
-  const navigate = (target: string) => { const product = products.find(item => String(item.id) === target); if (product) return showProduct(String(product.id)); if (target === 'contactModal' || target === contact?.id) return setContactOpen(true); const destination = sections.find(section => section.id === target || section.type === target); if (!destination) return; if (productDetailId) { showProduct(null); window.setTimeout(() => document.getElementById(`editor-section-${destination.id}`)?.scrollIntoView({ behavior: 'smooth', block: editable ? 'center' : 'start' }), 0); } else document.getElementById(`editor-section-${destination.id}`)?.scrollIntoView({ behavior: 'smooth', block: editable ? 'center' : 'start' }); };
+  const scrollContainer = () => document.querySelector<HTMLElement>('.editor-canvas-scroll:has(.site-renderer-root)');
+  const readScroll = () => scrollContainer()?.scrollTop ?? window.scrollY;
+  const writeScroll = (top: number) => {
+    const container = scrollContainer();
+    if (container) { container.scrollTop = top; return; }
+    const previousBehavior = document.documentElement.style.scrollBehavior;
+    document.documentElement.style.scrollBehavior = 'auto';
+    window.scrollTo(0, top);
+    document.documentElement.style.scrollBehavior = previousBehavior;
+  };
+  const changeRoute = (next: StorefrontRoute) => {
+    const homeScroll = route.page === 'home' ? readScroll() : homeScrollRef.current;
+    if (route.page === 'home') homeScrollRef.current = homeScroll;
+    if (props.onRouteChange) props.onRouteChange(next, { homeScroll });
+    else setInternalRoute(next);
+  };
+  const showProduct = (productId: string | null) => {
+    if (!productId && route.page === 'home') { writeScroll(0); return; }
+    if (productId && route.page === 'product' && route.productId === productId) return;
+    changeRoute(productId ? { page: 'product', productId } : { page: 'home', restoreScroll: homeScrollRef.current });
+  };
+  const navigate = (target: string) => { const product = products.find(item => String(item.id) === target); if (product) return showProduct(String(product.id)); if (target === 'contactModal' || target === contact?.id) return setContactOpen(true); const destination = sections.find(section => section.id === target || section.type === target); if (!destination) return; if (route.page === 'product') { pendingTargetRef.current = destination.id; changeRoute({ page: 'home' }); } else document.getElementById(`editor-section-${destination.id}`)?.scrollIntoView({ behavior: 'smooth', block: editable ? 'center' : 'start' }); };
+  useLayoutEffect(() => {
+    const previousPage = previousPageRef.current;
+    previousPageRef.current = route.page;
+    if (route.page === 'product') { writeScroll(0); return; }
+    const targetId = pendingTargetRef.current;
+    pendingTargetRef.current = null;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (targetId) document.getElementById(`editor-section-${targetId}`)?.scrollIntoView({ behavior: 'smooth', block: editable ? 'center' : 'start' });
+      else if (previousPage === 'product') {
+        const restoredTop = Math.max(0, route.restoreScroll ?? homeScrollRef.current);
+        writeScroll(restoredTop);
+        window.setTimeout(() => writeScroll(restoredTop), 0);
+      }
+    }));
+  }, [route.page, route.page === 'product' ? route.productId : route.restoreScroll, editable]);
   const header = sections.find(section => section.type === 'header');
   const footer = sections.find(section => section.type === 'footer');
-  return <ConfigProvider theme={{ token: { colorPrimary: config.themeColor } }}><div className="site-editor-controls"><div data-editor-canvas data-i18n-ignore data-device={device} className={`site-renderer-root bg-white ${productDetailId ? 'overflow-visible' : 'overflow-hidden'}`} style={{ '--site-theme': colorWithOpacity(config.themeColor, config.themeOpacity) } as React.CSSProperties}>
+  const sectionProps = (section: Section, forceEditable = editable) => ({ section, siteInfo: config.siteInfo, products, categories, currency, brandLogoUrl, language, languages: props.supportedLanguages || [language], editable: forceEditable, selected: forceEditable && selectedId === section.id, onSelect: () => onSelectSection?.(section.id), onLanguageChange: changeLanguage, onNavigate: navigate, onHome: () => showProduct(null), onSubmitInquiry, translate });
+  const headerShellClass = props.stickyHeader ? 'storefront-header-shell storefront-sticky-header' : 'storefront-header-shell';
+  return <ConfigProvider theme={{ token: { colorPrimary: config.themeColor } }}><div className="site-editor-controls"><div data-editor-canvas data-i18n-ignore data-device={device} data-sticky-header={props.stickyHeader} className={`site-renderer-root bg-white ${props.stickyHeader ? 'overflow-visible' : 'overflow-x-clip'}`} style={{ '--site-theme': colorWithOpacity(config.themeColor, config.themeOpacity) } as React.CSSProperties}>
     {props.guestAccessEnabled === false ? <>
-      {header && <RendererSection section={header} siteInfo={config.siteInfo} products={products} categories={categories} currency={currency} brandLogoUrl={brandLogoUrl} language={language} languages={props.supportedLanguages || [language]} editable={false} selected={false} onSelect={() => undefined} onLanguageChange={changeLanguage} onNavigate={navigate} onHome={() => showProduct(null)} onSubmitInquiry={onSubmitInquiry} translate={translate} />}
+      {header && <div className={headerShellClass}><RendererSection {...sectionProps(header, false)} /></div>}
       <SiteGuestAccessDisabled translate={translate} />
-      {footer && <RendererSection section={footer} siteInfo={config.siteInfo} products={products} categories={categories} currency={currency} brandLogoUrl={brandLogoUrl} language={language} languages={props.supportedLanguages || [language]} editable={false} selected={false} onSelect={() => undefined} onLanguageChange={changeLanguage} onNavigate={navigate} onHome={() => showProduct(null)} onSubmitInquiry={onSubmitInquiry} translate={translate} />}
-    </> : productDetailId ? <>
-      <div className="product-detail-sticky">
-        {header && <RendererSection section={header} siteInfo={config.siteInfo} products={products} categories={categories} currency={currency} brandLogoUrl={brandLogoUrl} language={language} languages={props.supportedLanguages || [language]} editable={false} selected={false} onSelect={() => undefined} onLanguageChange={changeLanguage} onNavigate={navigate} onHome={() => showProduct(null)} onSubmitInquiry={onSubmitInquiry} translate={translate} />}
-        <ProductBreadcrumb name={productDetail ? tx(translate, `product:${productDetail.id}:name`, productDetail.nameZh || '-') : tx(translate, 'editor:product:product-detail:descriptionTitle', '商品详情')} onBack={() => showProduct(null)} translate={translate} />
-      </div>
-      {productDetail ? <ProductDetail product={productDetail} categories={categories} currency={currency} onContact={() => setContactOpen(true)} translate={translate} /> : <ProductNotFound onBack={() => showProduct(null)} translate={translate} />}
-      {footer && <RendererSection section={footer} siteInfo={config.siteInfo} products={products} categories={categories} currency={currency} brandLogoUrl={brandLogoUrl} language={language} languages={props.supportedLanguages || [language]} editable={false} selected={false} onSelect={() => undefined} onLanguageChange={changeLanguage} onNavigate={navigate} onHome={() => showProduct(null)} onSubmitInquiry={onSubmitInquiry} translate={translate} />}
-    </> : sections.map(section => <RendererSection key={section.id} section={section} siteInfo={config.siteInfo} products={products} categories={categories} currency={currency} brandLogoUrl={brandLogoUrl} language={language} languages={props.supportedLanguages || [language]} editable={editable} selected={selectedId === section.id} onSelect={() => onSelectSection?.(section.id)} onLanguageChange={changeLanguage} onNavigate={navigate} onHome={() => showProduct(null)} onSubmitInquiry={onSubmitInquiry} translate={translate} />)}
+      {footer && <RendererSection {...sectionProps(footer, false)} />}
+    </> : <div className="storefront-route-outlet" key={route.page === 'product' ? `product:${productDetailId}` : 'home'}>
+      {route.page === 'product'
+        ? <StorefrontProductDetailPage header={header} footer={footer} product={productDetail} sectionProps={sectionProps} categories={categories} currency={currency} stickyHeader={props.stickyHeader} onBack={() => showProduct(null)} onContact={() => setContactOpen(true)} translate={translate} />
+        : <StorefrontHomePage sections={sections} sectionProps={sectionProps} stickyHeader={props.stickyHeader} />}
+    </div>}
     {contactOpen && <SiteContactModal info={config.siteInfo} themeColor={colorWithOpacity(config.themeColor, config.themeOpacity)} onClose={() => setContactOpen(false)} translate={translate} />}
   </div></div></ConfigProvider>;
 };
 
+export const StorefrontHomePage = ({ sections, sectionProps, stickyHeader }: { sections: Section[]; sectionProps: (section: Section, editable?: boolean) => SectionProps; stickyHeader: boolean }) => <>{sections.map(section => section.type === 'header' ? <div className={`storefront-header-shell ${stickyHeader ? 'storefront-sticky-header' : ''}`} key={section.id}><RendererSection {...sectionProps(section)} /></div> : <RendererSection key={section.id} {...sectionProps(section)} />)}</>;
+
+export const StorefrontProductDetailPage = ({ header, footer, product, sectionProps, categories, currency, stickyHeader, onBack, onContact, translate }: { header?: Section; footer?: Section; product?: Product; sectionProps: (section: Section, editable?: boolean) => SectionProps; categories: ProductCategory[]; currency: string; stickyHeader: boolean; onBack: () => void; onContact: () => void; translate?: SiteRendererProps['translate'] }) => <>
+  <div className={`storefront-header-shell product-detail-sticky ${stickyHeader ? 'storefront-sticky-header' : ''}`}>
+    {header && <RendererSection {...sectionProps(header, false)} />}
+    <ProductBreadcrumb name={product ? tx(translate, `product:${product.id}:name`, product.nameZh || '-') : tx(translate, 'editor:product:product-detail:descriptionTitle', '商品详情')} onBack={onBack} translate={translate} />
+  </div>
+  {product ? <ProductDetail product={product} categories={categories} currency={currency} onContact={onContact} translate={translate} /> : <ProductNotFound onBack={onBack} translate={translate} />}
+  {footer && <RendererSection {...sectionProps(footer, false)} />}
+</>;
+
 const SiteGuestAccessDisabled = ({ translate }: { translate?: SiteRendererProps['translate'] }) => <main className="site-guest-access-disabled" role="alert"><Globe/><h1>{tx(translate, 'system:guestAccess.disabledTitle', '暂不开放游客访问')}</h1><p>{tx(translate, 'system:guestAccess.disabledDescription', '当前站点仅对授权客户开放，请联系站点管理员获取访问权限。')}</p></main>;
 
 type SectionProps = { section: Section; siteInfo: SiteInfo; products: Product[]; categories: ProductCategory[]; currency: string; brandLogoUrl: string; language: string; languages: string[]; editable: boolean; selected: boolean; onSelect: () => void; onLanguageChange: (value: string) => void; onNavigate: (id: string) => void; onHome: () => void; onSubmitInquiry?: SiteRendererProps['onSubmitInquiry']; translate?: SiteRendererProps['translate'] };
-const RendererSection = (p: SectionProps) => { const s = p.section; const background = resolveSectionBackground(s, 'var(--site-theme)'); const sectionStyle = s.type === 'hero' ? undefined : s.type === 'header' ? { '--section-background-color': background.style?.backgroundColor, '--section-background-image': background.style?.backgroundImage || 'none' } as React.CSSProperties : background.style; return <section data-section-type={s.type} data-section-id={s.id} data-custom-background={s.type !== 'hero'} id={`editor-section-${s.id}`} style={sectionStyle} onClick={event => { if (!p.editable || (event.target as HTMLElement).closest('[data-editor-interactive],button,input,select,textarea,a,summary')) return; p.onSelect(); }} className={`relative scroll-m-6 ${p.editable ? 'cursor-pointer' : ''} ${p.selected ? 'is-editor-selected z-10' : p.editable ? 'is-editor-selectable hover:z-10' : ''}`}>
+const RendererSection = (p: SectionProps) => { const s = p.section; const background = resolveSectionBackground(s, 'var(--site-theme)'); const sectionStyle = s.type === 'hero' ? undefined : s.type === 'header' ? { '--section-background-color': background.style?.backgroundColor, '--section-background-image': background.style?.backgroundImage || 'none' } as React.CSSProperties : background.style; return <section data-section-type={s.type} data-section-id={s.id} data-custom-background={s.type !== 'hero'} id={`editor-section-${s.id}`} style={sectionStyle} onClick={event => { if (!p.editable || (event.target as HTMLElement).closest('[data-editor-interactive],button,input,select,textarea,a,summary')) return; p.onSelect(); }} className={`relative scroll-m-24 ${p.editable ? 'cursor-pointer' : ''} ${p.selected ? 'is-editor-selected z-10' : p.editable ? 'is-editor-selectable hover:z-10' : ''}`}>
   {p.selected && <span className="editor-selection-label absolute right-3 top-3 z-20"><Check className="h-3 w-3" />编辑中</span>}
   {s.type === 'header' && <Header section={s} logo={p.brandLogoUrl} language={p.language} languages={p.languages} onLanguageChange={p.onLanguageChange} onNavigate={p.onNavigate} onHome={p.onHome} />}
   {s.type === 'hero' && <Hero section={s} onNavigate={p.onNavigate} />}

@@ -284,8 +284,9 @@
 .site-editor-controls [data-editor-canvas] .editor-footer-column{min-width:0}.site-editor-controls [data-editor-canvas] .editor-footer-column>nav,.site-editor-controls [data-editor-canvas] .editor-footer-column>div:last-child{display:grid;gap:8px}.site-editor-controls [data-editor-canvas] .editor-footer-heading{margin-bottom:8px}.site-editor-controls [data-editor-canvas] .editor-footer-item{min-width:0;overflow-wrap:anywhere;word-break:break-word}
 .site-editor-controls [data-editor-canvas] .editor-language-popover>button{grid-template-columns:42px minmax(0,1fr) 14px;gap:0}.site-editor-controls [data-editor-canvas] .editor-language-popover>button>span:nth-child(2){margin-left:10px}
 
-/* Product detail refinement: sticky navigation chrome and export-oriented PC layout. */
-.site-editor-controls [data-editor-canvas] .product-detail-sticky{position:sticky;top:0;z-index:80;background:#fff;box-shadow:0 7px 22px rgba(30,45,37,.08)}
+/* Shared sticky navigation chrome for home and product routes. */
+.site-editor-controls [data-editor-canvas][data-sticky-header="true"] .storefront-sticky-header{position:sticky;top:0;z-index:80;background:#fff;box-shadow:0 7px 22px rgba(30,45,37,.08)}
+.site-editor-controls [data-editor-canvas] .storefront-route-outlet{min-height:100vh}
 .site-editor-controls [data-editor-canvas] .product-detail-sticky [data-section-type="header"]{position:relative;z-index:2}
 .site-editor-controls [data-editor-canvas] .product-detail-breadcrumb-bar{border-top:1px solid #f0f2ef;border-bottom:1px solid #e8ebe7;background:rgba(250,251,249,.96);backdrop-filter:blur(14px)}
 .site-editor-controls [data-editor-canvas] .product-detail-breadcrumb{width:min(1320px,calc(100% - 72px));min-height:42px;margin:0 auto;color:#8a938e;font-size:10px}

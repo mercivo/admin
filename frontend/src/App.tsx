@@ -253,7 +253,7 @@ const App: React.FC = () => {
                 <Route path="system/:module" element={<SystemAdminPage />} />
               </Route>
               <Route element={<TenantOnly />}>
-                <Route path="site-preview" element={<RequirePermission permission="page.site.editor"><SitePreviewPage /></RequirePermission>} />
+                <Route path="site-preview/*" element={<RequirePermission permission="page.site.editor"><SitePreviewPage /></RequirePermission>} />
                 <Route path="help" element={<HelpPage />} />
                 <Route element={<AppLayout />}>
                   {/* Backend pages with sidebar */}

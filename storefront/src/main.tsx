@@ -8,7 +8,7 @@ import './unavailable.css';
 import { AntSelect } from './controls';
 import { StorefrontModal } from './StorefrontModal';
 import { antdLocaleFor, normalizeLocaleCode, platformMessages, requestedPlatformLocale } from './i18n-runtime';
-import SiteRenderer from '../../frontend/src/pages/SiteEditor/SiteRenderer';
+import SiteRenderer, { type StorefrontRoute, type StorefrontRouteChange } from '../../frontend/src/pages/SiteEditor/SiteRenderer';
 import { normalizeEditorConfig } from '../../frontend/src/pages/SiteEditor/schema';
 import type { Product as RendererProduct, ProductCategory as RendererCategory } from '../../frontend/src/types';
 import { languageDisplayName } from '../../frontend/src/utils/languageDisplayName';
@@ -168,12 +168,14 @@ function App() {
   const [heroIndex, setHeroIndex] = useState(0);
   const [language, setLanguage] = useState('');
   const [activeProductId, setActiveProductId] = useState<string | null>(() => routeProductId());
+  const [storefrontRoute, setStorefrontRoute] = useState<StorefrontRoute>(() => { const productId = routeProductId(); return productId ? { page: 'product', productId } : { page: 'home', restoreScroll: Number(history.state?.homeScroll) || 0 }; });
   const [inquiry, setInquiry] = useState<Record<FormFieldKey, string>>({ name: '', contact: '', email: '', company: '', phone: '', country: '', requirements: '' });
   const [inquiryState, setInquiryState] = useState<'idle' | 'submitting' | 'success' | 'error' | 'validation'>('idle');
   const [inquiryErrorCode, setInquiryErrorCode] = useState<PublicErrorCode>('INQUIRY_SUBMIT_FAILED');
+  useEffect(() => { const previous = history.scrollRestoration; history.scrollRestoration = 'manual'; return () => { history.scrollRestoration = previous; }; }, []);
   const loadSite = () => { const params = new URLSearchParams(); if (querySite) params.set('site', querySite); const requested = new URLSearchParams(location.search).get('lang'); if (requested) params.set('lang', requested); return api<PublishedSite>(`/api/v1/public/site${params.size ? `?${params}` : ''}`).then(data => { setSite(data); setLanguage(normalizeLocaleCode(data.locale || data.site.defaultLanguage)); applySeo(data, routeProductId()); setError(null); }); };
   useEffect(() => { loadSite().catch(err => setError(err instanceof PublicApiError ? { code: err.errorCode, notice: err.data } : { code: 'UNKNOWN_ERROR' })); }, [querySite]);
-  useEffect(() => { const syncRoute = () => { const productId = routeProductId(); setActiveProductId(productId); if (site) applySeo(site, productId); }; window.addEventListener('popstate', syncRoute); return () => window.removeEventListener('popstate', syncRoute); }, [site]);
+  useEffect(() => { const syncRoute = () => { const productId = routeProductId(); setActiveProductId(productId); setStorefrontRoute(productId ? { page: 'product', productId } : { page: 'home', restoreScroll: Number(history.state?.homeScroll) || 0 }); if (site) applySeo(site, productId); }; window.addEventListener('popstate', syncRoute); return () => window.removeEventListener('popstate', syncRoute); }, [site]);
   const submitInquiry = async (event: React.FormEvent) => {
     event.preventDefault();
     if (['name', 'contact', 'requirements'].some(key => !inquiry[key as FormFieldKey].trim())) { setInquiryState('validation'); return; }
@@ -189,7 +191,7 @@ function App() {
     setLanguage(normalized);
     const url = new URL(location.href);
     url.searchParams.set('lang', normalized);
-    history.replaceState(null, '', url);
+    history.replaceState({ ...history.state }, '', url);
     const params = new URLSearchParams();
     if (querySite) params.set('site', querySite);
     params.set('lang', normalized);
@@ -342,14 +344,19 @@ function App() {
     if (['name', 'contact', 'requirements'].some(key => !String(values[key] || '').trim())) throw new Error('validation');
     await api(`/api/v1/public/inquiries${querySite ? `?site=${encodeURIComponent(querySite)}` : ''}`, { method: 'POST', body: JSON.stringify({ type: 'inquiry', ...values, sourcePage: location.href }) });
   };
-  const changeProduct = (productId: string | null) => {
+  const changeProduct: StorefrontRouteChange = (next, { homeScroll }) => {
+    if (storefrontRoute.page === 'home') history.replaceState({ ...history.state, homeScroll }, '', location.href);
     const url = new URL(location.href);
+    const productId = next.page === 'product' ? next.productId : null;
     url.pathname = productId ? `${siteBasePath}/products/${encodeURIComponent(productId)}` : `${siteBasePath}/`;
-    history.pushState({ productId }, '', url);
+    const restoreScroll = next.page === 'home' ? Number(history.state?.homeScroll) || homeScroll : homeScroll;
+    const resolved: StorefrontRoute = next.page === 'home' ? { ...next, restoreScroll } : next;
+    history.pushState({ productId, homeScroll }, '', url);
     setActiveProductId(productId);
+    setStorefrontRoute(resolved);
     applySeo(site, productId);
   };
-  return <SiteRenderer config={rendererConfig} products={site.products as unknown as RendererProduct[]} categories={rendererCategories} currency={site.site.currencySymbol || site.site.defaultCurrency} brandLogoUrl={site.site.logoUrl || siteInfo?.brandLogoUrl || ''} language={language} supportedLanguages={siteLanguages} initialProductId={activeProductId} onProductChange={changeProduct} onLanguageChange={changeLanguage} onSubmitInquiry={submitRendererInquiry} translate={t} guestAccessEnabled={site.site.guestAccessEnabled} guestPriceMode={site.site.guestPriceMode} />;
+  return <SiteRenderer config={rendererConfig} products={site.products as unknown as RendererProduct[]} categories={rendererCategories} currency={site.site.currencySymbol || site.site.defaultCurrency} brandLogoUrl={site.site.logoUrl || siteInfo?.brandLogoUrl || ''} language={language} supportedLanguages={siteLanguages} route={storefrontRoute} onRouteChange={changeProduct} onLanguageChange={changeLanguage} onSubmitInquiry={submitRendererInquiry} translate={t} stickyHeader guestAccessEnabled={site.site.guestAccessEnabled} guestPriceMode={site.site.guestPriceMode} />;
   /* Legacy renderer retained temporarily for migration reference.
   const themeOpacity = typeof site.config.themeOpacity === 'number' ? site.config.themeOpacity : 100;
   const headerSection = section('header');

@@ -25,6 +25,8 @@ test('site design canvas applies the hidden guest price strategy', async ({ page
   await prepare(page, true, 'hidden');
   await page.goto('/site-editor');
   const canvas = page.locator('.editor-canvas-scroll');
+  await expect(canvas.locator('.storefront-header-shell')).toHaveCSS('position', 'static');
+  await expect(canvas.locator('.storefront-sticky-header')).toHaveCount(0);
   await expect(canvas.getByText('游客商品', { exact: true })).toBeVisible();
   await expect(canvas.getByText(/¥\s*88\.00/)).toHaveCount(0);
 });
@@ -92,7 +94,7 @@ test('site design product cards visually separate the unchanged image canvas', a
 
 test('draft preview renders the guest access disabled notice', async ({ page }) => {
   await prepare(page, false, 'hidden');
-  await page.goto('http://localhost:8088/site-preview');
+  await page.goto('/site-preview');
   const notice = page.getByRole('alert');
   await expect(notice.getByRole('heading', { name: '暂不开放游客访问' })).toBeVisible();
   await expect(notice.getByText('当前站点仅对授权客户开放，请联系站点管理员获取访问权限。')).toBeVisible();
@@ -100,7 +102,42 @@ test('draft preview renders the guest access disabled notice', async ({ page }) 
 
 test('draft preview applies the hidden guest price strategy', async ({ page }) => {
   await prepare(page, true, 'hidden');
-  await page.goto('http://localhost:8088/site-preview');
+  await page.goto('/site-preview');
   await expect(page.getByText('游客商品', { exact: true })).toBeVisible();
   await expect(page.getByText(/¥\s*88\.00/)).toHaveCount(0);
+  await page.evaluate(() => window.scrollTo(0, 300));
+  await expect.poll(async () => Math.round((await page.locator('.storefront-sticky-header').boundingBox())?.y ?? -1)).toBe(0);
+});
+
+test('site design canvas uses an internal product route and restores its own scroll position', async ({ page }) => {
+  await prepare(page, true, 'base');
+  await page.goto('/site-editor');
+  const canvas = page.locator('.editor-canvas-scroll');
+  const card = canvas.getByRole('button', { name: /游客商品/ });
+  await expect(card).toBeVisible();
+  await card.click({ trial: true });
+  const homeScroll = await canvas.evaluate(element => element.scrollTop);
+  await card.click();
+  await expect(page).toHaveURL(/\/site-editor$/);
+  await expect(canvas.locator('.product-detail-page')).toBeVisible();
+  await expect.poll(() => canvas.evaluate(element => element.scrollTop)).toBe(0);
+  await canvas.getByRole('button', { name: '首页', exact: true }).click();
+  await expect(canvas.locator('.product-detail-page')).toHaveCount(0);
+  await expect.poll(() => canvas.evaluate(element => element.scrollTop)).toBe(homeScroll);
+});
+
+test('draft preview uses a product URL and browser history restores the home page', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await prepare(page, true, 'base');
+  await page.goto('/site-preview');
+  await page.getByRole('button', { name: /游客商品/ }).click();
+  await expect(page).toHaveURL(/\/site-preview\/products\/guest-product$/);
+  await expect(page.locator('.product-detail-page')).toBeVisible();
+  await expect(page.locator('.storefront-sticky-header')).toHaveCSS('position', 'sticky');
+  await page.evaluate(() => window.scrollTo(0, 300));
+  await expect.poll(async () => Math.round((await page.locator('.storefront-sticky-header').boundingBox())?.y ?? -1)).toBe(0);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/site-preview$/);
+  await expect(page.locator('.product-detail-page')).toHaveCount(0);
+  await expect(page.getByText('游客商品', { exact: true })).toBeVisible();
 });

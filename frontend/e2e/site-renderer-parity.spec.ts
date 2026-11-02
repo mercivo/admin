@@ -8,12 +8,14 @@ test('editor, draft preview and public storefront use the shared renderer', () =
   const storefront = readFileSync(resolve(process.cwd(), '../storefront/src/main.tsx'), 'utf8');
   const activeStorefront = storefront.split('/* Legacy renderer retained temporarily')[0];
   expect(editor).toContain("import SiteRenderer, { SiteContactModal } from './SiteRenderer'");
-  expect(preview).toContain("import SiteRenderer from '../SiteEditor/SiteRenderer'");
-  expect(storefront).toContain("import SiteRenderer from '../../frontend/src/pages/SiteEditor/SiteRenderer'");
+  expect(preview).toContain("import SiteRenderer, { type StorefrontRoute, type StorefrontRouteChange } from '../SiteEditor/SiteRenderer'");
+  expect(storefront).toContain("import SiteRenderer, { type StorefrontRoute, type StorefrontRouteChange } from '../../frontend/src/pages/SiteEditor/SiteRenderer'");
   expect(editor).toContain('<SiteContactModal info={config.siteInfo}');
   expect(activeStorefront).not.toContain('<ContactModal open={contactOpen}');
   expect(editor).toContain("window.open('/site-preview'");
   expect(storefront).toContain('return <SiteRenderer config={rendererConfig}');
+  expect(preview).toContain("url.pathname = next.page === 'product' ? `/site-preview/products/");
+  expect(storefront).toContain("setStorefrontRoute(productId ? { page: 'product', productId }");
   expect(storefront).toContain('aria-label="Loading site" aria-busy="true"');
   expect(storefront).not.toContain('<p>{platform.loading}</p>');
   expect(preview).toContain('aria-label="站点加载中" aria-busy="true"');

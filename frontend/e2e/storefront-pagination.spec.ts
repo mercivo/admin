@@ -65,6 +65,23 @@ test('published storefront uses localized Ant Design pagination and clamps produ
   await expect(page.locator('.editor-language-popover')).not.toContainText('英语');
   await expect(page.locator('.editor-language-popover')).not.toContainText(/United States|United Kingdom|Taiwan|Hong Kong/);
   expect(consoleErrors.filter(message => message.includes('same key'))).toEqual([]);
+
+  await page.locator('.ant-pagination-prev').click();
+  await page.evaluate(() => { const previous = document.documentElement.style.scrollBehavior; document.documentElement.style.scrollBehavior = 'auto'; window.scrollTo(0, 420); document.documentElement.style.scrollBehavior = previous; });
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(420);
+  const homeScroll = await page.evaluate(() => window.scrollY);
+  expect(homeScroll).toBeGreaterThan(0);
+  expect(Math.round((await page.locator('.storefront-sticky-header').boundingBox())?.y ?? -1)).toBe(0);
+  await productCards.nth(3).click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe('/products/product-4');
+  await expect(page.locator('.product-detail-page')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await page.goBack();
+  await expect(page.locator('.product-detail-page')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(homeScroll);
+  await page.goForward();
+  await expect(page.locator('.product-detail-page')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 });
 
 test('public product detail paths render the shared fixed detail page', async ({ page }) => {
@@ -135,6 +152,8 @@ test('public product detail paths render the shared fixed detail page', async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${storefrontBaseUrl}/products/detail-product?site=redirect-site&lang=en_US`);
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  await page.evaluate(() => window.scrollTo(0, 400));
+  await expect.poll(async () => Math.round((await page.locator('.product-detail-sticky').boundingBox())?.y ?? -1)).toBe(0);
 
   product.priceVisible = false;
   await page.reload();
