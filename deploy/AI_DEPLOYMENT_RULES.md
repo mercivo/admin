@@ -13,7 +13,7 @@ This file is the execution contract for an AI or human operator deploying Merciv
 | API | Cloud Run `mercivo-api`, max 1 instance |
 | Admin | Cloud Run `mercivo-admin` |
 | Storefront | Cloud Run `mercivo-storefront` |
-| Database | Cloud SQL MySQL 8.4 `mercivo-mysql`, database `seo_platform` |
+| Database | Cloud SQL MySQL 8.4 `mercivo-mysql-v2`, database `seo_platform` |
 | Migration job | Cloud Run Job `mercivo-migrate` |
 | Images | Artifact Registry `asia-east1/mercivo` |
 | Runtime uploads | `gs://mercivo-images-753805870951`, prefix `production/` |

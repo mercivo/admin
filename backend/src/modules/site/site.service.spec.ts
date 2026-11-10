@@ -18,6 +18,9 @@ describe('SiteService single site model', () => {
     save: jest.fn(async (value) => ({ id: 'version-1', version: 1, ...value })),
     create: jest.fn((value) => value),
     delete: jest.fn(),
+    update: jest.fn(),
+    createQueryBuilder: jest.fn(),
+    manager: { transaction: jest.fn() },
   };
   const config = {
     get: jest.fn((key: string) => key === 'STOREFRONT_PREVIEW_HOSTS' ? 'site.aihubflux.com' : undefined),
@@ -49,10 +52,47 @@ describe('SiteService single site model', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  it('creates an apex claim with a private TXT token before provisioning', async () => {
+    const query = { addSelect: jest.fn(), where: jest.fn(), getMany: jest.fn().mockResolvedValue([]) } as any;
+    query.addSelect.mockReturnValue(query); query.where.mockReturnValue(query);
+    emptyRepo.createQueryBuilder.mockReturnValue(query);
+    siteRepo.findOne.mockResolvedValue({ id: 'site-1', tenantId: 'tenant-1' });
+
+    const result = await service.addDomain('site-1', { hostname: 'Example.com', isPrimary: true }, 'tenant-1');
+
+    expect(result).toMatchObject({ hostname: 'example.com', requestedHostname: 'example.com', isApex: true, status: 'pending_verification', routingRecord: null });
+    expect(result.verificationRecord).toMatchObject({ type: 'TXT', name: '_mercivo-verification.example.com' });
+    expect(result.verificationToken).toBeUndefined();
+    expect(customHostnames.create).not.toHaveBeenCalled();
+  });
+
+  it('returns the existing claim for the same site and rejects a claimed hostname from another site', async () => {
+    const query = { addSelect: jest.fn(), where: jest.fn(), getMany: jest.fn() } as any;
+    query.addSelect.mockReturnValue(query); query.where.mockReturnValue(query);
+    emptyRepo.createQueryBuilder.mockReturnValue(query);
+    siteRepo.findOne.mockResolvedValue({ id: 'site-1', tenantId: 'tenant-1' });
+    query.getMany.mockResolvedValueOnce([{ id: 'same', siteId: 'site-1', hostname: 'example.com', requestedHostname: 'example.com', verificationToken: 'token', status: 'pending_verification' }]);
+    await expect(service.addDomain('site-1', { hostname: 'example.com' }, 'tenant-1')).resolves.toMatchObject({ id: 'same' });
+
+    query.getMany.mockResolvedValueOnce([{ id: 'other', siteId: 'site-2', hostname: 'example.com', verificationToken: null, status: 'active' }]);
+    await expect(service.addDomain('site-1', { hostname: 'example.com' }, 'tenant-1')).rejects.toThrow('该域名已被其他站点绑定');
+  });
+
   it('activates a domain only when both the hostname and TLS are active', () => {
     const domain = { status: 'provisioning', sslStatus: 'pending', providerError: null, providerSyncedAt: null } as any;
     (service as any).applyProviderStatus(domain, { id: 'cf-1', hostname: 'shop.example.com', status: 'active', ssl: { status: 'active' } });
     expect(domain).toMatchObject({ status: 'active', sslStatus: 'active', providerError: null });
+  });
+
+  it('switches the primary domain only after the requested replacement becomes active', async () => {
+    const domain = { id: 'new-domain', siteId: 'site-1', hostname: 'example.com', status: 'pending_dns', sslStatus: 'pending', providerHostnameId: 'cf-1', isPrimary: false, primaryRequested: true } as any;
+    customHostnames.get.mockResolvedValueOnce({ id: 'cf-1', hostname: 'example.com', status: 'active', ssl: { status: 'active' } });
+    emptyRepo.manager.transaction.mockImplementationOnce(async (callback: any) => callback({ getRepository: () => emptyRepo }));
+
+    const saved = await (service as any).provisionOrSyncDomain(domain);
+
+    expect(emptyRepo.update).toHaveBeenCalledWith({ siteId: 'site-1', id: expect.anything() }, { isPrimary: false });
+    expect(saved).toMatchObject({ isPrimary: true, primaryRequested: false, status: 'active' });
   });
 
   it('keeps a domain provisioning while Cloudflare TLS is pending', () => {

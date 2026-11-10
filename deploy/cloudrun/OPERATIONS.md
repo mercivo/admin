@@ -88,13 +88,13 @@ The release `ROLLOUT.md` must say whether each numbered script runs before or af
 
 ```bash
 # Record backup ID and completion state in ROLLOUT.md.
-gcloud sql backups create --instance=mercivo-mysql \
+gcloud sql backups create --instance=mercivo-mysql-v2 \
   --description='pre-v1.1.0-data-correction'
-gcloud sql backups list --instance=mercivo-mysql --limit=3 \
+gcloud sql backups list --instance=mercivo-mysql-v2 --limit=3 \
   --format='table(id,status,startTime,endTime,description)'
 ```
 
-Wait for backup status `SUCCESSFUL`. Open Cloud SQL Studio for `mercivo-mysql`, select `seo_platform`, authenticate without copying a password into the repository, then execute the release files in numeric order. For every file:
+Wait for backup status `SUCCESSFUL`. Open Cloud SQL Studio for `mercivo-mysql-v2`, select `seo_platform`, authenticate without copying a password into the repository, then execute the release files in numeric order. For every file:
 
 1. run its pre-query and compare the count with the documented expectation;
 2. stop if the count or tenant scope differs;
@@ -134,7 +134,7 @@ gcloud config get-value project
 gcloud run services list --region=asia-east1 \
   --format='table(metadata.name,status.latestReadyRevisionName,status.url)'
 gcloud run jobs list --region=asia-east1
-gcloud sql instances describe mercivo-mysql --format='value(state)'
+gcloud sql instances describe mercivo-mysql-v2 --format='value(state)'
 gcloud builds triggers list --region=global \
   --format='table(name,disabled,github.name,github.push.branch,filename)'
 gcloud secrets list --filter='name~"mercivo-(db-password|jwt-secret|system-admin-password)"' \

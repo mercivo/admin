@@ -4,7 +4,7 @@ import { parse } from 'tldts';
 export interface NormalizedDomainInput {
   requestedHostname: string;
   hostname: string;
-  apexConverted: boolean;
+  isApex: boolean;
 }
 
 export function normalizeDomainInput(value: string): NormalizedDomainInput {
@@ -16,8 +16,12 @@ export function normalizeDomainInput(value: string): NormalizedDomainInput {
   if (labels.some(label => !label || label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label))) throw new Error('请输入有效域名');
   const parsed = parse(requestedHostname, { allowPrivateDomains: false });
   if (!parsed.domain || !parsed.isIcann) throw new Error('请输入有效的公网域名');
-  const apexConverted = requestedHostname === parsed.domain;
-  return { requestedHostname, hostname: apexConverted ? `www.${requestedHostname}` : requestedHostname, apexConverted };
+  return { requestedHostname, hostname: requestedHostname, isApex: requestedHostname === parsed.domain };
+}
+
+export function isApexHostname(hostname: string) {
+  const parsed = parse(hostname, { allowPrivateDomains: false });
+  return Boolean(parsed.domain && parsed.isIcann && hostname === parsed.domain);
 }
 
 export async function cnameChainIncludes(

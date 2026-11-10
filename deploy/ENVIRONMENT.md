@@ -48,7 +48,7 @@
 线上沿用数据库、JWT、域名和 GCS 变量，但：
 
 - `NODE_ENV=production`
-- `DB_SOCKET_PATH=/cloudsql/mercivo-admin:asia-east1:mercivo-mysql`
+- `DB_SOCKET_PATH=/cloudsql/mercivo-admin:asia-east1:mercivo-mysql-v2`
 - `GCS_OBJECT_PREFIX=production`
 - `DB_PASSWORD`、`JWT_SECRET`、`SYSTEM_ADMIN_PASSWORD` 必须来自 Secret Manager
 - Cloud Run 使用运行时服务账号访问 GCS，不配置或上传 JSON 密钥

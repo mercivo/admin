@@ -1,11 +1,11 @@
 import { cnameChainIncludes, normalizeDomainInput } from './domain-hostname';
 
 describe('normalizeDomainInput', () => {
-  it('converts an apex domain to www', () => {
+  it('keeps an apex domain unchanged', () => {
     expect(normalizeDomainInput('https://Example.com/')).toEqual({
       requestedHostname: 'example.com',
-      hostname: 'www.example.com',
-      apexConverted: true,
+      hostname: 'example.com',
+      isApex: true,
     });
   });
 
@@ -13,12 +13,12 @@ describe('normalizeDomainInput', () => {
     expect(normalizeDomainInput('shop.example.com')).toMatchObject({
       requestedHostname: 'shop.example.com',
       hostname: 'shop.example.com',
-      apexConverted: false,
+      isApex: false,
     });
   });
 
   it('recognizes multi-level public suffixes', () => {
-    expect(normalizeDomainInput('example.co.uk').hostname).toBe('www.example.co.uk');
+    expect(normalizeDomainInput('example.co.uk')).toMatchObject({ hostname: 'example.co.uk', isApex: true });
     expect(normalizeDomainInput('store.example.co.uk').hostname).toBe('store.example.co.uk');
   });
 

@@ -50,6 +50,7 @@ const messages: Array<[RegExp, string, string]> = [
   [/^当前套餐未开通自定义域名$/, '当前套餐未开通自定义域名', 'Custom domains are not included in the current plan'],
   [/^未检测到域名验证 TXT 记录$/, '未检测到域名验证 TXT 记录', 'The domain verification TXT record was not found'],
   [/^域名验证 TXT 记录不匹配$/, '域名验证 TXT 记录不匹配', 'The domain verification TXT record does not match'],
+  [/^该域名已被其他站点绑定$/, '该域名已被其他站点绑定', 'This domain is already bound to another site'],
   [/^Site preview parameter is not allowed on this host$/i, '当前域名不允许使用站点预览参数', 'The site preview parameter is not allowed on this host'],
   [/^property (.+) should not exist$/i, '字段 $1 不允许传入', 'Field $1 is not allowed'],
   [/^(.+) must be a string$/i, '字段 $1 必须是字符串', 'Field $1 must be a string'],

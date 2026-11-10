@@ -165,6 +165,7 @@ export interface SiteDomain {
   siteId: string;
   requestedHostname: string;
   hostname: string;
+  isApex: boolean;
   isPrimary: boolean;
   status: "pending_dns" | "pending_verification" | "provisioning" | "active" | "failed";
   sslStatus: "pending" | "active" | "failed";
@@ -172,7 +173,7 @@ export interface SiteDomain {
   providerSyncedAt?: string | null;
   providerValidationRecords?: Array<{ type: "TXT" | "CNAME"; name: string; value: string }> | null;
   verificationRecord?: { type: string; name: string; value: string } | null;
-  routingRecord?: { type: string; name: string; value: string };
+  routingRecord?: { type: string; name: string; value: string } | null;
   verifiedAt?: string | null;
 }
 export interface SiteVersion {

@@ -23,8 +23,8 @@ SYSTEM_ADMIN_PASSWORD=使用密码管理器生成的强密码
 1. 将 `admin.example.com` 的 A/AAAA 记录指向服务器。
 2. 将 `sites.example.com` 的 A/AAAA 记录指向服务器。
 3. 商户按后台“站点配置”中的指引添加 TXT 所有权验证记录。
-4. 商户将自定义域名 CNAME 到 `STOREFRONT_CNAME_TARGET`。
-5. 根域名不能使用 CNAME 时，使用 DNS 提供商的 ALIAS/ANAME，或直接配置 A/AAAA。
+4. 商户先添加平台生成的 `_mercivo-verification.<hostname>` TXT 完成所有权验证，再将自定义域名指向 `STOREFRONT_CNAME_TARGET`。
+5. 子域名使用 CNAME；根域名使用 DNS 提供商的 CNAME Flattening、ALIAS 或 ANAME。不支持这些能力时改用子域名，不得填写非平台分配的 A/AAAA 地址。
 
 ## 启动
 

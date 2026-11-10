@@ -1,8 +1,9 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resolver, resolveCname, resolveTxt } from 'dns/promises';
+import { randomBytes } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
 import { Site } from './site.entity';
 import { SiteDomain } from './site-domain.entity';
 import { SiteVersion } from './site-version.entity';
@@ -16,7 +17,7 @@ import { ANTD_LOCALE_SET } from '../../common/constants/antd-locales';
 import { TranslationService } from '../translation/translation.service';
 import { pageLimit, pageOffset, pageResult } from '../../common/dto/page-query.dto';
 import { CloudflareCustomHostname, CloudflareCustomHostnameService } from './cloudflare-custom-hostname.service';
-import { cnameChainIncludes, normalizeDomainInput } from './domain-hostname';
+import { cnameChainIncludes, isApexHostname, normalizeDomainInput } from './domain-hostname';
 
 @Injectable()
 export class SiteService implements OnModuleInit, OnModuleDestroy {
@@ -75,13 +76,13 @@ export class SiteService implements OnModuleInit, OnModuleDestroy {
     try { normalized = normalizeDomainInput(dto.hostname); }
     catch (error) { throw new BadRequestException(error instanceof Error ? error.message : '请输入有效域名'); }
     const { hostname, requestedHostname } = normalized;
-    if (dto.isPrimary) await this.domainRepo.update({ siteId }, { isPrimary: false });
     const isLocal = hostname.endsWith('.localhost') || hostname === 'localhost';
-    const domain = await this.domainRepo.save(this.domainRepo.create({ siteId, hostname, requestedHostname, isPrimary: dto.isPrimary ?? false, sslStatus: isLocal ? 'active' : 'pending', status: isLocal ? 'active' : 'pending_dns', verifiedAt: isLocal ? new Date() : null, verificationToken: null, providerHostnameId: null, providerError: null, providerSyncedAt: null, providerValidationRecords: null }));
-    if (!isLocal && this.customHostnames.isConfigured()) {
-      try { return this.domainDetails(await this.provisionOrSyncDomain(domain)); }
-      catch (error) { this.logger.warn(`Initial custom hostname setup failed for ${hostname}: ${this.safeProviderError(error)}`); }
-    }
+    const existing = await this.domainRepo.createQueryBuilder('domain').addSelect('domain.verificationToken').where('domain.hostname = :hostname', { hostname }).getMany();
+    const sameSite = existing.find(item => item.siteId === siteId);
+    if (sameSite) return this.domainDetails(sameSite);
+    if (existing.some(item => !item.verificationToken)) throw new BadRequestException('该域名已被其他站点绑定');
+    const wantsPrimary = dto.isPrimary ?? false;
+    const domain = await this.domainRepo.save(this.domainRepo.create({ siteId, hostname, requestedHostname, isPrimary: isLocal && wantsPrimary, primaryRequested: !isLocal && wantsPrimary, sslStatus: isLocal ? 'active' : 'pending', status: isLocal ? 'active' : 'pending_verification', verifiedAt: isLocal ? new Date() : null, verificationToken: isLocal ? null : randomBytes(24).toString('hex'), providerHostnameId: null, providerError: null, providerSyncedAt: null, providerValidationRecords: null }));
     return this.domainDetails(domain);
   }
   async verifyDomain(id: string, tenantId: string) {
@@ -101,11 +102,24 @@ export class SiteService implements OnModuleInit, OnModuleDestroy {
       }
       const expected = `mercivo-site-verification=${domain.verificationToken}`;
       if (!records.some(record => record.join('') === expected)) throw new BadRequestException('域名验证 TXT 记录不匹配');
-      domain.verifiedAt = new Date();
-      domain.verificationToken = null;
-      domain.status = 'provisioning';
-      domain.providerError = null;
-      await this.domainRepo.save(domain);
+      try {
+        await this.domainRepo.manager.transaction(async manager => {
+          const repository = manager.getRepository(SiteDomain);
+          const locked = await repository.createQueryBuilder('domain').addSelect('domain.verificationToken').setLock('pessimistic_write').where('domain.id = :id', { id: domain.id }).getOne();
+          if (!locked) throw new NotFoundException('Domain not found');
+          if (!locked.verificationToken) return;
+          if (locked.verificationToken !== domain.verificationToken) throw new BadRequestException('域名验证记录已变更，请刷新后重试');
+          locked.verifiedAt = new Date();
+          locked.verificationToken = null;
+          locked.status = 'pending_dns';
+          locked.providerError = null;
+          await repository.save(locked);
+          Object.assign(domain, locked);
+        });
+      } catch (error) {
+        if (this.isDuplicateEntry(error)) throw new BadRequestException('该域名已被其他站点绑定');
+        throw error;
+      }
     }
     return this.domainDetails(await this.provisionOrSyncDomain(domain));
   }
@@ -251,12 +265,16 @@ export class SiteService implements OnModuleInit, OnModuleDestroy {
     return min === max ? min : `${min}～${max}`;
   }
   private domainDetails(domain: SiteDomain) {
+    const verified = !domain.verificationToken;
     return {
       ...domain,
       requestedHostname: domain.requestedHostname || domain.hostname,
+      isApex: isApexHostname(domain.hostname),
+      verificationToken: undefined,
+      primaryRequested: undefined,
       providerHostnameId: undefined,
       verificationRecord: domain.verificationToken ? { type: 'TXT', name: `_mercivo-verification.${domain.hostname}`, value: `mercivo-site-verification=${domain.verificationToken}` } : null,
-      routingRecord: { type: 'CNAME', name: domain.hostname, value: this.config.get<string>('STOREFRONT_CNAME_TARGET') || 'customers.aihubflux.com' },
+      routingRecord: verified ? { type: 'CNAME', name: domain.hostname, value: this.config.get<string>('STOREFRONT_CNAME_TARGET') || 'customers.aihubflux.com' } : null,
     };
   }
   private async reconcileDomains() {
@@ -279,6 +297,15 @@ export class SiteService implements OnModuleInit, OnModuleDestroy {
       domain.providerSyncedAt = new Date();
       await this.domainRepo.save(domain);
       throw error;
+    }
+    if (domain.status === 'active' && domain.primaryRequested) {
+      return this.domainRepo.manager.transaction(async manager => {
+        const repository = manager.getRepository(SiteDomain);
+        await repository.update({ siteId: domain.siteId, id: Not(domain.id) }, { isPrimary: false });
+        domain.isPrimary = true;
+        domain.primaryRequested = false;
+        return repository.save(domain);
+      });
     }
     return this.domainRepo.save(domain);
   }
@@ -312,6 +339,10 @@ export class SiteService implements OnModuleInit, OnModuleDestroy {
   private safeProviderError(error: unknown) {
     const message = error instanceof Error ? error.message : 'Cloudflare 自定义域名服务暂时不可用';
     return message.replace(/Bearer\s+\S+/gi, 'Bearer [redacted]').slice(0, 500);
+  }
+  private isDuplicateEntry(error: unknown) {
+    const candidate = error as { code?: string; errno?: number };
+    return candidate?.code === 'ER_DUP_ENTRY' || candidate?.errno === 1062;
   }
   private xml(value: string) { return value.replace(/[<>&'"]/g, char => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[char] || char)); }
   private normalizeHost(host: string) { return host.toLowerCase().trim().replace(/^https?:\/\//, '').split('/')[0].split(':')[0]; }
